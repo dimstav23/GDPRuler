@@ -1,0 +1,5 @@
+#cloud-config
+
+password: CHANGEME.aiZ4aetiesig
+chpasswd: { expire: False }
+ssh_pwauth: False
