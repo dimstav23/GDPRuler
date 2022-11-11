@@ -1,4 +1,4 @@
-# Steps to enable and launch an ubuntu-based SEV guest:
+# Steps to enable and launch an ubuntu-based SEV guest (applied in our NixOs servers - TUM Cluster) :
 
 ### 1. Enable SEV in the desired server:
 Import the [amd_sev.nix](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/modules/amd_sev.nix) module in the server configuration. 
