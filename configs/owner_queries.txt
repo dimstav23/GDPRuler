@@ -1,0 +1,23 @@
+# Normal KV API --- Adopts the default policy settings of the owner
+query(PUT("1", "VALUE_1"))
+query(GET("1"))
+query(DELETE("1"))
+
+# GDPR-enhanced API
+## Put can specify one or more metadata properties of the KV-pair. The non-specified ones are the default of the user.
+query(put("2", "VALUE_2"))&objExp("2015-05-16T05:50:06")&objPur("analytics")&objOrig("mysite.com")&objShare("3p_pub_key_0")&objObjections("advertising")&monitor("true")
+## __GDPRuler_data placeholder indicates that the query should return all the data that comply with the accompanied predicates
+## No defaults are assumed here. The client gets the data he has access to.
+query(get("__GDPRuler_data"))&sessionKeyIs("owner_pub_key")&objPurIs("performance", "analytics") & ....
+## Similarly with the above applies to the delete
+query(delete("__GDPRuler_data"))&sessionKeyIs("owner_pub_key")&le(time, objExpIs("2015-05-16T05:50:06"))
+
+# GDPR-metadata API
+## updates the matadata of the key
+query(putm("1"))&objPurIs("analytics")&objShareIs("3p_pub_key_1")&monitor("true") & ....
+## updates the matadata of the key based on the predicates (Is-suffixed declare conditions, non-Is-suffixed declare settings)
+query(putm("__GDPRuler_metadata"))&sessionKeyIs("owner_pub_key")&objPurIs("analytics")&objShare("3p_pub_key_1","3p_pub_key_2")&monitor("true") & ....
+## gets the metadata of the key, provided the user has access to the key 
+query(getm("1"))
+## gets the metadata the user has access to, based on the predicates
+query(getm("__GDPRuler_metadata"))&sessionKeyIs("owner_pub_key")&objShareIs("3p_pub_key_1")

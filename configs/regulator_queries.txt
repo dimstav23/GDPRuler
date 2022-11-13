@@ -1,0 +1,5 @@
+# Regulator's role is to examine the logs
+## get the logs of a specific key
+query(getLogs("1"))&sessionKeyIs("regulator_key")
+## get the logs of a specific user / can be modified for every type of metadata
+query(getLogs("__regulator_log"))&sessionKeyIs("regulator)key")&objOwnerIs("owner_pub_key")

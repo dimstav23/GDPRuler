@@ -1,0 +1,8 @@
+{
+    "sessionKey": "pub_key_3p_0",
+    "default_policy": {
+        "purpose": [
+            "analytics"
+        ]
+    }
+}

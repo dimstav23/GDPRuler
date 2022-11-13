@@ -1,0 +1,2 @@
+# Third party query example
+query(get("2"))&sessionKeyIs("3p_pub_key")&objPurIs("analytics")&!objObjectionsIs("analytics")
