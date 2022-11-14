@@ -62,3 +62,15 @@ delete :- sessionKeyIs(Kauth_user) & monitor(k)
 
 ### #33 Personal data breach: Share logs from affected systems
 read :- sessionKeyIs(Kauth_user) & monitor(k)
+
+
+### Script documentation
+
+[policy_config.py](./policy_config.py): takes as an argument a policy configuration (e.g. the [owners policy config](../configs/owner_policy.json)), 
+parses the json file and returns a list of arguments to be provided to the controller to setup the user information. The output format is
+`user_policy -policy_attribute value ....`.
+
+[query_analyser.py](./query_analyser.py): takes as an argument a query, analyses its predicates and propagates the query request to the controller
+with appropriate arguments to perform the necessary checks.
+
+[helper.py](./helper.py): contains generic helper functions for the policy compiler

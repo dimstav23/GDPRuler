@@ -14,6 +14,7 @@ mkShell {
     file
     bridge-utils
     cloud-utils
+    python3
     ];
 }
 

@@ -1,5 +1,6 @@
 {
     "sessionKey": "pub_key_owner",
+    "encryption": "true",
     "default_policy": {
         "purpose": [
             "analytics",
@@ -25,34 +26,3 @@
         ]
     }
 }
-
-// {
-//     "sessionKey": "pub_key_owner",
-//     "default_policy": {
-//         "purpose": [
-//             "analytics",
-//             "performance",
-//             "personalization"
-//         ],
-//         "objection": [
-//             "advertising"
-//         ],
-//         "origin": [
-//             "website.com"
-//         ],
-//         "expTime": [
-//             "check"
-//         ],
-//         "expTimeInterval": [
-//             "1m"
-//         ]
-//         "objShare": [
-//             "pub_key_3p_0",
-//             "pub_key_3p_1",
-//             "pub_key_3p_2"
-//         ],
-//         "monitor": [
-//             "false"
-//         ]
-//     }
-// }

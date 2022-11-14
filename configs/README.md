@@ -60,17 +60,17 @@ Can be deducted through #5 and #21 predicates.
 Data is accessible only from users with the required access rights.
 They are declared through the `objShare` property of the policy of each key defined by the data owner.
 ```
-- query(get("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key") | sessionKeyIs("auth_user2_pub_key") | ...
-- query(put("2", "VALUE_2")) & sessionKeyIs("auth_user_pub_key") | sessionKeyIs("auth_user2_pub_key") | ...
-- query(delete("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key") | sessionKeyIs("auth_user2_pub_key") | ...
+- query(get("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key", "auth_user2_pub_key", ...)
+- query(put("2", "VALUE_2")) & sessionKeyIs("auth_user_pub_key", "auth_user2_pub_key", ...)
+- query(delete("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key", "auth_user2_pub_key", ...)
 ```
 
 ### #28 Processor: Do not grant unlimited access to data
 Only authorized users can access the data.
 ```
-- query(get("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key") | sessionKeyIs("auth_user2_pub_key") | ...
-- query(put("2", "VALUE_2")) & sessionKeyIs("auth_user_pub_key") | sessionKeyIs("auth_user2_pub_key") | ...
-- query(delete("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key") | sessionKeyIs("auth_user2_pub_key") | ...
+- query(get("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key", "auth_user2_pub_key", ...)
+- query(put("2", "VALUE_2")) & sessionKeyIs("auth_user_pub_key", "auth_user2_pub_key", ...)
+- query(delete("__GDPRuler_data")) & sessionKeyIs("auth_user_pub_key", "auth_user2_pub_key", ...)
 ```
 
 ### #30 Records of processing activity
