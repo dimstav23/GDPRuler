@@ -1,3 +1,6 @@
 [submodule "KVs/redis"]
 	path = KVs/redis
 	url = https://github.com/redis/redis.git
+[submodule "KVs/rocksdb"]
+	path = KVs/rocksdb
+	url = https://github.com/facebook/rocksdb.git
