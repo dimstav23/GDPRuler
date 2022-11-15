@@ -8,3 +8,5 @@
 [configs](./configs): Folder containing sample configs for data owner, data controller, data processor (3rd party) and regulator.
 
 [controller](./controller): Folder containing the core code of the data controller.
+
+[KVs](./KVs): Folder containing the KVs submodules.

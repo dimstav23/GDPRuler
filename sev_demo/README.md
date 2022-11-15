@@ -5,6 +5,11 @@ Import the [amd_sev.nix](https://github.com/TUM-DSE/doctor-cluster-config/blob/m
 An example configuration is shown [here](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/hosts/graham.nix). 
 This module sets the appropriate kernel parameters and adds the mandatory kernel modules for SME and SEV.
 
+To verify that your host can run secure guests, run the following:
+```
+sudo virt-host-validate | grep secure
+```
+
 ### 2. Verify that SME and SEV are enabled:
 - `dmesg | grep SME` should indicate `AMD Memory Encryption Features active: SME` and
 - `dmesg | grep sev` should include `sev enabled` in its output.
@@ -44,6 +49,9 @@ $ sudo virt-install \
 --network bridge=virbr0
 ```
 Have in mind that you might want to add the [policy](https://documentation.suse.com/sles/15-SP1/html/SLES-amd-sev/index.html) parameter of AMD SEV depending on your purpose.
+
+**Optional**: you can use `sudo qemu-img resize` to increase the available disk space inside the VM.
+For example: `sudo qemu-img resize /var/lib/libvirt/images/sev-guest.img +10G`
 
 ### 4. Inside the guest VM, verify that AMD SEV is enabled:
 `dmesg | grep SEV` should indicate `AMD Secure Encrypted Virtualization (SEV) active`

@@ -15,6 +15,11 @@ mkShell {
     bridge-utils
     cloud-utils
     python3
+    #redis specific packages
+    tcl
+    tcltls
+    openssl
+    jemalloc
     ];
 }
 
