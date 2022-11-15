@@ -20,26 +20,46 @@ policy_predicates = [
     "objShare",
     "objShareIs",
     "objObjections",
-    "objObjectionsIs"
+    "objObjectionsIs",
     "objOwner",
     "objOwnerIs",
     "monitor",
     "query"
 ]
 
+def has_not(pred_attr):
+    if pred_attr[0] == '!':
+        return (pred_attr[1:], '!')
+    else:
+        return (pred_attr, '')
+
 def analyze_query(query):
     '''
     Policy predicates are separated by '&'.
-    The '|' relationship is specified in the predicates through multiple specified values.
+    The '|' relationship is specified in the predicates through 
+    multiple specified values.
     e.g. sessionKeyIs("auth_user_pub_key", "auth_user2_pub_key", ...)
     Hence, it makes sense to split them based on "&" symbol.
     '''
-    query = query.rstrip().split("&")
-    print(query)
+    query = query.strip().split("&")
+    query_cmd = "" # variable for the actual query requested
+    filter = "" # variable with the predicates parameter for the controller
     for pred in query:
-        pred_type = pred.split('(')[0]
-        print(pred_type)
-    return
+        pred_attr = pred.split('(')[0]
+        (pred_attr, negated) = has_not(pred_attr)
+        if pred_attr not in policy_predicates:
+            print(f"We do not support policy predicate: {pred_attr}")
+            sys.exit(1)
+            
+        pred_val = pred.split(pred_attr)[1][1:-1]
+        if (pred_attr == "query"):
+            query_cmd = pred_val
+        else:
+            filter += (f" -{pred_attr} {negated}{pred_val}") 
+    
+    # print(query_cmd, filter)
+    res = execute_query(query_cmd, filter)
+    return 
 
 def main():
     queries_file = sys.argv[1] # the file containing the queries to test
