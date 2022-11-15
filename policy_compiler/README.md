@@ -70,7 +70,9 @@ read :- sessionKeyIs(Kauth_user) & monitor(k)
 parses the json file and returns a list of arguments to be provided to the controller to setup the user information. The output format is
 `user_policy -policy_attribute value ....`.
 
-[query_analyser.py](./query_analyser.py): takes as an argument a query, analyses its predicates and propagates the query request to the controller
-with appropriate arguments to perform the necessary checks.
+[query_analyser.py](./query_analyser.py): takes as an argument a query, analyses its predicates and propagates the query request to the KV_interface
+with appropriate arguments to perform the necessary checks and forward the action to the controller
 
 [helper.py](./helper.py): contains generic helper functions for the policy compiler
+
+[KV_interface.py](./KV_interface.py): performs the query multiplexing and contains the handlers for each define KV query type
