@@ -1,7 +1,7 @@
 # GDPRuler
 
 ### Repository structure
-[sev_demo](./sev_demo): Folder containing documentation for setting up an ubuntu based AMD SEV VM.
+[sev_demo](./sev_demo): Folder containing documentation for setting up an ubuntu based AMD SEV VM and perform proof tests.
 
 [policy_compiler](./policy_compiler): Folder containing the policy compiler.
 
@@ -10,3 +10,5 @@
 [controller](./controller): Folder containing the core code of the data controller.
 
 [KVs](./KVs): Folder containing the KVs submodules.
+
+[sev-tool](./sev-tool/): submodule providing AMD SEV functionalities

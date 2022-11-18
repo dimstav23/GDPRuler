@@ -67,6 +67,10 @@ virsh net-update default add ip-dhcp-host \
            --live --config
 ```
 
+### 6. To perform further functionality-proof testing:
+1. To test SME and TSME, look [here](./amd-mem-encryption-tests/).
+2. To verify the AMD SEV encryption, look [here](./amd-sev-encryption-tests/).
+
 ### Notes
 - To create a domain and get a console to the VM: `sudo virsh create --file amdsev_demo.xml --console`
 - To enable a console for the guest VM, check [here](https://serverfault.com/questions/364895/virsh-vm-console-does-not-show-any-output).
