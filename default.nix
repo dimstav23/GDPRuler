@@ -1,10 +1,14 @@
 with import <nixpkgs> { };
 mkShell {
   nativeBuildInputs = [
+    #for the kernel module build
     cpuid
     dmidecode
     msr
     linux.dev
+
+    #for the sev-tool
+    automake
 
     bashInteractive
     dnsmasq
