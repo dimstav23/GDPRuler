@@ -1,0 +1,3 @@
+*.img
+*pycache*
+plain_vm/
