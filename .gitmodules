@@ -7,3 +7,6 @@
 [submodule "sev_demo/amd-mem-encryption-tests"]
 	path = sev_demo/amd-mem-encryption-tests
 	url = https://github.com/dimstav23/amd-mem-encryption-tests.git
+[submodule "sev-tool"]
+	path = sev-tool
+	url = https://github.com/AMDESE/sev-tool.git
