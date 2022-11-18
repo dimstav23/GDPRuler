@@ -74,4 +74,4 @@ virsh net-update default add ip-dhcp-host \
 If it seems to get stuck, just press Enter.
 - After you make sure that networking works fine and you can reach the VM guest from the host, you can log-in the VM using ssh (after placing your ssh keys in the `~/.ssh/autorhized_keys` file of the guest VM) 
 - The aforementioned process can also be performed using the [`plain_vm.xml`](./plain_vm.xml) provided here. Be aware that you have to perform again
-the process described in [step 3](#3-follow-the-instructions-presented-herehttpsgithubcommasheenistamdsevblobmainreadmemd-or-herehttpsdocsovhcomusendedicatedenable-and-use-amd-sme-sev-to-launch-an-sev-guest).
+the process described in **step 3** where you should modify the `sev-guest` prefixed files/images.
