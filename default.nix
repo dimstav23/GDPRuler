@@ -4,6 +4,8 @@ mkShell {
     cpuid
     dmidecode
     msr
+    linux.dev
+
     bashInteractive
     dnsmasq
     pkg-config
