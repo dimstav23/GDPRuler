@@ -1,6 +1,9 @@
 with import <nixpkgs> { };
 mkShell {
   nativeBuildInputs = [
+    cpuid
+    dmidecode
+    msr
     bashInteractive
     dnsmasq
     pkg-config

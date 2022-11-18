@@ -4,3 +4,6 @@
 [submodule "KVs/rocksdb"]
 	path = KVs/rocksdb
 	url = https://github.com/facebook/rocksdb.git
+[submodule "sev_demo/amd-mem-encryption-tests"]
+	path = sev_demo/amd-mem-encryption-tests
+	url = https://github.com/dimstav23/amd-mem-encryption-tests.git
