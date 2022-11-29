@@ -38,5 +38,9 @@ mkShell {
     zlib
     gflags
     ];
+  
+  shellHook = ''
+    export KDIR=${linux.dev}/lib/modules/${linux.dev.modDirVersion}/build
+  ''; 
 }
 
