@@ -10,3 +10,6 @@
 [submodule "sev-tool"]
 	path = sev-tool
 	url = https://github.com/AMDESE/sev-tool.git
+[submodule "trace-generator"]
+	path = trace-generator
+	url = git@github.com:dimstav23/trace-generator.git
