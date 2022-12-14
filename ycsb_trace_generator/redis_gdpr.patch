@@ -1,0 +1,120 @@
+diff --git a/src/expire.c b/src/expire.c
+index ce7882e4c..f04677a92 100644
+--- a/src/expire.c
++++ b/src/expire.c
+@@ -146,7 +146,7 @@ void activeExpireCycle(int type) {
+     long total_sampled = 0;
+     long total_expired = 0;
+ 
+-    for (j = 0; j < dbs_per_call && timelimit_exit == 0; j++) {
++    //for (j = 0; j < dbs_per_call && timelimit_exit == 0; j++) {
+         int expired;
+         redisDb *db = server.db+(current_db % server.dbnum);
+ 
+@@ -157,8 +157,8 @@ void activeExpireCycle(int type) {
+ 
+         /* Continue to expire if at the end of the cycle more than 25%
+          * of the keys were expired. */
+-        do {
+-            unsigned long num, slots;
++        //do {
++            unsigned long num, slots, total_num;
+             long long now, ttl_sum;
+             int ttl_samples;
+             iteration++;
+@@ -166,7 +166,7 @@ void activeExpireCycle(int type) {
+             /* If there is nothing to expire try next DB ASAP. */
+             if ((num = dictSize(db->expires)) == 0) {
+                 db->avg_ttl = 0;
+-                break;
++                goto god_knows_what; 
+             }
+             slots = dictSlots(db->expires);
+             now = mstime();
+@@ -174,8 +174,8 @@ void activeExpireCycle(int type) {
+             /* When there are less than 1% filled slots getting random
+              * keys is expensive, so stop here waiting for better times...
+              * The dictionary will be resized asap. */
+-            if (num && slots > DICT_HT_INITIAL_SIZE &&
+-                (num*100/slots < 1)) break;
++            /*if (num && slots > DICT_HT_INITIAL_SIZE &&
++                (num*100/slots < 1)) break; */
+ 
+             /* The main collection cycle. Sample random keys among keys
+              * with an expire set, checking for expired ones. */
+@@ -183,14 +183,17 @@ void activeExpireCycle(int type) {
+             ttl_sum = 0;
+             ttl_samples = 0;
+ 
+-            if (num > ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP)
+-                num = ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP;
++            //if (num > ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP)
++            //    num = ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP;
+ 
+-            while (num--) {
+-                dictEntry *de;
++            total_num = num;
++            //while (num--) {
++            dictEntry *de;
++            dictIterator *di;
++            di = dictGetSafeIterator(db->expires);
++            while ((de = dictNext(di)) != NULL) {
+                 long long ttl;
+-
+-                if ((de = dictGetRandomKey(db->expires)) == NULL) break;
++                //if ((de = dictGetRandomKey(db->expires)) == NULL) break;
+                 ttl = dictGetSignedIntegerVal(de)-now;
+                 if (activeExpireCycleTryExpire(db,de,now)) expired++;
+                 if (ttl > 0) {
+@@ -213,25 +216,33 @@ void activeExpireCycle(int type) {
+                 db->avg_ttl = (db->avg_ttl/50)*49 + (avg_ttl/50);
+             }
+ 
++            //timelimit_exit = 1;
++            //server.stat_expired_time_cap_reached_count++;
++
+             /* We can't block forever here even if there are many keys to
+              * expire. So after a given amount of milliseconds return to the
+              * caller waiting for the other active expire cycle. */
+-            if ((iteration & 0xf) == 0) { /* check once every 16 iterations. */
++            /*if ((iteration & 0xf) == 0) { /* check once every 16 iterations. /
+                 elapsed = ustime()-start;
+                 if (elapsed > timelimit) {
+                     timelimit_exit = 1;
+                     server.stat_expired_time_cap_reached_count++;
+                     break;
+                 }
+-            }
++            }*/
+             /* We don't repeat the cycle if there are less than 25% of keys
+              * found expired in the current DB. */
+-        } while (expired > ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP/4);
+-    }
++        //} while (expired > 0);// ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP/4);
++    //}
++
++god_knows_what:
+ 
+     elapsed = ustime()-start;
+     latencyAddSampleIfNeeded("expire-cycle",elapsed/1000);
+ 
++    //printf(stderr,"Times elapsed in this loop %l   num of keys: %l \n", elapsed/1000, num);
++    //serverLog(LL_VERBOSE,"Time elapsed: %lld secs (%lld num of keys) total expired  %lld",elapsed/1000, total_num, total_expired);
++    
+     /* Update our estimate of keys existing but yet to be expired.
+      * Running average with this sample accounting for 5%. */
+     double current_perc;
+diff --git a/src/t_hash.c b/src/t_hash.c
+index fa3a893a6..27769c6a9 100644
+--- a/src/t_hash.c
++++ b/src/t_hash.c
+@@ -769,6 +769,9 @@ void genericHgetallCommand(client *c, int flags) {
+     int multiplier = 0;
+     int length, count = 0;
+ 
++    notifyKeyspaceEvent(NOTIFY_HASH,"hgetall",c->argv[1],c->db->id);
++    server.dirty++;
++ 
+     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.emptymultibulk)) == NULL
+         || checkType(c,o,OBJ_HASH)) return;
+ 

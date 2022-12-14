@@ -56,3 +56,15 @@ Load A Run A, Load A Run B, Load A Run C, Load A Run F, Load A Run D, Load E Run
 
 For GDPR workloads we load and run the workloads as described
 [here](https://github.com/GDPRbench/GDPRbench#benchmarking).
+
+### To run GDPRbench with GDPR-compliant Redis
+To fetch and adapt Redis, run the following in the current directory:
+```
+git clone git@github.com:redis/redis.git
+cd redis
+git checkout 4.0.11
+git apply ../redis_gdpr.patch
+```
+Then, proceed to build and test redis as usual (e.g., using `make`).
+The provided patch is an adaptation of [this](https://github.com/GDPRbench/redis-gdpr) to avoid potential compilation issues.
+If you encounter any problems, you can try the [original one](https://github.com/GDPRbench/redis-gdpr/blob/master/src/gdpr-compliance.diff) provided by the GDPRbench paper authors.
