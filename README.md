@@ -12,3 +12,5 @@
 [KVs](./KVs): Folder containing the KVs submodules.
 
 [sev-tool](./sev-tool/): submodule providing AMD SEV functionalities
+
+[ycsb_trace_generator](./ycsb_trace_generator/): submodule containing a modified version of GDPRBench (YCSB-based) to produce workload traces

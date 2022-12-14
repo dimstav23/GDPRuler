@@ -10,3 +10,6 @@
 [submodule "sev-tool"]
 	path = sev-tool
 	url = https://github.com/AMDESE/sev-tool.git
+[submodule "ycsb_trace_generator/GDPRbench"]
+	path = ycsb_trace_generator/GDPRbench
+	url = https://github.com/dimstav23/GDPRbench.git
