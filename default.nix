@@ -41,6 +41,7 @@ mkShell {
     #GDPRBench specific packages
     maven
     jdk11
+    python2
     ];
   
   shellHook = ''
