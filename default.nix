@@ -37,6 +37,10 @@ mkShell {
     snappy
     zlib
     gflags
+
+    #GDPRBench specific packages
+    maven
+    jdk11
     ];
   
   shellHook = ''
