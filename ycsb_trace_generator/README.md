@@ -32,8 +32,8 @@ GDPRuler metadata fields and their associated enums in the code:
 The origin(`SRC`) and data owner(`USR`) are currently considered immutable fields, which means that they cannot be modified through `PUTM` queries.
 
 ### Differences compared to GDPRBench workloads
-1. in YCSB core workloads, keys are prefixed with the string "user" (https://github.com/GDPRbench/GDPRbench/blob/94d399c099de9819b493fd5e4b553b54376dcead/src/core/src/main/java/com/yahoo/ycsb/workloads/CoreWorkload.java#L526)
-2. in GDPR core workloads, keys are prefixed with the string "key" (https://github.com/GDPRbench/GDPRbench/blob/94d399c099de9819b493fd5e4b553b54376dcead/src/core/src/main/java/com/yahoo/ycsb/workloads/GDPRWorkload.java#L647)
+1. in YCSB core workloads, keys are prefixed with the string "user" ([source](https://github.com/dimstav23/GDPRbench/blob/1ba575486b25ae45f45ba75d2c4e834a1e398d5b/src/core/src/main/java/com/yahoo/ycsb/workloads/CoreWorkload.java#L526)).
+2. in GDPR core workloads, keys are prefixed with the string "key" ([source](https://github.com/dimstav23/GDPRbench/blob/1ba575486b25ae45f45ba75d2c4e834a1e398d5b/src/core/src/main/java/com/yahoo/ycsb/workloads/GDPRWorkload.java#L647)).
 3. the Core workload values are the fields generated concatenated into a String (default: 10 fields, 100 bytes each -> 1000bytes)
    while the GDPR workload values are set via the `fieldlength` parameter in the workload file
 4. for the Update operation in the Core workloads, we set the `writeallfields` to update all the fields of the value 
