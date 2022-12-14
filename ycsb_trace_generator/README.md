@@ -1,20 +1,22 @@
 # YCSB and GDPR workload trace generator
 
 ### Important files and usage
-The [`workload_generator.sh](./workload_generator.sh) script generates the workload traces.
+The [`workload_generator.sh`](./workload_generator.sh) script generates the workload traces.
 Before running the script, adapt the `TRACE_FOLDER` variable to point to the directory where your traces want to be stored.
 To generate the workloads run:
 ```
 ./workload_generator.sh
 ```
-This script executes all the workloads (core YCSB and GDPR workloads) and generates traces.
+This script executes all the workloads (core YCSB and GDPR workloads) and generates the respective traces.
+Note that, to limit the size of the resulting files, the values are marked with the placeholder VAL.
+If you want to have actual, random generated values in the workload traces, set `mockvalues=false` in the workload configuration files.
 
 **Important files:**
-1. The workload configuration files are placed [here](./GDPRbench/src/tracer_workloads/).
-2. The dummy tracer client is located [here](./GDPRbench/src/tracer/src/main/java/com/yahoo/ycsb/db/TracerClient.java)
-3. The adapted GDPR workload class is located [here](./GDPRbench/src/core/src/main/java/com/yahoo/ycsb/workloads/GDPRWorkload.java)
-4. For comparison, the default Core workload class is [here](./GDPRbench/src/core/src/main/java/com/yahoo/ycsb/workloads/CoreWorkload.java) 
-and the sample Redis Client provided by GDPRBench is [here](./GDPRbench/src/redis/src/main/java/com/yahoo/ycsb/db/RedisClient.java)
+1. The workload configuration files are placed [here](https://github.com/dimstav23/GDPRbench/tree/master/src/tracer_workloads).
+2. The dummy tracer client is located [here](https://github.com/dimstav23/GDPRbench/tree/master/src/tracer/src/main/java/com/yahoo/ycsb/db/TracerClient.java)
+3. The adapted GDPR workload class is located [here](https://github.com/dimstav23/GDPRbench/tree/master/src/core/src/main/java/com/yahoo/ycsb/workloads/GDPRWorkload.java)
+4. For comparison, the default Core workload class is [here](https://github.com/dimstav23/GDPRbench/tree/master/src/core/src/main/java/com/yahoo/ycsb/workloads/CoreWorkload.java) 
+and the sample Redis Client provided by GDPRBench is [here](https://github.com/dimstav23/GDPRbench/tree/master/src/redis/src/main/java/com/yahoo/ycsb/db/RedisClient.java)
 
 ### GDPR metadata
 GDPRuler metadata fields and their associated enums in the code:
