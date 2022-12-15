@@ -1,6 +1,7 @@
 import sys
 import json
 from helper import safe_open
+import argparse
 
 mandatory_keys = ["sessionKey", "default_policy"]
 
@@ -27,8 +28,13 @@ def check_config(user_policy):
         return False
     return True
 
-def main():
-    user_policy = sys.argv[1] # the file containing the user config
+def main():   
+    parser = argparse.ArgumentParser(description='Process a default policy configuration.')
+    parser.add_argument('-f', '--file', help='path to the configuration file', 
+                        dest='path', default=None, nargs=1, required=True, type=str)
+    args = parser.parse_args(sys.argv[1:]) # to exclude the script name
+    
+    user_policy = args.path[0] # the file containing the user config
     user_policy = safe_open(user_policy, "r")
     user_policy = json.load(user_policy)
 

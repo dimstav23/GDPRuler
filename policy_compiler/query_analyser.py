@@ -2,6 +2,7 @@ import sys
 import json
 from helper import safe_open
 from KV_interface import *
+import argparse
 
 policy_predicates = [
     "eq",
@@ -62,7 +63,12 @@ def analyze_query(query):
     return 
 
 def main():
-    queries_file = sys.argv[1] # the file containing the queries to test
+    parser = argparse.ArgumentParser(description='Analyse a GDPRuler query workload trace.')
+    parser.add_argument('-f', '--file', help='path to the workload trace file', 
+                        dest='path', default=None, nargs=1, required=True, type=str)
+    args = parser.parse_args(sys.argv[1:]) # to exclude the script name
+
+    queries_file = args.path[0] # the file containing the queries to test
     queries_file = safe_open(queries_file, "r")
     queries = queries_file.readlines()
     
