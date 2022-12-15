@@ -10,6 +10,7 @@ mkShell {
     #for the sev-tool
     automake
 
+    #general
     bashInteractive
     dnsmasq
     pkg-config
@@ -22,7 +23,10 @@ mkShell {
     file
     bridge-utils
     cloud-utils
-    python3
+    (python3.withPackages (ps: [
+      ps.pandas
+      ps.pip
+    ]))
 
     #redis specific packages
     tcl
@@ -42,6 +46,15 @@ mkShell {
     maven
     jdk11
     python2
+
+    #for the controller
+    cmake
+    git
+    clang
+    cppcheck
+    doxygen
+    codespell
+
     ];
   
   shellHook = ''

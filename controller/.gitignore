@@ -6,4 +6,3 @@ cmake/open-cpp-coverage.cmake
 cmake-build-*/
 prefix/
 CMakeLists.txt.user
-CMakeUserPresets.json
