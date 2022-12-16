@@ -16,8 +16,10 @@ include(cmake/variables.cmake)
 # ---- Declare library ----
 
 add_library(
-    gdpr_controller_lib OBJECT
+    gdpr_controller_lib SHARED
     source/lib.cpp
+    source/connection.cpp
+    source/kv_interface.cpp
 )
 
 target_include_directories(
