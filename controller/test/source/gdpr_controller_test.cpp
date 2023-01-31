@@ -1,10 +1,10 @@
-#include "lib.hpp"
+#include "default_policy.hpp"
 
-using controller::library;
+using controller::default_policy;
 
 auto main() -> int
 {
-  auto const lib = library {};
+  auto const def_policy = default_policy {};
 
-  return lib.name() == "gdpr_controller" ? 0 : 1;
+  return def_policy.name() == "gdpr_controller_default_policy" ? 0 : 1;
 }

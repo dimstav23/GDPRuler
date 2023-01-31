@@ -1,7 +1,7 @@
 import sys
 import json
 from helper import safe_open
-from KV_interface import *
+from KV_interface import rewrite_query
 import argparse
 
 policy_predicates = [
@@ -59,8 +59,7 @@ def analyze_query(query):
             filter += (f" -{pred_attr} {negated}{pred_val}") 
     
     # print(query_cmd, filter)
-    res = execute_query(query_cmd, filter)
-    return 
+    return rewrite_query(query_cmd, filter)
 
 def main():
     parser = argparse.ArgumentParser(description='Analyse a GDPRuler query workload trace.')
@@ -73,7 +72,9 @@ def main():
     queries = queries_file.readlines()
     
     for query in queries:
-        analyze_query(query.rstrip())
+        print(analyze_query(query.rstrip()))
+    
+    return
 
 if __name__ == "__main__":
     main()

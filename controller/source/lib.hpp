@@ -4,6 +4,11 @@
 
 namespace controller {
 
+// uint64_t pur = 0;
+// uint64_t obj = 0;
+// uint64_t shr = 0;
+// uint64_t obj = 0;
+
 class library
 {
 public:

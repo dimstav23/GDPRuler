@@ -22,7 +22,7 @@ def getKey(query_args):
         print("No key specified for requested query.")
         exit(1)
     
-def execute_query(query, metadata):
+def rewrite_query(query, metadata):
     return query_multiplexer(query, metadata)
 
 def query_multiplexer(query, metadata):
@@ -33,73 +33,62 @@ def query_multiplexer(query, metadata):
     
     if query_cmd == "put":
         V = getValue(query_args)
-        put_filtered(K, V, metadata) 
+        return put_filtered(K, V, metadata) 
     elif query_cmd == "get":
-        get_filtered(K, metadata)
+        return get_filtered(K, metadata)
     elif query_cmd == "delete":
-        delete_filtered(K, metadata)
+        return delete_filtered(K, metadata)
     elif query_cmd == "putm":
-        putm(K, metadata) 
+        return putm(K, metadata) 
     elif query_cmd == "getm":
-        getm(K, metadata)
+        return getm(K, metadata)
     elif query_cmd == "deletem":
-        deletem(K, metadata)
+        return deletem(K, metadata)
     elif query_cmd == "getlogs":
-        getLogs(K, metadata)
+        return getLogs(K, metadata)
     else:
         print(f"Query type {query_cmd} not supported")
         exit(1)
-    return True
 
 # intact KV API
 def put(K, V):
-    print(f"put {K} {V}")
-    return
+    return (f"put {K} {V}")
 
 def get(K):
-    print(f"get {K}")
-    return
+    return (f"get {K}")
 
 def delete(K):
-    print(f"delete {K}")
-    return
+    return (f"delete {K}")
 
 # GDPR-enhanced API
 def put_filtered(K, V, metadata):
     if metadata == "":
         return put(K, V)
     
-    print(f"put_filtered {K} {V} {metadata}")
-    return
+    return (f"put {K} {V} {metadata}")
 
 def get_filtered(K, metadata):
     if metadata == "":
         return get(K)
     
-    print(f"get_filtered {K} {metadata}")
-    return
+    return (f"get {K} {metadata}")
 
 def delete_filtered(K, metadata):
     if metadata == "":
         return delete(K)
     
-    print(f"delete_filtered {K} {metadata}")
-    return
+    return (f"delete {K} {metadata}")
 
 # GDPR-metadata API
 def putm(K, metadata):
-    print(f"putm {K} {metadata}")
-    return
+    return (f"putm {K} {metadata}")
 
 def getm(K, metadata):
-    print(f"getm {K} {metadata}")
-    return
+    return (f"getm {K} {metadata}")
 
 def deletem(K, metadata):
-    print(f"deletem {K} {metadata}")
-    return
+    return (f"deletem {K} {metadata}")
 
 # Regulator API
 def getLogs(K, metadata):
-    print(f"getLogs {K} {metadata}")
-    return
+    return (f"getLogs {K} {metadata}")

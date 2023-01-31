@@ -28,21 +28,25 @@ def check_config(user_policy):
         return False
     return True
 
-def main():   
-    parser = argparse.ArgumentParser(description='Process a default policy configuration.')
-    parser.add_argument('-f', '--file', help='path to the configuration file', 
-                        dest='path', default=None, nargs=1, required=True, type=str)
-    args = parser.parse_args(sys.argv[1:]) # to exclude the script name
-    
-    user_policy = args.path[0] # the file containing the user config
-    user_policy = safe_open(user_policy, "r")
-    user_policy = json.load(user_policy)
+# parse user policy and return the setup
+def parse_user_policy(user_policy):
+  if (check_config(user_policy)):
+    return setup_user(user_policy)
+  else:
+    return None
 
-    if (check_config(user_policy)):
-        # print(setup_user(user_policy))
-        return setup_user(user_policy)
-    else:
-        return None
+def main():   
+  parser = argparse.ArgumentParser(description='Process a default policy configuration.')
+  parser.add_argument('-f', '--file', help='path to the configuration file', 
+                        dest='path', default=None, nargs=1, required=True, type=str)
+  args = parser.parse_args(sys.argv[1:]) # to exclude the script name
+    
+  user_policy = args.path[0] # the file containing the user config
+  user_policy = safe_open(user_policy, "r")
+  user_policy = json.load(user_policy)
+
+  print(parse_user_policy(user_policy))
+  return
 
 if __name__ == "__main__":
     main()

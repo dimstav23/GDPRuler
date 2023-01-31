@@ -1,26 +1,52 @@
 #include <iostream>
 #include <string>
+#include "absl/strings/match.h" // for StartsWith function
 
-#include "lib.hpp"
-#include "connection.hpp"
-#include "kv_interface.hpp"
+#include "default_policy.hpp"
+#include "redis.hpp"
 
-using controller::library;
-using controller::connection;
-using controller::kv_interface;
+using controller::default_policy;
 
 auto main() -> int
-{
-  auto const lib = library {};
-  auto const message = "Hello from " + lib.name() + "!";
-  std::cout << message << '\n';
+{ 
+  // read the default policy line
+  std::string def_policy_line;
+  std::getline(std::cin, def_policy_line);
+  default_policy def_policy;
 
-  auto const conn = connection {};
-  auto const message_conn = "Hello from " + conn.name() + "!";
-  std::cout << message_conn << '\n';
+  if (absl::StartsWith(def_policy_line, controller::def_policy_prefix)) {
+    def_policy = default_policy{def_policy_line};
+  } else {
+    std::cout << "Invalid default policy provided\n";
+    return 1;
+  }
+  // /* output expected from GDPRuler.py */
+  // std::cout << "default_policy:OK" << "\n";
 
-  auto const kv_api = kv_interface {};
-  auto const message_kv = "Hello from " + kv_api.name() + "!";
-  std::cout << message_kv << '\n';
+  redis_client client("tcp://127.0.0.1:6379");
+  std::string command;
+  std::string key;
+  std::string value;
+  
+  while (true) {
+    std::cin >> command;
+    if (command == "get") {
+      std::cin >> key;
+      // client.get(key);
+    } else if (command == "put") {
+      std::cin >> key;
+      std::cin >> value;
+      // client.put(key, value);
+    } else if (command == "del") {
+      std::cin >> key;
+      // client.del(key);
+    } else if (command == "exit") {
+      std::cout << "Exiting..." << std::endl;
+      break;
+    } else {
+      std::cout << "Invalid command" << std::endl;
+      break;
+    }
+  }
   return 0;
 }

@@ -1,4 +1,11 @@
 with import <nixpkgs> { };
+let
+  pythonEnv = python3.withPackages (ps: [
+      ps.pandas
+      ps.pexpect
+      ps.matplotlib
+    ]);
+in
 mkShell {
   nativeBuildInputs = [
     #for the kernel module build
@@ -23,16 +30,14 @@ mkShell {
     file
     bridge-utils
     cloud-utils
-    (python3.withPackages (ps: [
-      ps.pandas
-      ps.pip
-    ]))
 
     #redis specific packages
     tcl
     tcltls
     openssl
     jemalloc
+    hiredis
+    redis-plus-plus
 
     #rockdb specific packages
     clang-tools
@@ -54,11 +59,13 @@ mkShell {
     cppcheck
     doxygen
     codespell
+    abseil-cpp
 
     ];
   
   shellHook = ''
     export KDIR=${linux.dev}/lib/modules/${linux.dev.modDirVersion}/build
+    export PATH=${pythonEnv}/bin:$PATH
   ''; 
 }
 

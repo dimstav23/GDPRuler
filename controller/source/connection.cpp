@@ -13,7 +13,7 @@ connection::connection()
 
 auto connection::name() const -> std::string
 {
-    return this->m_name;
+  return this->m_name;
 }
 
 } // namespace controller
