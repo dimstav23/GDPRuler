@@ -1,25 +1,25 @@
 {
-    "sessionKey": "pub_key_owner",
+    "sessionKey": "user0",
     "encryption": "true",
     "default_policy": {
         "purpose": [
-            "analytics",
-            "performance",
-            "personalization"
+            "purpose0",
+            "purpose1",
+            "purpose2"
         ],
         "objection": [
-            "advertising"
+            "purpose3"
         ],
         "origin": [
-            "website.com"
+            "src0"
         ],
         "expTime": [
-            "none"
+            "0"
         ],
         "objShare": [
-            "pub_key_3p_0",
-            "pub_key_3p_1",
-            "pub_key_3p_2"
+            "user1",
+            "user2",
+            "user3"
         ],
         "monitor": [
             "false"

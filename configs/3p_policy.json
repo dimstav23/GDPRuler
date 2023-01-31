@@ -1,8 +1,8 @@
 {
-    "sessionKey": "pub_key_3p_0",
+    "sessionKey": "user1",
     "default_policy": {
         "purpose": [
-            "analytics"
+            "purpose1"
         ]
     }
 }
