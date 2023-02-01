@@ -20,6 +20,7 @@ public:
 
 	[[nodiscard]] auto name() const -> std::string;
 
+  /* private members getters */
   [[nodiscard]] auto user_key() const -> std::string;
   [[nodiscard]] auto encryption() const -> bool;
   [[nodiscard]] auto purpose() const -> std::bitset<num_purposes>;
@@ -43,9 +44,6 @@ private:
   bool m_monitor;
 
   static auto check_policy(const std::unordered_map<std::string, std::string> &map) -> void;
-
-  template<std::size_t N>
-  auto set_bitmap(std::bitset<N> &bits, const std::vector<std::string> &bit_keys) -> void;
 };
 
 } // namespace controller

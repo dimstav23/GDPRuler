@@ -25,6 +25,20 @@ auto inline get_pur() -> std::unordered_map<std::string, std::size_t>
   return pur_index;
 }
 
+/* 
+ *  takes as arguments a bitset and a vector of strings
+ *  identifies the respective bit for each key based on the defined map of purposes
+ *  and sets the appropriate bits
+ */
+template<std::size_t N>
+auto inline set_bitmap(std::bitset<N> &bits, const std::vector<std::string> &bit_keys) -> void {
+  std::size_t index = 0;
+  for (const auto &bit_key : bit_keys) {
+    index = get_pur()[bit_key];
+    bits.set(index);
+  }
+}
+
 auto inline split_comma_string(const std::string &str) -> std::vector<std::string> {
   std::vector<std::string> result;
   std::istringstream sstream(str);

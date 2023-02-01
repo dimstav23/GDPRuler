@@ -51,24 +51,10 @@ auto default_policy::check_policy(const std::unordered_map<std::string, std::str
   std::vector<std::string> options = {"-sessionKey", "-encryption", "-purpose", "-objection", 
                                       "-origin", "-expTime", "-objShare", "-monitor"};
   for (const auto &option : options) {
-    if (map.count(option) == 0) {
+    if (!map.contains(option)) {
       std::string error_message = "Error: option " + option + " not provided.";
       throw std::invalid_argument(error_message);
     }
-  }
-}
-
-/* 
- *  takes as arguments a bitset and a vector of strings
- *  identifies the respective bit for each key based on the defined map of purposes
- *  and sets the appropriate bits
- */
-template<std::size_t N>
-auto default_policy::set_bitmap(std::bitset<N> &bits, const std::vector<std::string> &bit_keys) -> void {
-  std::size_t index = 0;
-  for (const auto &bit_key : bit_keys) {
-    index = get_pur()[bit_key];
-    bits.set(index);
   }
 }
 
@@ -77,30 +63,25 @@ auto default_policy::name() const -> std::string
   return this->m_name;
 }
 
-
 auto default_policy::user_key() const -> std::string
 {
   return this->m_user_key;
 }
-
 
 auto default_policy::encryption() const -> bool
 {
   return this->m_encryption;
 }
 
-
 auto default_policy::purpose() const -> std::bitset<num_purposes>
 {
   return this->m_purpose;
 }
 
-
 auto default_policy::objection() const -> std::bitset<num_purposes>
 {
   return this->m_objection;
 }
-
 
 auto default_policy::origin() const -> std::string
 {
@@ -111,7 +92,6 @@ auto default_policy::expiration() const -> int64_t
 {
   return this->m_expiration;
 }
-
 
 auto default_policy::share() const -> std::string
 {

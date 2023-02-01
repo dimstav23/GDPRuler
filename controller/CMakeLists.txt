@@ -18,6 +18,8 @@ include(cmake/variables.cmake)
 add_library(
     gdpr_controller_lib SHARED
     source/default_policy.cpp
+    source/query.cpp
+    source/query_rewriter.cpp
 )
 
 target_include_directories(
@@ -26,7 +28,7 @@ target_include_directories(
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
 )
 
-target_compile_features(gdpr_controller_lib PUBLIC cxx_std_17)
+target_compile_features(gdpr_controller_lib PUBLIC cxx_std_20)
 
 # ---- Add custom project dependencies ----
 
@@ -47,7 +49,7 @@ add_executable(gdpr_controller::exe ALIAS gdpr_controller_exe)
 
 set_property(TARGET gdpr_controller_exe PROPERTY OUTPUT_NAME gdpr_controller)
 
-target_compile_features(gdpr_controller_exe PRIVATE cxx_std_17)
+target_compile_features(gdpr_controller_exe PRIVATE cxx_std_20)
 
 target_link_libraries(gdpr_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB})
 
@@ -57,7 +59,7 @@ add_executable(redis_interface::exe ALIAS redis_interface_exe)
 
 set_property(TARGET redis_interface_exe PROPERTY OUTPUT_NAME redis_interface)
 
-target_compile_features(redis_interface_exe PRIVATE cxx_std_17)
+target_compile_features(redis_interface_exe PRIVATE cxx_std_20)
 
 target_link_libraries(redis_interface_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB})
 target_include_directories(redis_interface_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
