@@ -37,6 +37,7 @@ public:
   [[nodiscard]] auto cond_expiration() const -> int64_t;
   [[nodiscard]] auto cond_share() const -> std::string;
   [[nodiscard]] auto cond_monitor() const -> bool;
+  [[nodiscard]] auto log_count() const -> std::string;
 
 private:
   std::string m_name;
@@ -63,6 +64,9 @@ private:
   int64_t m_cond_expiration;
   std::string m_cond_share;
   bool m_cond_monitor;
+
+  // log metadata
+  std::string m_log_count;
 };
 
 } // namespace controller

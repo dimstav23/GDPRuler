@@ -26,23 +26,78 @@ query::query(const std::string &input)
       m_cond_expiration{0},
       m_cond_monitor{false}
 {
-  std::unordered_map<std::string, std::string> option_map;
   std::stringstream stream_input(input);
-  std::string option;
-  while (stream_input >> option) {
-    if (option[0] == '-') {
+  /* first identify the query type and the key(s)*/
+  stream_input >> this->m_cmd;
+
+  if (this->m_cmd == "getLogs") [[unlikely]] {
+    stream_input >> this->m_log_count;
+  }
+  else if (this->m_cmd == "exit") [[unlikely]] {
+    /* do nothing */
+  }
+  else [[likely]] {
+    stream_input >> this->m_key;
+    if (this->m_cmd == "put") {
+      /* set the value */
+      stream_input >> this->m_value;
+    }
+
+    std::string option;
+    std::unordered_map<std::string, std::string> option_map;
+    while (stream_input >> option) {
       std::string value;
       stream_input >> value;
-      option_map[option] = value;
+
+      if (option == "-sessionKey") {
+        this->m_user_key = value;
+      }
+      else if (option == "-objOrig") {
+        this->m_origin = value;
+      }
+      else if (option == "-objShare") {
+        this->m_share = value;
+      }
+      else if (option == "-objExp") {
+        this->m_expiration = stoi(value);
+      }
+      else if (option == "-objPur") {
+        set_bitmap(this->m_purpose, split_comma_string(value));
+      }
+      else if (option == "-objObjections") {
+        set_bitmap(this->m_objection, split_comma_string(value));
+      }
+      else if (option == "-monitor") {
+        this->m_monitor = str_to_bool(value);
+      }
+      else if (option == "-sessionKeyIs") {
+        this->m_cond_user_key = value;
+      }
+      else if (option == "-objOrigIs") {
+        this->m_cond_origin = value;
+      }
+      else if (option == "-objShareIs") {
+        this->m_cond_share = value;
+      }
+      else if (option == "-objExpIs") {
+        this->m_cond_expiration = stoi(value);
+      }
+      else if (option == "-objPurIs") {
+        set_bitmap(this->m_cond_purpose, split_comma_string(value));
+      }
+      else if (option == "-objObjectionsIs") {
+        set_bitmap(this->m_cond_objection, split_comma_string(value));
+      }
+      else if (option == "-monitorIs") {
+        this->m_cond_monitor = str_to_bool(value);
+      }
+      else {
+        std::string error_message = "Error: predicate " + option + " not supported.";
+        throw std::invalid_argument(error_message);
+        this->m_cmd = "invalid";
+      }
     }
   }
-  this->m_user_key = option_map["-sessionKey"];
-  this->m_origin = option_map["-objOrig"];
-  this->m_share = option_map["-objShare"];
-  this->m_expiration = stoi(option_map["-objExp"]);
-  this->m_monitor = str_to_bool(option_map["-monitor"]);
-  set_bitmap(this->m_purpose, split_comma_string(option_map["-objPur"]));
-  set_bitmap(this->m_objection, split_comma_string(option_map["-objObjections"]));
 }
 
 // query::~query()
@@ -137,6 +192,11 @@ auto query::cond_share() const -> std::string
 auto query::cond_monitor() const -> bool
 {
   return this->m_cond_monitor;
+}
+
+auto query::log_count() const -> std::string
+{
+  return this->m_log_count;
 }
 
 } // namespace controller
