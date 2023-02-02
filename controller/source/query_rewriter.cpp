@@ -23,7 +23,10 @@ query_rewriter::query_rewriter(const query &query_args,
   bool monitor = query_args.monitor() ? query_args.monitor() : def_policy.monitor();
 
   std::stringstream prefix;
-  prefix << user_key << (encryption ? "1" : "0") << purpose.to_ullong() << objection.to_ullong() << origin << expiration << share << (monitor ? "1" : "0");
+  prefix << user_key            << "|" << (encryption ? "1" : "0")  << "|"
+         << purpose.to_ullong() << "|" << objection.to_ullong()     << "|"
+         << origin              << "|" << expiration                << "|"
+         << share               << "|" << (monitor ? "1" : "0")     << "|";
   m_new_value = prefix.str() + old_value;
 }
 // query_rewriter::~query_rewriter()
