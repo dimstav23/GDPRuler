@@ -9,6 +9,16 @@
 
 namespace controller {
 
+constexpr int value_size = 1024;
+
+/* construct the value */
+auto inline get_value() -> std::string
+{
+  // Initialized upon first call to the function.
+  static const std::string value(value_size, 'x');
+  return value;
+}
+
 /* class for storing query info */
 class query
 {
@@ -38,6 +48,8 @@ public:
   [[nodiscard]] auto cond_share() const -> std::string;
   [[nodiscard]] auto cond_monitor() const -> bool;
   [[nodiscard]] auto log_count() const -> std::string;
+
+  auto print() -> void;
 
 private:
   std::string m_name;

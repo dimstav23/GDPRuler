@@ -4,11 +4,13 @@
 
 #include "default_policy.hpp"
 #include "query.hpp"
+#include "query_rewriter.hpp"
 #include "redis.hpp"
 // #include "argh.hpp"
 
 using controller::default_policy;
 using controller::query;
+using controller::query_rewriter;
 
 auto main() -> int
 { 
@@ -23,8 +25,6 @@ auto main() -> int
     std::cout << "Invalid default policy provided\n";
     return 1;
   }
-  // /* output expected from GDPRuler.py */
-  // std::cout << "default_policy:OK" << "\n";
 
   /* initialize the client object that exports put/get/delete API */
   redis_client client("tcp://127.0.0.1:6379");
@@ -44,33 +44,35 @@ auto main() -> int
       break;
     }
     else [[likely]] {
-      // query_args.rewrite();
-      continue;
+      // query_args.print();
+      if (query_args.cmd() == "get") {
+        client.get(query_args.key());
+      }
+      else if (query_args.cmd() == "put") {
+        query_rewriter rewriter(query_args, def_policy, query_args.value());
+        client.put(query_args.key(), rewriter.new_value());
+      }
+      else if (query_args.cmd() == "del") {
+        client.del(query_args.key());
+      }
+      else if (query_args.cmd() == "putm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "getm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "delm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "getLogs") { /* ignore for now */
+        continue;
+      }
+      else {
+        std::cout << "Invalid command: " << query_args.cmd() << std::endl;
+        break;
+      }
     }
   }
-  
-  // std::string key;
-  // std::string value;
-  
-  // while (true) {
-  //   std::cin >> command;
-  //   if (command == "get") {
-  //     std::cin >> key;
-  //     // client.get(key);
-  //   } else if (command == "put") {
-  //     std::cin >> key;
-  //     std::cin >> value;
-  //     // client.put(key, value);
-  //   } else if (command == "del") {
-  //     std::cin >> key;
-  //     // client.del(key);
-  //   } else if (command == "exit") {
-  //     std::cout << "Exiting..." << std::endl;
-  //     break;
-  //   } else {
-  //     std::cout << "Invalid command" << std::endl;
-  //     break;
-  //   }
-  // }
+
   return 0;
 }

@@ -15,6 +15,9 @@ class query_rewriter
 {
 public:
 	query_rewriter();
+  explicit query_rewriter(const query &query_args, 
+                          const default_policy &def_policy, 
+                          const std::string &old_value);
   // ~query_rewriter();
 
 	[[nodiscard]] auto name() const -> std::string;
@@ -22,12 +25,9 @@ public:
   [[nodiscard]] auto new_key() const -> std::string;
   [[nodiscard]] auto new_value() const -> std::string;
 
-  
-
 private:
   std::string m_name;
 
-  std::string m_new_key;
   std::string m_new_value;
 };
 

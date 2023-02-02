@@ -56,6 +56,7 @@ def analyze_query(query):
         if (pred_attr == "query"):
             query_cmd = pred_val
         else:
+            pred_val = pred_val[1:-1] # "val" -> val for parsing 
             filter += (f" -{pred_attr} {negated}{pred_val}") 
     
     # print(query_cmd, filter)

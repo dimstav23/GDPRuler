@@ -4,20 +4,20 @@ query_types = [
     "delete",
     "putm",
     "getm",
-    "deletem",
+    "delm",
     "getlogs"
 ]
 
 def getValue(query_args):
     try:
-        return query_args.split(',')[1].strip()
+        return query_args.split(',')[1][1:-1].strip() # [1:-1] to make "val" -> val
     except IndexError:
         print("No value specified for put query.")
         exit(1)
     
 def getKey(query_args):
     try:
-        return query_args.split(',')[0].strip()
+        return query_args.split(',')[0][1:-1].strip() # [1:-1] to make "key" -> key
     except IndexError:
         print("No key specified for requested query.")
         exit(1)
@@ -58,7 +58,7 @@ def get(K):
     return (f"get {K}")
 
 def delete(K):
-    return (f"delete {K}")
+    return (f"del {K}")
 
 # GDPR-enhanced API
 def put_filtered(K, V, metadata):
@@ -77,7 +77,7 @@ def delete_filtered(K, metadata):
     if metadata == "":
         return delete(K)
     
-    return (f"delete {K} {metadata}")
+    return (f"del {K} {metadata}")
 
 # GDPR-metadata API
 def putm(K, metadata):
@@ -87,7 +87,7 @@ def getm(K, metadata):
     return (f"getm {K} {metadata}")
 
 def deletem(K, metadata):
-    return (f"deletem {K} {metadata}")
+    return (f"delm {K} {metadata}")
 
 # Regulator API
 def getLogs(K, metadata):

@@ -1,5 +1,7 @@
 #include "query.hpp"
 
+#include <iostream>
+
 namespace controller {
 
 query::query()
@@ -40,7 +42,8 @@ query::query(const std::string &input)
     stream_input >> this->m_key;
     if (this->m_cmd == "put") {
       /* set the value */
-      stream_input >> this->m_value;
+      stream_input >> this->m_value; // to read the "VAL" placeholder
+      this->m_value = get_value();  // to set the actual value
     }
 
     std::string option;
@@ -48,7 +51,6 @@ query::query(const std::string &input)
     while (stream_input >> option) {
       std::string value;
       stream_input >> value;
-
       if (option == "-sessionKey") {
         this->m_user_key = value;
       }
@@ -103,6 +105,11 @@ query::query(const std::string &input)
 // query::~query()
 // {
 // }
+
+auto query::print() -> void
+{
+  std::cout << this->m_cmd << " " << this->m_key << " " << this->m_value << "\n";
+}
 
 auto query::name() const -> std::string
 {
