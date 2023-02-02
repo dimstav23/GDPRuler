@@ -26,30 +26,35 @@ def main():
   user_policy = safe_open(config_file, "r")
   user_policy = json.load(user_policy)
 
-  ## open the controller process
-  # controller = subprocess.Popen(["./controller/build/gdpr_controller"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-  controller = pexpect.spawn("./controller/build/gdpr_controller", echo=False)
-  controller.delaybeforesend = None
+  # Open the controller process
+  controller = subprocess.Popen(["./controller/build/gdpr_controller"], stdin=subprocess.PIPE, 
+                                                                        stdout=subprocess.PIPE, 
+                                                                        stderr=subprocess.PIPE)
 
-  ## set up the default policy in the gdpr controller
+  # Set up the default policy in the gdpr controller
   def_policy = parse_user_policy(user_policy)
 
-  # write to process' standard input
-  controller.send(def_policy+"\n")
-  # controller.expect("default_policy:OK")
+  # Write to process' standard input
+  controller.stdin.write(def_policy.encode() + b'\n')
+  controller.stdin.flush()
 
-  ## parse and send the query args to the gdpr controller 
+  # Parse and send the query args to the gdpr controller
   workload_file = safe_open(workload_file, "r")
   queries = workload_file.readlines()
-    
+
   for query in queries:
     new_query = analyze_query(query.rstrip())
-    controller.send(new_query+"\n")
+    controller.stdin.write(new_query.encode() + b'\n')
+    controller.stdin.flush()
 
-  controller.sendline("exit")
-  output = controller.read()
+  controller.stdin.write(b'exit\n')
+  controller.stdin.flush()
+
+  # Read process' standard output and error
+  output, error = controller.communicate()
   print(output.decode('utf-8'))
-  controller.close()
+  print(error.decode('utf-8'))
+
   return
 
 if __name__ == "__main__":
