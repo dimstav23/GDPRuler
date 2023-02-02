@@ -18,8 +18,8 @@ public:
     auto result = m_redis.get(key);
     if (result) {
       // Key exists. Dereference val to get the string result.
-      std::cout << "GET operation done with key: " << key
-                << " and value: " << *result << std::endl;
+      // std::cout << "GET operation done with key: " << key
+      //           << " and value: " << *result << std::endl;
     } else {
       // Redis server returns a NULL Bulk String Reply.
       // It's invalid to dereference a null Optional<T> object.
@@ -33,10 +33,10 @@ public:
     bool res = true;
     auto result = m_redis.set(key, value);
     if (result) {
-      std::cout << "SET operation done with key: " << key
-                << " and value: " << value << std::endl;
+      // std::cout << "PUT operation done with key: " << key
+      //           << " and value: " << value << std::endl;
     } else {
-      std::cout << "SET operation failed" << std::endl;
+      std::cout << "PUT operation failed" << std::endl;
       res = false;
     }
     return res;
@@ -47,7 +47,7 @@ public:
     bool res = true;
     auto result = m_redis.del(key);
     if (result == 1) {
-      std::cout << "DEL operation done with key: " << key << std::endl;
+      // std::cout << "DEL operation done with key: " << key << std::endl;
     } else if (result == 0) {
       std::cout << "DEL operation failed -- key " << key << " not found"
                 << std::endl;
