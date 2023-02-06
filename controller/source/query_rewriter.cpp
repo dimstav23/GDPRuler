@@ -29,6 +29,7 @@ query_rewriter::query_rewriter(const query &query_args,
          << share               << "|" << (monitor ? "1" : "0")     << "|";
   m_new_value = prefix.str() + old_value;
 }
+
 // query_rewriter::~query_rewriter()
 // {
 // }
