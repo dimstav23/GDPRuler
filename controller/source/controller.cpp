@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include "absl/strings/match.h" // for StartsWith function
+#include <chrono>
 
 #include "default_policy.hpp"
 #include "query.hpp"
@@ -28,6 +29,8 @@ auto main() -> int
 
   /* initialize the client object that exports put/get/delete API */
   redis_client client("tcp://127.0.0.1:6379");
+
+  auto start = std::chrono::high_resolution_clock::now();
 
   /* read the upcoming queries -- one per line */
   std::string input_query;
@@ -73,6 +76,17 @@ auto main() -> int
       }
     }
   }
+
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = end - start;
+  auto duration_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+  auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+  auto duration_in_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
+  std::cout << "Total time: "
+            << duration_in_seconds.count() << " s, "
+            << duration_in_milliseconds.count() - duration_in_seconds.count() * 1000 << " ms, "
+            << duration_in_nanoseconds.count() - duration_in_milliseconds.count() * 1000000 << " ns."
+            << std::endl;
 
   return 0;
 }
