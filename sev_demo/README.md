@@ -82,7 +82,7 @@ virsh net-update default add ip-dhcp-host \
 ```
 
 ### 6. To perform further functionality-proof testing:
-1. To test SME and TSME, look [here](./amd-mem-encryption-tests/).
+1. To test SME and TSME, look [here](https://github.com/dimstav23/amd-mem-encryption-tests/tree/nix_path_test).
 2. To verify the AMD SEV encryption, look [here](./amd-sev-encryption-tests/).
 
 ### Notes
