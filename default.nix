@@ -5,6 +5,9 @@ let
       ps.pexpect
       ps.matplotlib
     ]);
+  virt_4_0_0_pkgs = import (builtins.fetchTarball {
+        url = "https://github.com/NixOS/nixpkgs/archive/ee01de29d2f58d56b1be4ae24c24bd91c5380cea.tar.gz";
+    }) {};
 in
 mkShell {
   nativeBuildInputs = [
@@ -12,7 +15,8 @@ mkShell {
     cpuid
     dmidecode
     msr
-    linux.dev
+    msr-tools
+    linuxPackages_latest.kernel.dev
 
     #for the sev-tool
     automake
@@ -23,7 +27,7 @@ mkShell {
     pkg-config
     qemu
     libvirt
-    virt-manager
+    virt_4_0_0_pkgs.virt-manager
     vim
     libuuid
     nasm
@@ -64,7 +68,7 @@ mkShell {
     ];
   
   shellHook = ''
-    export KDIR=${linux.dev}/lib/modules/${linux.dev.modDirVersion}/build
+    export KDIR=${linuxPackages_latest.kernel.dev}/lib/modules/${linuxPackages_latest.kernel.dev.modDirVersion}/build
     export PATH=${pythonEnv}/bin:$PATH
   ''; 
 }
