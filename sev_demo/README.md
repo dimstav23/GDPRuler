@@ -57,14 +57,14 @@ $ sudo virt-install \
 ```
 Have in mind that you might want to add the [policy](https://documentation.suse.com/sles/15-SP1/html/SLES-amd-sev/index.html) parameter of AMD SEV depending on your purpose.
 
-**Note:**: 
+**Notes:**
 - Tested with `virt-manager 4.0.0`. Currently, `virt-manager 4.1.0` introduces a weird bug. 
 - If you receive an error mentioning that the `default network` is not active, you can check it through `sudo virsh net-list --all` and then 
 use `sudo virsh net-start default` to start it.
 - If you receive kvm persmission errors, try adding yourself to the `kvm` group (or your respectively named group) for getting the permissions
 by using `sudo usermod -a -G {kvm_group_name} {your_user_name}`.
 
-**Optional**: you can use `sudo qemu-img resize` to increase the available disk space inside the VM.
+**Optional:** you can use `sudo qemu-img resize` to increase the available disk space inside the VM.
 For example: `sudo qemu-img resize ./images/sev-guest.img +10G`
 
 ### 4. Inside the guest VM, verify that AMD SEV is enabled:
