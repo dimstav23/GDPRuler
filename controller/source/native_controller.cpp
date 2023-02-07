@@ -4,6 +4,7 @@
 
 #include "redis.hpp"
 #include "query.hpp"
+#include "common.hpp"
 // #include "argh.hpp"
 
 auto main() -> int
@@ -29,7 +30,7 @@ auto main() -> int
       std::cin >> key;
       client.del(key);
     } else if (command == "exit") {
-      std::cout << "Exiting..." << std::endl;
+      // std::cout << "Exiting..." << std::endl;
       break;
     } else {
       std::cout << "Invalid command" << std::endl;
@@ -39,14 +40,12 @@ auto main() -> int
 
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = end - start;
-  auto duration_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
-  auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
-  auto duration_in_nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
-  std::cout << "Total time: "
-            << duration_in_seconds.count() << " s, "
-            << duration_in_milliseconds.count() - duration_in_seconds.count() * 1000 << " ms, "
-            << duration_in_nanoseconds.count() - duration_in_milliseconds.count() * 1000000 << " ns."
-            << std::endl;
+  auto duration_in_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
+  auto duration_in_s = static_cast<long double>(duration_in_ns) / s2ns;
+  std::cout.precision(ns_precision);
+  std::cout << "Controller time: "
+            << std::fixed << duration_in_s
+            << " s" << std::endl;
 
   return 0;
 }

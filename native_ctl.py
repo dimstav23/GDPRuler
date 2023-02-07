@@ -47,16 +47,14 @@ def main():
   # End the timer after the controller has returned and analyse the measurements
   end_time = time.perf_counter_ns()
   runtime = end_time - start_time
-  seconds = runtime // 1000000000
-  milliseconds = (runtime // 1000000) % 1000
-  nanoseconds = runtime % 1000000
 
   # Print the output of the controller process
   print(output.decode('utf-8'))
   print(error.decode('utf-8'))
 
   # Print the timer results
-  print("System runtime: %d s %d ms %d ns" % (seconds, milliseconds, nanoseconds))
+  seconds = runtime / 1000000000
+  print("System time: {:.9f} s".format(seconds))
 
   return
 
