@@ -11,11 +11,12 @@ namespace controller {
 
 constexpr int value_size = 1024;
 
-/* construct the value */
+// NOLINTNEXTLINE(cert-err58-cpp)
+static const std::string value(value_size, 'x');
+
+/* return the dummy value */
 auto inline get_value() -> std::string
 {
-  // Initialized upon first call to the function.
-  static const std::string value(value_size, 'x');
   return value;
 }
 

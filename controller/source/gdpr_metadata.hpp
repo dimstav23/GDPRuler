@@ -9,11 +9,8 @@ namespace controller {
 constexpr int num_users = 64;
 constexpr int num_purposes = 64;
 
-/* initialize the mapping between purposes and indexes in bitmap*/
-auto inline get_pur() -> std::unordered_map<std::string, std::size_t>
-{
-  // Initialized upon first call to the function.
-  static const std::unordered_map<std::string, std::size_t> pur_index = []() {
+// NOLINTBEGIN(cert-err58-cpp)
+static const std::unordered_map<std::string, std::size_t> pur_index = []() {
     std::unordered_map<std::string, std::size_t> temp;
     for (std::size_t i = 0; i < num_purposes; i++) {
       std::string value = "purpose" + std::to_string(i);
@@ -21,7 +18,11 @@ auto inline get_pur() -> std::unordered_map<std::string, std::size_t>
     }
     return temp;
   }();
+// NOLINTEND(cert-err58-cpp)
 
+/* return the mapping between purposes and indexes in bitmap*/
+auto inline get_pur() -> std::unordered_map<std::string, std::size_t>
+{
   return pur_index;
 }
 
