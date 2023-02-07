@@ -42,7 +42,7 @@
     <emulator>/run/libvirt/nix-emulators/qemu-system-x86_64</emulator>
     <disk type='file' device='disk'>
       <driver name='qemu' type='raw'/>
-      <source file='/var/lib/libvirt/images/sev-guest.img' index='2'/>
+      <source file='/home/dimitrios/GDPRuler/sev_demo/images/sev-guest.img' index='2'/>
       <backingStore/>
       <target dev='sda' bus='scsi'/>
       <alias name='scsi0-0-0-0'/>
@@ -50,7 +50,7 @@
     </disk>
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
-      <source file='/var/lib/libvirt/images/sev-guest-cloud-config.iso' index='1'/>
+      <source file='/home/dimitrios/GDPRuler/sev_demo/images/sev-guest-cloud-config.iso' index='1'/>
       <backingStore/>
       <target dev='sdb' bus='sata'/>
       <readonly/>

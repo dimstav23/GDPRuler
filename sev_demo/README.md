@@ -13,31 +13,38 @@ sudo virt-host-validate | grep secure
 ### 2. Verify that SME and SEV are enabled:
 - `dmesg | grep SME` should indicate `AMD Memory Encryption Features active: SME` and
 - `dmesg | grep sev` should include `sev enabled` in its output.
+- `sudo virsh domcapabilities | grep sev` should indicate that `sev` is enabled for libvirt.
 
 ### 3. Follow the instructions presented [here](https://github.com/Masheenist/AMDSEV/blob/main/README.md) or [here](https://docs.ovh.com/us/en/dedicated/enable-and-use-amd-sme-sev/) to launch an SEV guest.
 The set of commands is also listed here for simplicity:
 ```
 $ wget https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img
 
-$ sudo qemu-img convert focal-server-cloudimg-amd64.img /var/lib/libvirt/images/sev-guest.img
+$ mkdir images
+
+$ sudo qemu-img convert focal-server-cloudimg-amd64.img ./images/sev-guest.img
 
 $ cat >cloud-config <<EOF
 #cloud-config
-password: CHANGEME.aiZ4aetiesig
+password: amd_sev
 chpasswd: { expire: False }
 ssh_pwauth: False
 EOF
 
-$ sudo cloud-localds /var/lib/libvirt/images/sev-guest-cloud-config.iso cloud-config
+$ sudo cloud-localds ./images/sev-guest-cloud-config.iso cloud-config
+
+$ cat > ~/.config/libvirt/qemu.conf <<EOF
+#UEFI OVMF CODE & VARS for nix
+nvram = ["/run/libvirt/nix-ovmf/OVMF_CODE.fd:/run/libvirt/nix-ovmf/OVMF_VARS.fd"]
+EOF
 
 $ sudo virt-install \
 --name sev-guest \
 --memory 4096 \
 --memtune hard_limit=4563402 \
 --boot uefi \
---disk /var/lib/libvirt/images/sev-guest.img,device=disk,bus=scsi \
---disk /var/lib/libvirt/images/sev-guest-cloud-config.iso,device=cdrom \
---os-type linux \
+--disk ./images/sev-guest.img,device=disk,bus=scsi \
+--disk ./images/sev-guest-cloud-config.iso,device=cdrom \
 --os-variant ubuntu20.04 \
 --import \
 --controller type=scsi,model=virtio-scsi,driver.iommu=on \
@@ -50,8 +57,15 @@ $ sudo virt-install \
 ```
 Have in mind that you might want to add the [policy](https://documentation.suse.com/sles/15-SP1/html/SLES-amd-sev/index.html) parameter of AMD SEV depending on your purpose.
 
+**Note:**: 
+- Tested with `virt-manager 4.0.0`. Currently, `virt-manager 4.1.0` introduces a weird bug. 
+- If you receive an error mentioning that the `default network` is not active, you can check it through `sudo virsh net-list --all` and then 
+use `sudo virsh net-start default` to start it.
+- If you receive kvm persmission errors, try adding yourself to the `kvm` group (or your respectively named group) for getting the permissions
+by using `sudo usermod -a -G {kvm_group_name} {your_user_name}`.
+
 **Optional**: you can use `sudo qemu-img resize` to increase the available disk space inside the VM.
-For example: `sudo qemu-img resize /var/lib/libvirt/images/sev-guest.img +10G`
+For example: `sudo qemu-img resize ./images/sev-guest.img +10G`
 
 ### 4. Inside the guest VM, verify that AMD SEV is enabled:
 `dmesg | grep SEV` should indicate `AMD Secure Encrypted Virtualization (SEV) active`
@@ -79,3 +93,4 @@ If it seems to get stuck, just press Enter.
 - After you make sure that networking works fine and you can reach the VM guest from the host, you can log-in the VM using ssh (after placing your ssh keys in the `~/.ssh/autorhized_keys` file of the guest VM) 
 - The aforementioned process can also be performed using the [`plain_vm.xml`](./plain_vm.xml) provided here. Be aware that you have to perform again
 the process described in **step 3** where you should modify the `sev-guest` prefixed files/images.
+- To delete a domain, run `sudo virsh undefine --nvram "name of VM"`.
