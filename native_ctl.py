@@ -26,6 +26,8 @@ def main():
   controller = subprocess.Popen(["./controller/build/native_controller"], stdin=subprocess.PIPE, 
                                                                         stdout=subprocess.PIPE, 
                                                                         stderr=subprocess.PIPE)
+  # Start the time measurement before sending the workload
+  start_time = time.perf_counter_ns()
 
   # Parse and send the query args to the native controller
   workload_file = safe_open(workload_file, "r")
@@ -41,8 +43,20 @@ def main():
 
   # Read process' standard output and error
   output, error = controller.communicate()
+  
+  # End the timer after the controller has returned and analyse the measurements
+  end_time = time.perf_counter_ns()
+  runtime = end_time - start_time
+  seconds = runtime // 1000000000
+  milliseconds = (runtime // 1000000) % 1000
+  nanoseconds = runtime % 1000000
+
+  # Print the output of the controller process
   print(output.decode('utf-8'))
   print(error.decode('utf-8'))
+
+  # Print the timer results
+  print("System runtime: %d s %d ms %d ns" % (seconds, milliseconds, nanoseconds))
 
   return
 
