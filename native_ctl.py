@@ -49,8 +49,9 @@ def main():
   runtime = end_time - start_time
 
   # Print the output of the controller process
-  print(output.decode('utf-8'))
-  print(error.decode('utf-8'))
+  if error:
+    print(error.decode('utf-8'))
+  print(output.decode('utf-8'), end = '')
 
   # Print the timer results
   seconds = runtime / 1000000000
