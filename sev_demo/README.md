@@ -1,5 +1,29 @@
 # Steps to enable and launch an ubuntu-based SEV guest (applied in our NixOs servers - TUM Cluster) :
 
+### BIOS preparation
+- You have to enable the SME and SNP (if you want) options in your BIOS settings.
+To do so in [`ryan`](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/docs/hosts/ryan.md) and 
+[`graham`](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/docs/hosts/graham.md),
+access their mgmt interface via ssh and run the following:
+```
+set BIOS.ProcSettings.Sme Enabled
+set BIOS.ProcSettings.Snp Enabled
+jobqueue create BIOS.Setup.1-1
+```
+and then reboot the server.
+- For SEV ES you have to enable IOMMU support and set the minimum SEV ASIDs value in the BIOS.
+To do so in [`ryan`](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/docs/hosts/ryan.md) and 
+[`graham`](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/docs/hosts/graham.md), 
+run the following after accessing their mgmt interface:
+```
+set BIOS.ProcSettings.IommuSupport Enabled
+set BIOS.ProcSettings.CpuMinSevAsid 128
+jobqueue create BIOS.Setup.1-1
+```
+and then reboot the server.
+For more information regarding the parameter for CPU mininmum SEV ASIDs specifically in our machines,
+look [here](https://www.dell.com/support/manuals/en-us/idrac9-lifecycle-controller-v4.x-series/idrac_4.00.00.00_racadm_ar_referenceguide/bios.procsettings.cpuminsevasid-(read-or-write)?guid=guid-4bdaeaa7-d054-4fd1-bd84-0cd71d7aec1e&lang=en-us)
+
 ### 1. Enable SEV in the desired server:
 Import the [amd_sev.nix](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/modules/amd_sev.nix) module in the server configuration. 
 An example configuration is shown [here](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/hosts/graham.nix). 
@@ -10,9 +34,10 @@ To verify that your host can run secure guests, run the following:
 sudo virt-host-validate | grep secure
 ```
 
-### 2. Verify that SME and SEV are enabled:
+### 2. Verify that SME, SEV and SEV-ES are enabled:
 - `dmesg | grep SME` should indicate `AMD Memory Encryption Features active: SME` and
 - `dmesg | grep sev` should include `sev enabled` in its output.
+- `dmesg | grep -i SEV-ES` should indicate that `SEV-ES` is supported and the number of SEV ASIDs.
 - `sudo virsh domcapabilities | grep sev` should indicate that `sev` is enabled for libvirt.
 
 ### 3. Follow the instructions presented [here](https://github.com/Masheenist/AMDSEV/blob/main/README.md) or [here](https://docs.ovh.com/us/en/dedicated/enable-and-use-amd-sme-sev/) to launch an SEV guest.
