@@ -43,11 +43,11 @@ sudo virt-host-validate | grep secure
 ### 3. Follow the instructions presented [here](https://github.com/Masheenist/AMDSEV/blob/main/README.md) or [here](https://docs.ovh.com/us/en/dedicated/enable-and-use-amd-sme-sev/) to launch an SEV guest.
 The set of commands is also listed here for simplicity:
 ```
-$ wget https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img
+$ wget https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-amd64.img 
 
 $ mkdir images
 
-$ sudo qemu-img convert focal-server-cloudimg-amd64.img ./images/sev-guest.img
+$ sudo qemu-img convert kinetic-server-cloudimg-amd64.img ./images/sev-guest.img
 
 $ cat >cloud-config <<EOF
 #cloud-config
