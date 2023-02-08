@@ -22,7 +22,7 @@ jobqueue create BIOS.Setup.1-1
 ```
 and then reboot the server.
 For more information regarding the parameter for CPU mininmum SEV ASIDs specifically in our machines,
-look [here](https://www.dell.com/support/manuals/en-us/idrac9-lifecycle-controller-v4.x-series/idrac_4.00.00.00_racadm_ar_referenceguide/bios.procsettings.cpuminsevasid-(read-or-write)?guid=guid-4bdaeaa7-d054-4fd1-bd84-0cd71d7aec1e&lang=en-us)
+look [here](https://www.dell.com/support/manuals/en-us/idrac9-lifecycle-controller-v4.x-series/idrac_4.00.00.00_racadm_ar_referenceguide/bios.procsettings.cpuminsevasid-(read-or-write)?guid=guid-4bdaeaa7-d054-4fd1-bd84-0cd71d7aec1e&lang=en-us).
 
 ### 1. Enable SEV in the desired server:
 Import the [amd_sev.nix](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/modules/amd_sev.nix) module in the server configuration. 
@@ -82,8 +82,11 @@ $ sudo virt-install \
 ```
 Have in mind that you might want to add the [policy](https://documentation.suse.com/sles/15-SP1/html/SLES-amd-sev/index.html) parameter of AMD SEV depending on your purpose.
 
-**Notes:**
-- Tested with `virt-manager 4.0.0`. Currently, `virt-manager 4.1.0` introduces a weird bug. 
+**Important notes:**
+- `virt-manager 4.0.0` uses `policy=0x3` by default which requires only SEV to be enabled.
+However, `virt-manager 4.1.0` sets `policy=0x7` by default which mandates enabling SEV-ES.
+Therefore, consider adding the sev policy parameter in your `virt-install` command above depending your system configuration,
+your virt-manager version and your needs. 
 - If you receive an error mentioning that the `default network` is not active, you can check it through `sudo virsh net-list --all` and then 
 use `sudo virsh net-start default` to start it.
 - If you receive kvm persmission errors, try adding yourself to the `kvm` group (or your respectively named group) for getting the permissions

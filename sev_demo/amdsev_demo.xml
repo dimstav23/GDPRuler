@@ -214,7 +214,7 @@
   <launchSecurity type='sev'>
     <cbitpos>51</cbitpos>
     <reducedPhysBits>1</reducedPhysBits>
-    <policy>0x0003</policy>
+    <policy>0x0007</policy>
   </launchSecurity>
 </domain>
 
