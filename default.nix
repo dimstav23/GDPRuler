@@ -5,9 +5,6 @@ let
       ps.pexpect
       ps.matplotlib
     ]);
-  virt_4_0_0_pkgs = import (builtins.fetchTarball {
-        url = "https://github.com/NixOS/nixpkgs/archive/ee01de29d2f58d56b1be4ae24c24bd91c5380cea.tar.gz";
-    }) {};
 in
 mkShell {
   nativeBuildInputs = [
@@ -27,7 +24,7 @@ mkShell {
     pkg-config
     qemu
     libvirt
-    virt_4_0_0_pkgs.virt-manager
+    virt-manager
     vim
     libuuid
     nasm
