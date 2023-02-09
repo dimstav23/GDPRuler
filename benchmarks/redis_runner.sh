@@ -21,6 +21,7 @@ for workload in $workloads; do
     controller_times=$(echo "$controller_times + $controller_time" | bc)
     system_times=$(echo "$system_times + $system_time" | bc)
     kill $redis_pid
+    rm -rf ./dump.rdb
     rm -rf ${redis_server_path}/dump.rdb
   done
   avg_controller_time=$(echo "$controller_times / $repeats" | bc)
@@ -42,6 +43,7 @@ for workload in $workloads; do
     controller_times=$(echo "$controller_times + $controller_time" | bc)
     system_times=$(echo "$system_times + $system_time" | bc)
     kill $redis_pid
+    rm -rf ./dump.rdb
     rm -rf ${redis_server_path}/dump.rdb
   done
   avg_controller_time=$(echo "$controller_times / $repeats" | bc)
@@ -63,6 +65,7 @@ for workload in $workloads; do
     controller_times=$(echo "$controller_times + $controller_time" | bc)
     system_times=$(echo "$system_times + $system_time" | bc)
     kill $redis_pid
+    rm -rf ./dump.rdb
     rm -rf ${redis_server_path}/dump.rdb
   done
   avg_controller_time=$(echo "$controller_times / $repeats" | bc)
