@@ -65,8 +65,8 @@ EOF
 
 $ sudo virt-install \
 --name sev-guest \
---memory 4096 \
---memtune hard_limit=4563402 \
+--memory 16384 \
+--memtune hard_limit=18454938 \
 --boot uefi \
 --disk ./images/sev-guest.img,device=disk,bus=scsi \
 --disk ./images/sev-guest-cloud-config.iso,device=cdrom \
@@ -78,7 +78,9 @@ $ sudo virt-install \
 --memballoon driver.iommu=on \
 --graphics none \
 --launchSecurity sev \
---network bridge=virbr0
+--network bridge=virbr0 \
+--cpu host \
+--vcpus 16
 ```
 Have in mind that you might want to add the [policy](https://documentation.suse.com/sles/15-SP1/html/SLES-amd-sev/index.html) parameter of AMD SEV depending on your purpose.
 
