@@ -4,8 +4,11 @@ import argparse
 import subprocess
 import pexpect
 import time
+import os
 
-sys.path.insert(1, './policy_compiler') # add the policy compiler in sys path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+policy_compiler_dir = os.path.join(script_dir, './policy_compiler')
+sys.path.insert(1, policy_compiler_dir) # add the policy compiler in sys path
 from helper import safe_open
 from query_analyser import analyze_query
 
@@ -23,9 +26,10 @@ def main():
     return
   
   # Open the controller process
-  controller = subprocess.Popen(["./controller/build/native_controller"], stdin=subprocess.PIPE, 
-                                                                        stdout=subprocess.PIPE, 
-                                                                        stderr=subprocess.PIPE)
+  exec_file = os.path.join(script_dir, './controller/build/native_controller')
+  controller = subprocess.Popen([exec_file], stdin=subprocess.PIPE, 
+                                            stdout=subprocess.PIPE, 
+                                            stderr=subprocess.PIPE)
   # Start the time measurement before sending the workload
   start_time = time.perf_counter_ns()
 
@@ -43,7 +47,8 @@ def main():
 
   # Read process' standard output and error
   output, error = controller.communicate()
-  
+  controller.terminate()
+
   # End the timer after the controller has returned and analyse the measurements
   end_time = time.perf_counter_ns()
   runtime = end_time - start_time

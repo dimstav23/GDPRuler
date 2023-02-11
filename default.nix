@@ -19,6 +19,7 @@ mkShell {
     automake
 
     #general
+    bc
     bashInteractive
     dnsmasq
     pkg-config
