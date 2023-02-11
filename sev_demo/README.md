@@ -110,6 +110,8 @@ virsh net-update default add ip-dhcp-host \
            name='bob' ip='192.168.122.45' />" \
            --live --config
 ```
+If you are still facing issues with not properly getting assigned IPv4 addresses, run `sudo dhclient <interface>` inside the guest.
+For more information regarding this issue, please see [here](https://unix.stackexchange.com/questions/523922/no-ip-address-assigned-to-kvm-guest-after-its-cloned-from-another-guest). 
 
 ### 6. To perform further functionality-proof testing:
 1. To test SME and TSME, look [here](https://github.com/dimstav23/amd-mem-encryption-tests/tree/nix_path_test).
