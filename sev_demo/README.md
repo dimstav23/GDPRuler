@@ -70,10 +70,10 @@ $ sudo virt-install \
 --boot uefi \
 --disk ./images/sev-guest.img,device=disk,bus=scsi \
 --disk ./images/sev-guest-cloud-config.iso,device=cdrom \
---os-variant ubuntu20.04 \
+--os-variant ubuntu22.10 \
 --import \
 --controller type=scsi,model=virtio-scsi,driver.iommu=on \
---controller type=virtio-serial,driver.iommu=on \
+--controller type=virtio-serial,driver.iommu=on,mac=52:54:00:94:f4:f0 \
 --network network=default,model=virtio,driver.iommu=on \
 --memballoon driver.iommu=on \
 --graphics none \
