@@ -14,8 +14,10 @@ mkShell {
     msr
     msr-tools
     linuxPackages_latest.kernel.dev
+    unzip
 
     #for the sev-tool
+    autoconf
     automake
 
     #general
