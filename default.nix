@@ -14,8 +14,10 @@ mkShell {
     msr
     msr-tools
     linuxPackages_latest.kernel.dev
+    unzip
 
     #for the sev-tool
+    autoconf
     automake
 
     #general
@@ -42,6 +44,7 @@ mkShell {
     redis-plus-plus
 
     #rockdb specific packages
+    rocksdb
     clang-tools
     lz4
     bzip2

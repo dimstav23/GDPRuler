@@ -2,8 +2,9 @@
 #include <string>
 
 #include <sw/redis++/redis++.h>
+#include "kv_client.hpp"
 
-class redis_client
+class redis_client : public kv_client
 {
   sw::redis::Redis m_redis;
 
@@ -13,7 +14,7 @@ public:
   {
   }
 
-  auto get(const std::string& key) -> std::optional<std::string>
+  auto get(const std::string& key) -> std::optional<std::string> override
   {
     auto result = m_redis.get(key);
     if (result) {
@@ -28,7 +29,7 @@ public:
     return result;
   }
 
-  auto put(const std::string& key, const std::string& value) -> bool
+  auto put(const std::string& key, const std::string& value) -> bool override
   {
     bool res = true;
     auto result = m_redis.set(key, value);
@@ -42,7 +43,7 @@ public:
     return res;
   }
 
-  auto del(const std::string& key) -> bool
+  auto del(const std::string& key) -> bool override
   {
     bool res = true;
     auto result = m_redis.del(key);

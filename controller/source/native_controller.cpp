@@ -2,7 +2,7 @@
 #include <string>
 #include <chrono>
 
-#include "redis.hpp"
+#include "kv_client/redis.hpp"
 #include "query.hpp"
 #include "common.hpp"
 // #include "argh.hpp"
