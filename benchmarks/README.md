@@ -20,3 +20,8 @@ The script calculates the average "Controller Time" and "System Time" for the Va
 The script repeats steps 3 and 4 for the GDPRuler Native Version, with the difference being that the python3 ../GDPRuler.py command is used to run the "GDPRuler.py" script with the specified configuration file and workload. The results are stored in the "./results/gdpr_average.csv" file.
 The script repeats steps 3 and 4 for the SEV GDPRuler Version, with the same process as the GDPRuler Native Version. The results are stored in the "./results/sec_gdpr_average.csv" file.
 This script uses a number of Linux shell commands and utilities, including mkdir to create the results directory, seq to generate a sequence of numbers, grep to extract information from the output files, awk to extract values from the output of grep, bc to perform floating-point arithmetic, and kill to kill the Redis server process.
+
+## Description of [`plot.py`](./plot.py)
+This script uses the parse_file function to parse the contents of each result file and store the data in a dictionary. The keys of the dictionary are the workloads, and the values are dictionaries with two keys: controller_time and system_time.
+
+The plot_overhead function takes the combined data from all the result files and calculates the overhead percentage for both the native GDPR and secure GDPR versions. It then plots a stacked bar graph to show the overhead, with the vanilla version as the baseline. The x-axis shows the different workloads, and the y-axis shows the overhead in percentage.
