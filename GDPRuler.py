@@ -31,9 +31,7 @@ def main():
 
   # Open the controller process
   exec_file = os.path.join(script_dir, './controller/build/gdpr_controller')
-  controller = subprocess.Popen([exec_file], stdin=subprocess.PIPE, 
-                                            stdout=subprocess.PIPE, 
-                                            stderr=subprocess.PIPE)
+  controller = subprocess.Popen([exec_file], stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # Start the time measurement before sending the default policy
   start_time = time.perf_counter_ns()
@@ -68,7 +66,6 @@ def main():
   # Print the output of the controller process
   if error:
     print(error.decode('utf-8'))
-  print(output.decode('utf-8'), end = '')
 
   # Print the timer results
   seconds = runtime / 1000000000
