@@ -7,7 +7,8 @@
 #include "query.hpp"
 #include "query_rewriter.hpp"
 #include "common.hpp"
-#include "redis.hpp"
+#include "kv_client/redis.hpp"
+#include "kv_client/rocksdb.hpp"
 // #include "argh.hpp"
 
 using controller::default_policy;
@@ -29,7 +30,8 @@ auto main() -> int
   }
 
   /* initialize the client object that exports put/get/delete API */
-  redis_client client("tcp://127.0.0.1:6379");
+  kv_client* client = new rocksdb_client("./db");
+  
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -50,14 +52,14 @@ auto main() -> int
     else [[likely]] {
       // query_args.print();
       if (query_args.cmd() == "get") {
-        client.get(query_args.key());
+        client->get(query_args.key());
       }
       else if (query_args.cmd() == "put") {
         query_rewriter rewriter(query_args, def_policy, query_args.value());
-        client.put(query_args.key(), rewriter.new_value());
+        client->put(query_args.key(), rewriter.new_value());
       }
       else if (query_args.cmd() == "del") {
-        client.del(query_args.key());
+        client->del(query_args.key());
       }
       else if (query_args.cmd() == "putm") { /* ignore for now */
         continue;

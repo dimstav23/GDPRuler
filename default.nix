@@ -44,6 +44,7 @@ mkShell {
     redis-plus-plus
 
     #rockdb specific packages
+    rocksdb
     clang-tools
     lz4
     bzip2

@@ -3,3 +3,4 @@
 plain_vm/
 workload_traces/
 .direnv/
+db/
