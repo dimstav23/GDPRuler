@@ -1,6 +1,6 @@
 import sys
 import json
-from helper import safe_open
+from policy_compiler.helper import safe_open
 import argparse
 
 mandatory_keys = ["sessionKey", "default_policy"]

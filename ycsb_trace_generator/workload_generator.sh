@@ -11,7 +11,7 @@ mvn clean package
 popd
 
 ### set and create the traces folder if it doesn't exist
-TRACE_FOLDER=/home/dimitrios/GDPRuler/workload_traces
+TRACE_FOLDER=${SCRIPT_DIR}/../workload_traces
 mkdir -p ${TRACE_FOLDER}
 echo "Trace file directory: ${TRACE_FOLDER}" 
 

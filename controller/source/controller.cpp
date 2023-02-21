@@ -7,15 +7,14 @@
 #include "query.hpp"
 #include "query_rewriter.hpp"
 #include "common.hpp"
-#include "kv_client/redis.hpp"
-#include "kv_client/rocksdb.hpp"
+#include "kv_client/factory.hpp"
 // #include "argh.hpp"
 
 using controller::default_policy;
 using controller::query;
 using controller::query_rewriter;
 
-auto main() -> int
+auto main(int argc, char* argv[]) -> int
 { 
   // read the default policy line
   std::string def_policy_line;
@@ -30,8 +29,14 @@ auto main() -> int
   }
 
   /* initialize the client object that exports put/get/delete API */
-  kv_client* client = new rocksdb_client("./db");
-  
+  auto args = std::span(argv, static_cast<size_t>(argc));
+  std::string db_type = get_command_line_argument(args, "--db");
+  if (db_type.empty()) {
+    std::cerr << "--db {redis,rocksdb} argument is not passed!" << std::endl;
+    std::quick_exit(1);
+  }
+  std::string db_address = get_command_line_argument(args, "--address");
+  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
 
   auto start = std::chrono::high_resolution_clock::now();
 
