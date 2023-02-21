@@ -1,7 +1,7 @@
 import sys
 import json
-from helper import safe_open
-from KV_interface import rewrite_query
+from policy_compiler.helper import safe_open
+from policy_compiler.KV_interface import rewrite_query
 import argparse
 
 policy_predicates = [
