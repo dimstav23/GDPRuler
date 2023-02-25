@@ -45,6 +45,9 @@ find_library(REDIS_PLUS_PLUS_LIB redis++)
 # find_path(ROCKSDB_HEADER rocksdb)
 find_library(ROCKSDB_LIB rocksdb)
 
+# ---- Add boost dependency ----
+find_package(Boost REQUIRED COMPONENTS system)
+
 # ---- Declare executables ----
 
 # main
@@ -55,7 +58,7 @@ set_property(TARGET gdpr_controller_exe PROPERTY OUTPUT_NAME gdpr_controller)
 
 target_compile_features(gdpr_controller_exe PRIVATE cxx_std_20)
 
-target_link_libraries(gdpr_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB})
+target_link_libraries(gdpr_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES})
 
 # native controller
 add_executable(native_controller_exe source/native_controller.cpp)
@@ -65,7 +68,7 @@ set_property(TARGET native_controller_exe PROPERTY OUTPUT_NAME native_controller
 
 target_compile_features(native_controller_exe PRIVATE cxx_std_20)
 
-target_link_libraries(native_controller_exe PRIVATE ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB})
+target_link_libraries(native_controller_exe PRIVATE ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES})
 
 # redis interface
 add_executable(redis_interface_exe source/redis_interface.cpp)
@@ -77,6 +80,16 @@ target_compile_features(redis_interface_exe PRIVATE cxx_std_20)
 
 target_link_libraries(redis_interface_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB})
 target_include_directories(redis_interface_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
+
+# rocksdb server
+add_executable(rocksdb_server_exe source/rocksdb_server/server.cpp)
+add_executable(rocksdb_server::exe ALIAS rocksdb_server_exe)
+
+set_property(TARGET rocksdb_server_exe PROPERTY OUTPUT_NAME rocksdb_server)
+
+target_compile_features(rocksdb_server_exe PRIVATE cxx_std_20)
+
+target_link_libraries(rocksdb_server_exe PRIVATE ${Boost_LIBRARIES} ${ROCKSDB_LIB})
 
 # ---- Install rules ----
 

@@ -51,6 +51,7 @@ mkShell {
     snappy
     zlib
     gflags
+    boost
 
     #GDPRBench specific packages
     maven
