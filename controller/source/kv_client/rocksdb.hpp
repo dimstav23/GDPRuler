@@ -42,6 +42,8 @@ public:
     return response.get_data();
   }
 
+  // To suppress bugprone-easily-swappable-parameters warning from clang-tidy
+  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
   auto put(const std::string& key, const std::string& value) -> bool override
   {
     query_message query;
