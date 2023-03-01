@@ -7,6 +7,19 @@
 #include <boost/algorithm/string.hpp>
 
 
+/**
+ * query_message is the expected message protocol sent from clients to the server.
+ * 
+ * The raw message contains three fields: command, key, and value.
+ * is_valid field is populated after receiving and parsing the raw message.
+ * 
+ * Expected message protocol: "<command> <key> <value>"
+ * 
+ * Example query_messages         || Their meanings
+ *  "del key_to_delete"           -> delete the entry with key "key_to_delete"
+ *  "get key_to_get"              -> get the entry with key "key_to_get"
+ *  "put key_to_put value_to_put" -> put entry with {"key_to_put": "value_to_put"}
+*/
 class query_message
 {
 public:
@@ -99,6 +112,22 @@ private:
   bool m_is_valid {false};
 };
 
+
+/**
+ * response_message is the expected message protocol sent from server to clients.
+ * 
+ * The raw message contains two fields: is_success, data.
+ * is_success represents the result of an operation.
+ * data represents the value retrieved in case of a successful put operation, 
+ *  or the response message otherwise.
+ * 
+ * Expected message protocol: "<status:{success,failure}>: <data>"
+ * 
+ * Example query_messages         || Their meanings
+ *  "success: del succeeded"      -> delete the entry with key "key_to_delete"
+ *  "failure: get failed"         -> get operation failed
+ *  "success: value_retrieved"    -> get operation succeded and value corresponding to key is "value_retrieved"
+*/
 class response_message
 {
 public:
