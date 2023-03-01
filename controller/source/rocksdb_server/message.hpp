@@ -118,7 +118,7 @@ private:
  * 
  * The raw message contains two fields: is_success, data.
  * is_success represents the result of an operation.
- * data represents the value retrieved in case of a successful put operation, 
+ * data represents the value retrieved in case of a successful get operation, 
  *  or the response message otherwise.
  * 
  * Expected message protocol: "<status:{success,failure}>: <data>"
