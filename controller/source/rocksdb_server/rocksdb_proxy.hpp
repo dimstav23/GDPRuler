@@ -8,6 +8,9 @@
 
 #include "message.hpp"
 
+/**
+ * rocksdb_proxy is a wrapper to interact with the rocksdb.
+*/
 class rocksdb_proxy
 {
 public:

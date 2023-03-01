@@ -9,6 +9,12 @@
 
 using boost::asio::ip::tcp;
 
+/**
+ * session class represents a connection handler for a single client.
+ * 
+ * Given a socket and a rocksdb_proxy, 
+ *  it listens the socket asynchronously, parses the requests, executes them, and writes back proper response messages.
+*/
 class session : public std::enable_shared_from_this<session> {
 public:
   session(tcp::socket socket, std::shared_ptr<rocksdb_proxy> rocksdb_proxy)
@@ -54,6 +60,13 @@ private:
   boost::asio::streambuf m_buffer;
 };
 
+/**
+ * rocksdb_server is the external interface to the outside world on a tcp port.
+ * 
+ * It initializes the db startup, accepts the client requests asynchronously over tcp sockets, 
+ *  delegates the handling of them to individual sessions.
+ *  
+*/
 class rocksdb_server {
 public:
   rocksdb_server(boost::asio::io_service& io_service,
