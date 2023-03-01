@@ -22,6 +22,8 @@ public:
   }
 
 private:
+  // handle_read() makes use of boost asio and it needs to call itself again to process the next chunk received.
+  // NOLINTBEGIN(misc-no-recursion)
   void handle_read() {
     auto self(shared_from_this());
     boost::asio::async_read_until(m_socket, m_buffer, '\n',
@@ -45,6 +47,7 @@ private:
       }
     });
   }
+  // NOLINTEND(misc-no-recursion)
 
   tcp::socket m_socket;
   std::shared_ptr<rocksdb_proxy> m_rocksdb_proxy;
