@@ -18,23 +18,24 @@ public:
   }
 
   void start() {
-    do_read();
+    handle_read();
   }
 
 private:
-  void do_read() {
+  void handle_read() {
     auto self(shared_from_this());
     boost::asio::async_read_until(m_socket, m_buffer, '\n',
       [this, self](boost::system::error_code error_code, std::size_t length) {
       if (!error_code) {
         // put buffered data into string excluding the last new line character
-        std::string raw_query(boost::asio::buffers_begin(m_buffer.data()), boost::asio::buffers_end(m_buffer.data()) - 1);
+        auto buffer_begin = boost::asio::buffers_begin(m_buffer.data());
+        std::string raw_query(buffer_begin, buffer_begin + length - 1);
         m_buffer.consume(length);
         query_message query = query_message::deserialize(raw_query);
         response_message response = m_rocksdb_proxy->execute(query);
         std::string raw_response = response.serialize();
         boost::asio::write(m_socket, boost::asio::buffer(raw_response));
-        do_read();
+        handle_read();
       }
       else if (error_code == boost::asio::error::eof) {
         std::cout << "Client is finished with the queries. Closing the session..." << std::endl;
