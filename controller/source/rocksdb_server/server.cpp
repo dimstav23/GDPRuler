@@ -91,6 +91,7 @@ private:
     });
   }
 
+  // tcp connection acceptor to asynchronously accept the connections and delegate the handling to sessions
   tcp::acceptor m_acceptor;
   tcp::socket m_socket;
   std::shared_ptr<rocksdb_proxy> m_rocksdb_proxy;
@@ -101,8 +102,14 @@ auto main(int argc, char* argv[]) -> int {
 
   try {
     assert(argc == 3 && "Usage: ./rocksdb_server <port> <db_path>");
+
+    // io_service is the entry point to use boost's async capabilities. It is an interface to the OS I/O services.
+    // It manages the threads and the event loop related to connections and handler callbacks. 
+    // See here for more info: https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/core/basics.html 
     boost::asio::io_service io_service;
     rocksdb_server rocksdb_server(io_service, static_cast<uint16_t>(std::stoul(args[1])), args[2]);
+
+    // run() method is used to dequeue the async operation results and call the respective handlers.
     io_service.run();
   } catch (std::exception& e) {
     std::cerr << "Exception in Rocksdb server: " << e.what() << std::endl;
