@@ -123,8 +123,10 @@ public:
   {
     static response_message invalid_response {/*is_success=*/false, "invalid"};
     static std::unordered_set<std::string> valid_response_types {"success", "failure"};
+    static const std::string response_message_delimiter = ": ";
+    static const size_t response_message_delimiter_len = response_message_delimiter.size();
 
-    size_t index = raw_query.find(": ");
+    size_t index = raw_query.find(response_message_delimiter);
     if (index == std::string::npos) {
       return invalid_response;
     }
@@ -134,7 +136,7 @@ public:
       return invalid_response;
     }
 
-    std::string second_str = raw_query.substr(index + 2, raw_query.size());
+    std::string second_str = raw_query.substr(index + response_message_delimiter_len, raw_query.size());
     return response_message {first_str == "success", second_str};
   }
 

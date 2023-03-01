@@ -29,7 +29,7 @@ private:
       if (!error_code) {
         // put buffered data into string excluding the last new line character
         auto buffer_begin = boost::asio::buffers_begin(m_buffer.data());
-        std::string raw_query(buffer_begin, buffer_begin + length - 1);
+        std::string raw_query(buffer_begin, buffer_begin + static_cast<int>(length) - 1);
         m_buffer.consume(length);
         query_message query = query_message::deserialize(raw_query);
         response_message response = m_rocksdb_proxy->execute(query);
