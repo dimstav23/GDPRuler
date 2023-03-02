@@ -4,9 +4,9 @@ This directory contains the source code of a TCP based rocksdb server.
 
 ## How to run server
 
-Program binary can be built alongside the gdpr_controller CMake. The rocksdb server is a standalone CLI program which can be executed with "./rocksdb_server <listening_port> <rocksdb_storage_path> <n_handler_threads>" command. Note that it expects exactly three arguments in this order.
+Program binary can be built alongside the gdpr_controller CMake. The rocksdb server is a standalone CLI program which can be executed with "./rocksdb_server <listening_port> <rocksdb_storage_path>" command. Note that it expects exactly two arguments in this order.
 
-Example execution: **./rocksdb_server 15001 ./db 2**
+Example execution: **./rocksdb_server 15001 ./db**
 
 ## File definitions
 
