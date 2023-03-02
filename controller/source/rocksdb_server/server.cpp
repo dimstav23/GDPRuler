@@ -4,7 +4,6 @@
 #include <vector>
 #include <memory>
 #include <boost/asio.hpp>
-#include <thread>
 
 #include "rocksdb_proxy.hpp"
 
@@ -102,26 +101,16 @@ auto main(int argc, char* argv[]) -> int {
   auto args = std::span(argv, static_cast<size_t>(argc));
 
   try {
-    assert(argc == 4 && "Usage: ./rocksdb_server <port> <db_path> <n_threads>");
+    assert(argc == 3 && "Usage: ./rocksdb_server <port> <db_path>");
 
     // io_service is the entry point to use boost's async capabilities. It is an interface to the OS I/O services.
     // It manages the threads and the event loop related to connections and handler callbacks. 
     // See here for more info: https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/core/basics.html 
     boost::asio::io_service io_service;
     rocksdb_server rocksdb_server(io_service, static_cast<uint16_t>(std::stoul(args[1])), args[2]);
-    size_t n_threads = std::stoul(args[3]);
-    std::vector<std::thread> handler_threads(n_threads);
 
-    // start handler threads
-    for (size_t i = 0; i < n_threads; i++) {
-      // run() method is used to dequeue the async operation results and call the respective handlers.
-      handler_threads[i] = std::thread {[&io_service]() {io_service.run();} };
-    }
-
-    // join handler threads
-    for (size_t i = 0; i < n_threads; i++) {
-      handler_threads[i].join();
-    }
+    // run() method is used to dequeue the async operation results and call the respective handlers.
+    io_service.run();
   } catch (std::exception& e) {
     std::cerr << "Exception in Rocksdb server: " << e.what() << std::endl;
     return 1;
