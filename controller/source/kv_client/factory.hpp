@@ -15,7 +15,7 @@ class kv_factory {
       return "tcp://127.0.0.1:6379";
     } 
     if (kv_backend == "rocksdb") {
-      return "./db";
+      return "127.0.0.1:15001";
     }
     throw std::runtime_error("Unsupported KV backend");
   }
