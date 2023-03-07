@@ -1,0 +1,5 @@
+#cloud-config
+password: amd_sev
+chpasswd: { expire: False }
+ssh_pwauth: False
+final_message: "Cloud init is done!"
