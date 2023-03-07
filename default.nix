@@ -5,8 +5,10 @@ let
       ps.pexpect
       ps.matplotlib
     ]);
+  libraries = [ pixman zlib ];
 in
 mkShell {
+  buildInputs = libraries;
   nativeBuildInputs = [
     #for the kernel module build
     cpuid
@@ -20,6 +22,17 @@ mkShell {
     autoconf
     automake
 
+    #for sev guest
+    ninja
+    glib
+    nasm
+    acpica-tools
+    flex
+    bison
+    elfutils
+    smatch
+    rpm
+
     #general
     bc
     bashInteractive
@@ -30,7 +43,6 @@ mkShell {
     virt-manager
     vim
     libuuid
-    nasm
     file
     bridge-utils
     cloud-utils
@@ -49,7 +61,6 @@ mkShell {
     lz4
     bzip2
     snappy
-    zlib
     gflags
     boost
 
@@ -66,9 +77,10 @@ mkShell {
     doxygen
     codespell
     abseil-cpp
+  ];
 
-    ];
-  
+  # make install strips valueable libraries from our rpath
+  LD_LIBRARY_PATH = lib.makeLibraryPath libraries;
   shellHook = ''
     export KDIR=${linuxPackages_latest.kernel.dev}/lib/modules/${linuxPackages_latest.kernel.dev.modDirVersion}/build
     export PATH=${pythonEnv}/bin:$PATH
