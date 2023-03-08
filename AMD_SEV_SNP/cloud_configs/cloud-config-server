@@ -5,4 +5,11 @@ ssh_pwauth: False
 ssh_authorized_keys:
   - ssh-rsa enter_your_rsa_key_here
   - ssh-ed25519 you_can_add_multiple_keys_with_different_algorithms
+runcmd:
+ - [ cd, /home ]
+ - [ wget, https://raw.githubusercontent.com/dimstav23/GDPRuler/setup_AMD_SEV_SNP_VMs/AMD_SEV_SNP/setup_vm.sh ]
+ - [ chmod, +x, ./setup_vm.sh ]
+ - [ sh, ./setup_vm.sh ]
+# cloud_final_modules:
+#   - [scripts-user, always]
 final_message: "Cloud init is done!"
