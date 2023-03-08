@@ -10,12 +10,12 @@ usage() {
 
 while [ -n "$1" ]; do
 	case "$1" in
-		-br)		BRIDGE=$2
-				shift
-				;;
-		-cfg)	  NETCFG=$2
-				shift
-				;;
+		-br)    BRIDGE=$2
+			shift
+			;;
+		-cfg)   NETCFG=$2
+			shift
+			;;
 		
 		*)  usage;;
 	esac
@@ -33,3 +33,4 @@ PREFIX=$(ip address show dev "${BRIDGE}" | grep inet | awk '{print $2}' | awk -F
 # Note that the last part of the address and gateway will remain the same as the one pre-defined
 sed -i -E "s/^(\s+)(address:\s+)[0-9]+\.[0-9]+\.[0-9]+\./\1\2${PREFIX}./" "${NETCFG}"
 sed -i -E "s/^(\s+)(gateway:\s+)[0-9]+\.[0-9]+\.[0-9]+\./\1\2${PREFIX}./" "${NETCFG}"
+
