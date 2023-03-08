@@ -48,7 +48,10 @@ $ ./build.sh ovmf
 ```
 
 ### 4. Prepare an AMD SEV-SNP guest.
-You need to have cloud-config file and a network-config file for your VM, similar to those in the [cloud_configs](./cloud_configs/) folder.
+- You need to have cloud-config file and a network-config file for your VM, similar to those in the [cloud_configs](./cloud_configs/) folder.
+- If you wish to have ssh connection to your VMs, you can adapt the cloud-config files and include your ssh keys, so that cloud-init sets them up automatically in the VM. Example cloud-init configurations that include the placeholders for ssh keys can be found [here](./cloud_configs/).
+- The [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) script takes as a parameter the virtual bridge where the VMs will be connected to and modifies the IP prefix in the network configuration (given as a secord parameter) appropriately.
+
 Follow the next set of commands to launch an SEV-SNP guest (tested with ubuntu 22.04 cloud img).
 ```
 $ wget https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-amd64.img 
@@ -59,22 +62,21 @@ $ sudo ./linux-svsm/scripts/usr/local/bin/qemu-img convert kinetic-server-cloudi
 
 $ sudo ./linux-svsm/scripts/usr/local/bin/qemu-img resize ./images/sev-server.img +20G 
 
-$ ./prepare_net_cfg.sh virbr0 ./cloud_configs/network-config-server.yml
+$ ./prepare_net_cfg.sh -br virbr0 -cfg ./cloud_configs/network-config-server.yml
 
 $ sudo cloud-localds -N ./cloud_configs/network-config-server.yml ./images/server-cloud-config.iso ./cloud_configs/cloud-config-server
 
-$ cp /linux-svsm/scripts/usr/local/share/qemu/OVMF_CODE.fd ./OVMF_CODE_server.fd
+$ cp ./linux-svsm/scripts/usr/local/share/qemu/OVMF_CODE.fd ./OVMF_CODE_server.fd
 
-$ cp /linux-svsm/scripts/usr/local/share/qemu/OVMF_VARS.fd ./OVMF_VARS_client.fd
+$ cp ./linux-svsm/scripts/usr/local/share/qemu/OVMF_VARS.fd ./OVMF_VARS_server.fd
 ```
 
 **Important note:** 
-- The [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) script takes as a parameter the virtual bridge where the VMs will be connected to and modifies the IP prefix in the network configuration (given as a secord parameter) appropriately.
 - Each VM requires a separate `.img` and `OVMF_*.fd` files.
 
 ### 5. Launch an AMD SEV-SNP guest.
 ```
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./launch-qemu.sh 
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./launch-qemu.sh \
 -hda ./images/sev-server.img \
 -cdrom ./images/server-cloud-config.iso \
 -sev-snp \
@@ -95,8 +97,9 @@ Configuration examples are given in the [cloud_configs](./cloud_configs/) folder
 In step 5 above, we use the parameter `-bridge virbr0`, so that our VMs use the virtual network bridge `virbr0`. 
 Our script [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) checks the given virtual bridge and adjust the prefix of the IP declared in the network configuration file. Example configuration files are given in the [cloud_configs](./cloud_configs/) folder. They are used mainly to pre-determine the IPs of the VMs in the network.
 
-### Notes
-- After you make sure that networking works fine and you can reach the VM guest from the host, you can log-in the VM using ssh (after placing your ssh keys in the `~/.ssh/autorhized_keys` file of the guest VM) 
+### Manual ssh connection setup
+- After you make sure that networking works fine and you can reach the VM guest from the host, you can log-in the VM using ssh (after placing your ssh keys in the `~/.ssh/autorhized_keys` file of the guest VM).
 
-### TODO
-- Add authorization keys inside the cloud-config itself
+### Useful links
+- Sample cloud-config and network-config for cloud-init can be found [here](https://gist.github.com/itzg/2577205f2036f787a2bd876ae458e18e).
+- Additional options of the cloud-config, such as running a specific command during initialization, can be found [here](https://www.digitalocean.com/community/tutorials/how-to-use-cloud-config-for-your-initial-server-setup)

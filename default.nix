@@ -5,7 +5,7 @@ let
       ps.pexpect
       ps.matplotlib
     ]);
-  libraries = [ pixman zlib ];
+  libraries = [ pixman zlib zstd ];
 in
 mkShell {
   buildInputs = libraries;

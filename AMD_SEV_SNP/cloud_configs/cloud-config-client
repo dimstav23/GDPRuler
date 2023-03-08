@@ -2,8 +2,7 @@
 password: amd_sev
 chpasswd: { expire: False }
 ssh_pwauth: False
-runcmd:
-    - [ sh, -xc, "echo Here is the network config for your instance" ]
-    - [ ip, a ]
-    - [ sh, -xc, "echo 'nameserver 8.8.8.8' >> /etc/resolv.conf" ]
+ssh_authorized_keys:
+  - ssh-rsa enter_your_rsa_key_here
+  - ssh-ed25519 you_can_add_multiple_keys_with_different_algorithms
 final_message: "Cloud init is done!"
