@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#ip address show dev virbr0 | grep inet | awk '{print $2}' | awk -F . '{print $1"."$2"."$3}'
-
 usage() {
 	echo "$0 [options]"
 	echo "Mandatory arguments:"
