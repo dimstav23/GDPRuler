@@ -85,7 +85,9 @@ $ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./launch-qemu.sh \
 -bios-vars ./OVMF_VARS_server.fd
 ```
 
-**Important note:** 
+**Important notes:**
+- Be a bit patient, the network configuration above takes some seconds. If, in the meantime, you encounter a log-in prompt that does not accept your credentials, you can try Ctrl+C which will detach from the current tty and will allow the cloud-init to finish properly. Then you can log in normally.
+It is a known "issue". 
 - Follow the same process for the creation of a client vm (if you want/need to).
 You need a different `.img`, and to adapt the network configuration appropriately to reserve a different IP.
 Configuration examples are given in the [cloud_configs](./cloud_configs/) folder.
