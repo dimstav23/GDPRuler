@@ -7,7 +7,7 @@ ssh_authorized_keys:
   - ssh-ed25519 you_can_add_multiple_keys_with_different_algorithms
 runcmd:
  - [ cd, /home ]
- - [ wget, https://raw.githubusercontent.com/dimstav23/GDPRuler/setup_AMD_SEV_SNP_VMs/AMD_SEV_SNP/setup_vm.sh ]
+ - [ wget, https://raw.githubusercontent.com/dimstav23/GDPRuler/main/AMD_SEV_SNP/setup_vm.sh ]
  - [ chmod, +x, ./setup_vm.sh ]
  - [ sh, ./setup_vm.sh ]
 # cloud_final_modules:

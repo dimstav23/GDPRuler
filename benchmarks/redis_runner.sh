@@ -2,9 +2,12 @@
 
 default_policy_cfg=../configs/owner_policy.json
 workload_folder=../workload_traces
-repeats=5
+repeats=3
 workloads="workloada workloadb workloadc workloadd workloadf"
 redis_server_path=../KVs/redis/src
+
+# server_address="tcp://192.168.122.48:6379"
+# server_address="tcp://192.168.122.48:6379"
 
 mkdir -p results
 rm -rf ./dump.rdb
@@ -19,7 +22,7 @@ for workload in $workloads; do
     ${redis_server_path}/redis-server &> /dev/null &
     redis_pid=$!
     sleep 3
-    python3 ../native_ctl.py -w ${workload_folder}/${workload} > ./results/native_${workload}_${rep}
+    python3 ../native_ctl.py --workload ${workload_folder}/${workload} --db redis > ./results/native_${workload}_${rep}
     controller_time=$(grep "Controller time:" ./results/native_${workload}_${rep} | awk '{print $3}')
     system_time=$(grep "System time:" ./results/native_${workload}_${rep} | awk '{print $3}')
     controller_times=$(echo "$controller_times + $controller_time" | bc -l)
@@ -50,7 +53,7 @@ for workload in $workloads; do
     ${redis_server_path}/redis-server &> /dev/null &
     redis_pid=$!
     sleep 3
-    python3 ../GDPRuler.py -c ${default_policy_cfg} -w ${workload_folder}/${workload} > ./results/gdpr_${workload}_${rep}
+    python3 ../GDPRuler.py -c ${default_policy_cfg} --workload ${workload_folder}/${workload} --db redis > ./results/gdpr_${workload}_${rep}
     controller_time=$(grep "Controller time:" ./results/gdpr_${workload}_${rep} | awk '{print $3}')
     system_time=$(grep "System time:" ./results/gdpr_${workload}_${rep} | awk '{print $3}')
     controller_times=$(echo "$controller_times + $controller_time" | bc -l)

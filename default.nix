@@ -5,7 +5,7 @@ let
       ps.pexpect
       ps.matplotlib
     ]);
-  libraries = [ pixman zlib zstd ];
+  libraries = [ pixman zlib zstd glib libpng ];
 in
 mkShell {
   buildInputs = libraries;
@@ -24,7 +24,6 @@ mkShell {
 
     #for sev guest
     ninja
-    glib
     nasm
     acpica-tools
     flex
