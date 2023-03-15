@@ -74,6 +74,7 @@ $ cp ./linux-svsm/scripts/usr/local/share/qemu/OVMF_VARS.fd ./OVMF_VARS_server.f
 
 **Important note:** 
 - Each VM requires a separate `.img` and `OVMF_*.fd` files.
+- To avoid any problems, you have to use a distro with text-based installer, otherwise your launched VM might stuck ([issue](https://github.com/AMDESE/AMDSEV/issues/38)).
 
 ### 5. Launch an AMD SEV-SNP guest.
 ```
