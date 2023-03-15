@@ -25,16 +25,17 @@ For more information regarding the parameter for CPU mininmum SEV ASIDs specific
 look [here](https://www.dell.com/support/manuals/en-us/idrac9-lifecycle-controller-v4.x-series/idrac_4.00.00.00_racadm_ar_referenceguide/bios.procsettings.cpuminsevasid-(read-or-write)?guid=guid-4bdaeaa7-d054-4fd1-bd84-0cd71d7aec1e&lang=en-us).
 
 ### 1. Use the dedicated host kernel and enable SEV-SNP in the desired server:
-Import the [amd_sev_snp.nix](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/modules/amd_sev_snp.nix) module in the server configuration. 
+Import the [amd_sev_snp.nix](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/modules/amd_sev_snp.nix) (if you need only SNP) or 
+[amd_sev_svsm.nix](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/modules/amd_sev_svsm.nix) (if you need additional svsm support) module in the server configuration. 
 An example configuration is shown [here](https://github.com/TUM-DSE/doctor-cluster-config/blob/master/hosts/ryan.nix). 
 
-This module sets the appropriate kernel version and parameters, and adds the mandatory kernel modules for SME and SEV-SNP.
+This module sets the appropriate kernel version and parameters, and adds the mandatory kernel modules for SME, SEV-SNP, and, optionally, svsm .
 
-**Note:** this setup has been tested with kernel `5.19-rc6` sev-snp version provided by AMD, with binutils patches.
-You can find the kernel [here](https://github.com/mmisono/linux/tree/sev-snp-iommu-avic_5.19-rc6_v4-dev).
+**Note:** this setup has been tested with 
+- kernel `5.19-rc6` sev-snp version provided by AMD ([link](https://github.com/mmisono/linux/tree/sev-snp-iommu-avic_5.19-rc6_v4-dev))
+- kernel `6.1.0-rc4` svsm version provided by AMD ([link](https://github.com/AMDESE/linux/tree/svsm-preview-hv-v2))
 
 ### 2. Verify that SME, SEV and SEV-ES are enabled:
-- `dmesg | grep SME` should indicate `AMD Memory Encryption Features active: SME` and
 - `dmesg | grep sev` should include `sev enabled` in its output.
 - `dmesg | grep -i SEV-ES` should indicate that `SEV-ES` is supported and the number of SEV ASIDs.
 - `dmesg | grep -i SEV-SNP` should indicate that `SEV-SNP` is enabled and the number of ASIDs.
@@ -58,9 +59,9 @@ $ wget https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-a
 
 $ mkdir images
 
-$ sudo ./linux-svsm/scripts/usr/local/bin/qemu-img convert kinetic-server-cloudimg-amd64.img ./images/sev-server.img
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./linux-svsm/scripts/usr/local/bin/qemu-img convert kinetic-server-cloudimg-amd64.img ./images/sev-server.img
 
-$ sudo ./linux-svsm/scripts/usr/local/bin/qemu-img resize ./images/sev-server.img +20G 
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH  ./linux-svsm/scripts/usr/local/bin/qemu-img resize ./images/sev-server.img +20G 
 
 $ ./prepare_net_cfg.sh -br virbr0 -cfg ./cloud_configs/network-config-server.yml
 
