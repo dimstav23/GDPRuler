@@ -4,3 +4,7 @@ plain_vm/
 workload_traces/
 .direnv/
 db/
+OVMF*
+*.fd
+*.rdb
+
