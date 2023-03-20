@@ -15,10 +15,9 @@ MAX_NCPUS=""
 SEV_GUEST=""
 SEV_ES_GUEST=""
 SEV_SNP_GUEST=""
-SVSM=""
 CONSOLE="serial"
-UEFI_BIOS_CODE="./linux-svsm/scripts/usr/local/share/qemu/OVMF_CODE.fd"
-UEFI_BIOS_VARS="./linux-svsm/scripts/usr/local/share/qemu/OVMF_VARS.fd"
+UEFI_BIOS_CODE="./usr/local/share/qemu/OVMF_CODE.fd"
+UEFI_BIOS_VARS="./usr/local/share/qemu/OVMF_VARS.fd"
 #UEFI_BIOS_CODE="/run/libvirt/nix-ovmf/OVMF_CODE.fd"
 #UEFI_BIOS_VARS="/run/libvirt/nix-ovmf/OVMF_VARS.fd"
 BIOS_DEBUG=""
@@ -30,7 +29,7 @@ SEV_POLICY=""
 SNP_FLAGS="0"
 DISCARD=""
 
-QEMU_INSTALL_DIR="./linux-svsm/scripts/usr/local/bin/"
+QEMU_INSTALL_DIR="./usr/local/bin/"
 
 echo $LD_LIBRARY_PATH
 
@@ -44,7 +43,6 @@ usage() {
 	echo " -sev          enable SEV support"
 	echo " -sev-es       enable SEV-ES support"
 	echo " -sev-snp      enable SEV-SNP support"
-	echo " -svsm         SVSM binary (for use with SEV-SNP)"
 	echo " -sev-policy   policy to use for SEV (SEV=0x01, SEV-ES=0x41, SEV-SNP=0x30000)"
 	echo " -snp-flags    SEV-SNP initialization flags (0 is default)"
 	echo " -mem          guest memory (must specify M or G suffix)"
@@ -168,9 +166,6 @@ while [ -n "$1" ]; do
 				SEV_ES_GUEST="1"
 				SEV_SNP_GUEST="1"
 				;;
-		-svsm)		SVSM="${2}"
-				shift
-				;;
 		-sev-policy)	SEV_POLICY="${2}"
 				shift
 				;;
@@ -245,8 +240,6 @@ while [ -n "$1" ]; do
 	shift
 done
 
-[ -n "$SVSM" ] && SNP_FLAGS=$((SNP_FLAGS | 0x04))
-
 [ -z "$UEFI_BIOS_CODE" ] && UEFI_BIOS_CODE="./OVMF_CODE.fd"
 TMP="$(readlink -e $UEFI_BIOS_CODE)"
 [ -z "$TMP" ] && {
@@ -312,7 +305,7 @@ if [ -n "${SEV_GUEST}" ]; then
 	fi
 
 	if [ -n "$SEV_SNP_GUEST" ]; then
-		add_opts "-machine type=q35,confidential-guest-support=sev0,memory-backend=ram1,kvm-type=protected,vmport=off${SVSM:+,svsm=$SVSM}"
+		add_opts "-machine type=q35,confidential-guest-support=sev0,memory-backend=ram1,kvm-type=protected,vmport=off"
 		add_opts "-object memory-backend-memfd-private,id=ram1,size=$MEM,share=true"
 	else
 		add_opts "-m ${MEM}${MAX_MEM:+,slots=5,maxmem=$MAX_MEM}"
