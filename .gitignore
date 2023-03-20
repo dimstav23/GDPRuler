@@ -5,3 +5,6 @@ workload_traces/
 .direnv/
 db/
 test_outputs/
+OVMF*
+*.fd
+*.rdb
