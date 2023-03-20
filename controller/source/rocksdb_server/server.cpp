@@ -4,10 +4,19 @@
 #include <vector>
 #include <memory>
 #include <boost/asio.hpp>
+#include <thread>
 
 #include "rocksdb_proxy.hpp"
 
 using boost::asio::ip::tcp;
+
+constexpr int socket_timeout_seconds = 60; 
+
+// io_service is the entry point to use boost's async capabilities. It is an interface to the OS I/O services.
+// It manages the threads and the event loop related to connections and handler callbacks. 
+// See here for more info: https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/core/basics.html
+//NOLINTNEXTLINE 
+boost::asio::io_service io_service;
 
 /**
  * session class represents a connection handler for a single client.
@@ -24,18 +33,27 @@ public:
   }
 
   void start() {
+    // Set socket timeout in win and unix platforms
+    #ifdef _WIN32
+      DWORD socket_timeout_ms = socket_timeout_seconds * s2ms;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_ms), sizeof(socket_timeout_ms));
+    #else
+      // Set receive timeout of unix socket. See SO_RCVTIMEO in https://linux.die.net/man/7/socket
+      struct timeval socket_timeout_val{};
+      socket_timeout_val.tv_sec = socket_timeout_seconds;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_val), sizeof(socket_timeout_val));
+    #endif
+
     handle_read();
   }
 
 private:
-  // handle_read() makes use of boost asio and it needs to call itself again to process the next chunk received.
-  // NOLINTBEGIN(misc-no-recursion)
   void handle_read() {
-    auto self(shared_from_this());
-    boost::asio::async_read_until(m_socket, m_buffer, '\n',
-      [this, self](boost::system::error_code error_code, std::size_t length) {
-      if (!error_code) {
-        // put buffered data into string excluding the last new line character
+    while (m_socket.is_open()) {
+      try {
+        auto length = boost::asio::read_until(m_socket, m_buffer, '\n');
         auto buffer_begin = boost::asio::buffers_begin(m_buffer.data());
         std::string raw_query(buffer_begin, buffer_begin + static_cast<int>(length) - 1);
         m_buffer.consume(length);
@@ -43,17 +61,16 @@ private:
         response_message response = m_rocksdb_proxy->execute(query);
         std::string raw_response = response.serialize();
         boost::asio::write(m_socket, boost::asio::buffer(raw_response));
-        handle_read();
+      } catch(const boost::wrapexcept<boost::system::system_error>& e) {
+        if (e.code() == boost::asio::error::eof) {
+          std::cout << "Client is finished with the queries. Closing the session..." << std::endl;
+        } else {
+          std::cout << "Exception thrown in handle_read: " << e.what() << std::endl;
+        }
+        break;
       }
-      else if (error_code == boost::asio::error::eof) {
-        std::cout << "Client is finished with the queries. Closing the session..." << std::endl;
-      }
-      else {
-        std::cout << "Error while reading tcp message: " << error_code << std::endl;
-      }
-    });
+    }
   }
-  // NOLINTEND(misc-no-recursion)
 
   tcp::socket m_socket;
   std::shared_ptr<rocksdb_proxy> m_rocksdb_proxy;
@@ -69,12 +86,11 @@ private:
 */
 class rocksdb_server {
 public:
-  rocksdb_server(boost::asio::io_service& io_service,
-                 uint16_t port,
+  rocksdb_server(uint16_t port,
                  const std::string& db_path)
       : m_acceptor(io_service, tcp::endpoint(tcp::v4(), port))
       , m_socket(io_service)
-      , m_rocksdb_proxy(make_shared<rocksdb_proxy>(db_path))
+      , m_rocksdb_proxy(std::make_shared<rocksdb_proxy>(db_path))
   {
     std::cout << "Starting server on port: " << port << std::endl;
     do_accept();
@@ -85,7 +101,11 @@ private:
     std::cout << "Server is waiting to accept a new request!" << std::endl;
     m_acceptor.async_accept(m_socket, [this](boost::system::error_code error_code) {
       if (!error_code) {
-        std::make_shared<session>(std::move(m_socket), m_rocksdb_proxy)->start();
+        auto session_ptr = std::make_shared<session>(std::move(m_socket), m_rocksdb_proxy);
+        std::thread session_thread([session_ptr]() {
+          session_ptr->start();
+        });
+        session_thread.detach();
       }
       do_accept();
     });
@@ -103,11 +123,7 @@ auto main(int argc, char* argv[]) -> int {
   try {
     assert(argc == 3 && "Usage: ./rocksdb_server <port> <db_path>");
 
-    // io_service is the entry point to use boost's async capabilities. It is an interface to the OS I/O services.
-    // It manages the threads and the event loop related to connections and handler callbacks. 
-    // See here for more info: https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/core/basics.html 
-    boost::asio::io_service io_service;
-    rocksdb_server rocksdb_server(io_service, static_cast<uint16_t>(std::stoul(args[1])), args[2]);
+    rocksdb_server rocksdb_server(static_cast<uint16_t>(std::stoul(args[1])), args[2]);
 
     // run() method is used to dequeue the async operation results and call the respective handlers.
     io_service.run();
