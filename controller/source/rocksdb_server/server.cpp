@@ -27,13 +27,11 @@ public:
   session(tcp::socket socket, std::shared_ptr<rocksdb_proxy> rocksdb_proxy)
       : m_socket(std::move(socket))
       , m_rocksdb_proxy(std::move(rocksdb_proxy))
-      , m_strand(io_service)
   {
   }
 
   void start() {
-    auto self = shared_from_this();
-    m_strand.post([self]() {self->handle_read();});
+    handle_read();
   }
 
 private:
@@ -62,7 +60,6 @@ private:
   tcp::socket m_socket;
   std::shared_ptr<rocksdb_proxy> m_rocksdb_proxy;
   boost::asio::streambuf m_buffer;
-  boost::asio::io_service::strand m_strand;
 };
 
 /**
@@ -89,7 +86,11 @@ private:
     std::cout << "Server is waiting to accept a new request!" << std::endl;
     m_acceptor.async_accept(m_socket, [this](boost::system::error_code error_code) {
       if (!error_code) {
-        std::make_shared<session>(std::move(m_socket), m_rocksdb_proxy)->start();
+        auto session_ptr = std::make_shared<session>(std::move(m_socket), m_rocksdb_proxy);
+        std::thread session_thread([session_ptr]() {
+          session_ptr->start();
+        });
+        session_thread.detach();
       }
       do_accept();
     });
@@ -105,23 +106,12 @@ auto main(int argc, char* argv[]) -> int {
   auto args = std::span(argv, static_cast<size_t>(argc));
 
   try {
-    assert(argc == 4 && "Usage: ./rocksdb_server <port> <db_path> <n_threads>");
+    assert(argc == 3 && "Usage: ./rocksdb_server <port> <db_path>");
 
     rocksdb_server rocksdb_server(static_cast<uint16_t>(std::stoul(args[1])), args[2]);
 
-    size_t n_threads = std::stoul(args[3]);
-    std::vector<std::thread> handler_threads(n_threads);
-
-    // start handler threads
-    for (size_t i = 0; i < n_threads; i++) {
-      // run() method is used to dequeue the async operation results and call the respective handlers.
-      handler_threads[i] = std::thread {[&]() {io_service.run();} };
-    }
-
-    // join handler threads
-    for (size_t i = 0; i < n_threads; i++) {
-      handler_threads[i].join();
-    }
+    // run() method is used to dequeue the async operation results and call the respective handlers.
+    io_service.run();
   } catch (std::exception& e) {
     std::cerr << "Exception in Rocksdb server: " << e.what() << std::endl;
     return 1;
