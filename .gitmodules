@@ -13,6 +13,3 @@
 [submodule "ycsb_trace_generator/GDPRbench"]
 	path = ycsb_trace_generator/GDPRbench
 	url = https://github.com/dimstav23/GDPRbench.git
-[submodule "AMD_SEV_SNP/linux-svsm"]
-	path = AMD_SEV_SNP/linux-svsm
-	url = https://github.com/dimstav23/linux-svsm.git
