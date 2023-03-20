@@ -19,6 +19,17 @@ run_test() {
 
     # wait for server to start up
     sleep 3
+  elif [ $db == redis ]; then
+    # Check that the redis-server executable is available
+    if [ ! -f "./KVs/redis/src/redis-server" ]; then
+      echo "Redis server not found. Please compile the redis version of the provided submodule."
+      exit
+    fi
+    # run redis server
+    ./KVs/redis/src/redis-server --protected-mode no > ${test_outputs_folder}/${test_name_suffix}_server.txt &
+
+    # wait for server to start up
+    sleep 3
   fi
 
   local controller_times=0
@@ -56,10 +67,17 @@ run_test() {
   if [ $db == rocksdb ]; then
     # Stop rocksdb server
     kill $(pgrep rocksdb_server)
-    # Remove the temp file for server output
-    rm ${test_outputs_folder}/${test_name_suffix}_server.txt
+    
+    sleep 3
+  elif [ $db == redis ]; then
+    # Stop redis server
+    kill $(pgrep redis-server)
+
     sleep 3
   fi
+
+  # Remove the temp file for server output
+  rm ${test_outputs_folder}/${test_name_suffix}_server.txt
 
   # Calculate the average controller time & system time per client
   avg_controller_time=$(echo "$controller_times / $n_clients" | bc -l | awk '{printf "%.9f", $0}')
@@ -76,6 +94,12 @@ run_test() {
 
 }
 
+if [ ! -d "controller" ]; then
+  echo "controller directory does not exist."
+  echo "Please execute the script from the root folder of GDPRuler repository"
+  exit
+fi
+
 # build controller
 echo "Building controller"
 cd controller
@@ -90,7 +114,7 @@ mkdir -p ${test_outputs_folder}
 #   {redis, rocksdb} dbs,
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
 clients="1 2 4 8 16 32"
-dbs="rocksdb"
+dbs="rocksdb redis"
 workloads="workloada_test workloadb_test workloadc_test workloadd_test workloadf_test"
 
 for n_clients in $clients; do
