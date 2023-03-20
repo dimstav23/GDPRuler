@@ -5,6 +5,7 @@
 #include <span>
 
 constexpr int s2ns = 1000000000;
+constexpr int s2ms = 1000;
 constexpr int ns_precision = 9;
 
 /* Parse the value corresponding to given option. Return empty string if not found. */

@@ -10,6 +10,8 @@
 
 using boost::asio::ip::tcp;
 
+constexpr int socket_timeout_seconds = 60; 
+
 // io_service is the entry point to use boost's async capabilities. It is an interface to the OS I/O services.
 // It manages the threads and the event loop related to connections and handler callbacks. 
 // See here for more info: https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/core/basics.html
@@ -31,6 +33,19 @@ public:
   }
 
   void start() {
+    // Set socket timeout in win and unix platforms
+    #ifdef _WIN32
+      DWORD socket_timeout_ms = socket_timeout_seconds * s2ms;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_ms), sizeof(socket_timeout_ms));
+    #else
+      // Set receive timeout of unix socket. See SO_RCVTIMEO in https://linux.die.net/man/7/socket
+      struct timeval socket_timeout_val{};
+      socket_timeout_val.tv_sec = socket_timeout_seconds;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_val), sizeof(socket_timeout_val));
+    #endif
+
     handle_read();
   }
 
