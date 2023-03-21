@@ -1,0 +1,6 @@
+qemu/
+ovmf/
+usr/
+*.log
+images/
+OVMF_files/
