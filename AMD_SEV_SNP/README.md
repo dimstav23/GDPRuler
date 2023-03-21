@@ -32,8 +32,8 @@ An example configuration is shown [here](https://github.com/TUM-DSE/doctor-clust
 This module sets the appropriate kernel version and parameters, and adds the mandatory kernel modules for SME, SEV-SNP, and, optionally, svsm .
 
 **Note:** this setup has been tested with 
-- kernel `5.19-rc6` sev-snp version provided by AMD ([link](https://github.com/mmisono/linux/tree/sev-snp-iommu-avic_5.19-rc6_v4-dev))
-- kernel `6.1.0-rc4` svsm version provided by AMD ([link](https://github.com/AMDESE/linux/tree/svsm-preview-hv-v2))
+- kernel `6.1.0-rc4` sev-snp version provided by AMD ([link](https://github.com/AMDESE/linux/tree/snp-host-latest)) -- the latest tested commit is [here](https://github.com/AMDESE/linux/commit/db73108c4fd62c03ad57e0c7118e5623750898ee)
+- kernel `6.1.0-rc4` svsm version provided by AMD ([link](https://github.com/AMDESE/linux/tree/svsm-preview-hv-v2)) -- the latest tested commit is [here](https://github.com/AMDESE/linux/commit/4c33a31c6e1524f1b90834aaaea250a085f72dac)
 
 ### 2. Verify that SME, SEV and SEV-ES are enabled:
 - `dmesg | grep sev` should include `sev enabled` in its output.
@@ -43,10 +43,20 @@ This module sets the appropriate kernel version and parameters, and adds the man
 ### 3. Prepare the host toolchain
 Compile the custom OVMF and QEMU provided by AMD:
 ```
-$ cd linux-svsm/scripts
 $ ./build.sh qemu
 $ ./build.sh ovmf
 ```
+
+**Note:** 
+
+For SNP, this setup has been tested with 
+- `qemu`: snp-latest branch provided by AMD ([link](https://github.com/AMDESE/qemu/tree/snp-latest)) -- the latest tested commit is [here](https://github.com/AMDESE/qemu/commit/b3721248d18d1ed56a75df2528591b2f1505660f)
+- `ovmf`: snp-latest branch provided by AMD ([link](https://github.com/AMDESE/ovmf/tree/snp-latest)) -- the latest tested commit is [here](https://github.com/AMDESE/ovmf/commit/e1a623d4ac86024284c53f7e577b02b45ffb8b2f)
+
+For SVSM, this setup has been tested with 
+- `qemu`: svsm-preview-v2 branch provided by AMD ([link](https://github.com/AMDESE/qemu/tree/svsm-preview-v2)) -- the latest tested commit is [here](https://github.com/AMDESE/qemu/commit/2c6dbe30d6da1cac18ff6dba81087179ebd3b8a7)
+- `ovmf`: svsm-preview-v2 branch provided by AMD ([link](https://github.com/AMDESE/ovmf/tree/svsm-preview-v2)) -- the latest tested commit is [here](https://github.com/AMDESE/ovmf/commit/db753e31773ae52ea7f2b320fc7a57c5ef6b46d0)
+
 
 ### 4. Prepare an AMD SEV-SNP guest.
 - You need to have cloud-config file and a network-config file for your VM, similar to those in the [cloud_configs](./cloud_configs/) folder.
@@ -59,17 +69,19 @@ $ wget https://cloud-images.ubuntu.com/kinetic/current/kinetic-server-cloudimg-a
 
 $ mkdir images
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./linux-svsm/scripts/usr/local/bin/qemu-img convert kinetic-server-cloudimg-amd64.img ./images/sev-server.img
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./usr/local/bin/qemu-img convert kinetic-server-cloudimg-amd64.img ./images/sev-server.img
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH  ./linux-svsm/scripts/usr/local/bin/qemu-img resize ./images/sev-server.img +20G 
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH  ./usr/local/bin/qemu-img resize ./images/sev-server.img +20G 
 
 $ ./prepare_net_cfg.sh -br virbr0 -cfg ./cloud_configs/network-config-server.yml
 
 $ sudo cloud-localds -N ./cloud_configs/network-config-server.yml ./images/server-cloud-config.iso ./cloud_configs/cloud-config-server
 
-$ cp ./linux-svsm/scripts/usr/local/share/qemu/OVMF_CODE.fd ./OVMF_CODE_server.fd
+$ mkdir OVMF_files
 
-$ cp ./linux-svsm/scripts/usr/local/share/qemu/OVMF_VARS.fd ./OVMF_VARS_server.fd
+$ cp ./usr/local/share/qemu/OVMF_CODE.fd ./OVMF_files/OVMF_CODE_server.fd
+
+$ cp ./usr/local/share/qemu/OVMF_VARS.fd ./OVMF_files/OVMF_VARS_server.fd
 ```
 
 **Important note:** 
@@ -83,8 +95,8 @@ $ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./launch-qemu.sh \
 -cdrom ./images/server-cloud-config.iso \
 -sev-snp \
 -bridge virbr0 \
--bios ./OVMF_CODE_server.fd \
--bios-vars ./OVMF_VARS_server.fd
+-bios ./OVMF_files/OVMF_CODE_server.fd \
+-bios-vars ./OVMF_files/OVMF_VARS_server.fd
 ```
 
 **Important notes:**
@@ -93,6 +105,7 @@ It is a known "issue".
 - Follow the same process for the creation of a client vm (if you want/need to).
 You need a different `.img`, and to adapt the network configuration appropriately to reserve a different IP.
 Configuration examples are given in the [cloud_configs](./cloud_configs/) folder.
+- The provided scripts are modified versions of those provided by AMD [here](https://github.com/AMDESE/linux-svsm). The patched versions are also in [this](https://github.com/dimstav23/linux-svsm/tree/gdpruler_patched_build) repository.
 
 ### 6. Inside the guest VM, verify that AMD SEV-SNP is enabled:
 `sudo dmesg | grep snp -i ` should indicate `Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP`
@@ -107,3 +120,7 @@ Our script [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) checks the given virtual
 ### Useful links
 - Sample cloud-config and network-config for cloud-init can be found [here](https://gist.github.com/itzg/2577205f2036f787a2bd876ae458e18e).
 - Additional options of the cloud-config, such as running a specific command during initialization, can be found [here](https://www.digitalocean.com/community/tutorials/how-to-use-cloud-config-for-your-initial-server-setup)
+- AMD [host kernels](https://github.com/AMDESE/linux) -- check branch names for each feature (e.g., SEV, ES, SNP)
+- [QEMU](https://github.com/AMDESE/qemu) provided by AMD
+- [OVMF](https://github.com/AMDESE/ovmf) provided by AMD
+- [SVSM](https://github.com/AMDESE/linux-svsm) repository
