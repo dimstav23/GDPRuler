@@ -58,30 +58,43 @@ auto main(int argc, char* argv[]) -> int
     }
     else [[likely]] {
       if (query_args.cmd() == "get") {
-        // client->get(query_args.key());
         auto res = client->get(query_args.key());
         gdpr_filter filter(res);
+        // if the key exists and complies with the gdpr rules
+        // then return the value of the get operation
         if (filter.validate()) {
           // TODO: write the value to the client socket
         } 
         else {
-          // TODO: write NULL value to the client socket
+          // TODO: write FAILED_GET value to the client socket
         }
       }
       else if (query_args.cmd() == "put") {
-        // auto res = client->get(query_args.key());
-        // gdpr_filter filter(res);
-        // filter.validate();
-        query_rewriter rewriter(query_args, def_policy, query_args.value());
-        auto res = client->put(query_args.key(), rewriter.new_value());
-        // TODO: write res value to the client socket
+        auto res = client->get(query_args.key());
+        gdpr_filter filter(res);
+        // if the key does not exist or it exists and it complies with the gdpr rules
+        // then perform the put operation
+        if (!res || filter.validate()){ 
+          query_rewriter rewriter(query_args, def_policy, query_args.value());
+          auto res = client->put(query_args.key(), rewriter.new_value());
+          // TODO: write res value to the client socket
+        }
+        else {
+          // TODO: write FAILED_PUT value to the client socket
+        }        
       }
       else if (query_args.cmd() == "del") {
-        // auto res = client->get(query_args.key());
-        // gdpr_filter filter(res);
-        // filter.validate();
-        auto res = client->del(query_args.key());
-        // TODO: write res value to the client socket
+        auto res = client->get(query_args.key());
+        gdpr_filter filter(res);
+        // if the key exists and complies with the gdpr rules
+        // then perform the delete operation
+        if (filter.validate()) {
+          auto res = client->del(query_args.key());
+          // TODO: write res value to the client socket
+        }
+        else {
+          // TODO: write FAILED_DELETE value to the client socket
+        }        
       }
       else if (query_args.cmd() == "putm") { /* ignore for now */
         continue;
