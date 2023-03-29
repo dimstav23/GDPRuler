@@ -53,7 +53,12 @@ auto gdpr_filter::name() const -> std::string
 
 auto gdpr_filter::validate() const -> bool
 {
-  return true;
+  if (!this->m_valid) {
+    return false;
+  }
+  else {
+    return true;
+  }
 }
 
 auto gdpr_filter::is_valid() const -> bool
