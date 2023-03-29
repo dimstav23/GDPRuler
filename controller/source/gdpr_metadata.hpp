@@ -9,6 +9,7 @@ namespace controller {
 
 constexpr int num_users = 64;
 constexpr int num_purposes = 64;
+constexpr int metadata_prefix_fields = 8;
 
 // NOLINTBEGIN(cert-err58-cpp)
 static const std::unordered_map<std::string, std::size_t> pur_index = []() {

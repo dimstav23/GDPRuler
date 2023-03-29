@@ -6,6 +6,7 @@
 #include "default_policy.hpp"
 #include "query.hpp"
 #include "query_rewriter.hpp"
+#include "gdpr_filter.hpp"
 #include "common.hpp"
 #include "kv_client/factory.hpp"
 // #include "argh.hpp"
@@ -13,6 +14,7 @@
 using controller::default_policy;
 using controller::query;
 using controller::query_rewriter;
+using controller::gdpr_filter;
 
 auto main(int argc, char* argv[]) -> int
 { 
@@ -55,16 +57,31 @@ auto main(int argc, char* argv[]) -> int
       break;
     }
     else [[likely]] {
-      // query_args.print();
       if (query_args.cmd() == "get") {
-        client->get(query_args.key());
+        // client->get(query_args.key());
+        auto res = client->get(query_args.key());
+        gdpr_filter filter(res);
+        if (filter.validate()) {
+          // TODO: write the value to the client socket
+        } 
+        else {
+          // TODO: write NULL value to the client socket
+        }
       }
       else if (query_args.cmd() == "put") {
+        // auto res = client->get(query_args.key());
+        // gdpr_filter filter(res);
+        // filter.validate();
         query_rewriter rewriter(query_args, def_policy, query_args.value());
-        client->put(query_args.key(), rewriter.new_value());
+        auto res = client->put(query_args.key(), rewriter.new_value());
+        // TODO: write res value to the client socket
       }
       else if (query_args.cmd() == "del") {
-        client->del(query_args.key());
+        // auto res = client->get(query_args.key());
+        // gdpr_filter filter(res);
+        // filter.validate();
+        auto res = client->del(query_args.key());
+        // TODO: write res value to the client socket
       }
       else if (query_args.cmd() == "putm") { /* ignore for now */
         continue;
