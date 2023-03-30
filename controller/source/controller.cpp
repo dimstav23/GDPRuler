@@ -2,6 +2,7 @@
 #include <string>
 #include "absl/strings/match.h" // for StartsWith function
 #include <chrono>
+#include <cassert>
 
 #include "default_policy.hpp"
 #include "query.hpp"
@@ -15,6 +16,58 @@ using controller::default_policy;
 using controller::query;
 using controller::query_rewriter;
 using controller::gdpr_filter;
+
+auto handle_get(const std::unique_ptr<kv_client> &client, 
+                const query &query_args) -> void 
+{
+  auto res = client->get(query_args.key());
+  gdpr_filter filter(res);
+  // if the key exists and complies with the gdpr rules
+  // then return the value of the get operation
+  if (filter.validate()) {
+    // TODO: write the value to the client socket
+    assert(res);
+  } 
+  else {
+    // TODO: write FAILED_GET value to the client socket
+  }
+}
+
+auto handle_put(const std::unique_ptr<kv_client> &client, 
+                const query &query_args,
+                const default_policy &def_policy) -> void 
+{
+  auto res = client->get(query_args.key());
+  gdpr_filter filter(res);
+  // if the key does not exist or it exists and it complies with the gdpr rules
+  // then perform the put operation
+  if (!res || filter.validate()){ 
+    query_rewriter rewriter(query_args, def_policy, query_args.value());
+    auto ret_val = client->put(query_args.key(), rewriter.new_value());
+    // TODO: write ret_val value to the client socket
+    assert(ret_val);
+  }
+  else {
+    // TODO: write FAILED_PUT value to the client socket
+  }
+}
+
+auto handle_delete(const std::unique_ptr<kv_client> &client, 
+                  const query &query_args) -> void 
+{
+  auto res = client->get(query_args.key());
+  gdpr_filter filter(res);
+  // if the key exists and complies with the gdpr rules
+  // then perform the delete operation
+  if (filter.validate()) {
+    auto ret_val = client->del(query_args.key());
+    // TODO: write ret_val value to the client socket
+    assert(ret_val);
+  }
+  else {
+    // TODO: write FAILED_DELETE value to the client socket
+  }
+}
 
 auto main(int argc, char* argv[]) -> int
 { 
@@ -46,7 +99,7 @@ auto main(int argc, char* argv[]) -> int
   std::string input_query;
   while (true) {
     std::getline(std::cin, input_query);
-    query query_args(input_query);
+    const query query_args(input_query);
 
     if (query_args.cmd() == "exit") [[unlikely]] {
       // std::cout << "Exiting..." << std::endl;
@@ -58,43 +111,13 @@ auto main(int argc, char* argv[]) -> int
     }
     else [[likely]] {
       if (query_args.cmd() == "get") {
-        auto res = client->get(query_args.key());
-        gdpr_filter filter(res);
-        // if the key exists and complies with the gdpr rules
-        // then return the value of the get operation
-        if (filter.validate()) {
-          // TODO: write the value to the client socket
-        } 
-        else {
-          // TODO: write FAILED_GET value to the client socket
-        }
+        handle_get(client, query_args);
       }
       else if (query_args.cmd() == "put") {
-        auto res = client->get(query_args.key());
-        gdpr_filter filter(res);
-        // if the key does not exist or it exists and it complies with the gdpr rules
-        // then perform the put operation
-        if (!res || filter.validate()){ 
-          query_rewriter rewriter(query_args, def_policy, query_args.value());
-          auto res = client->put(query_args.key(), rewriter.new_value());
-          // TODO: write res value to the client socket
-        }
-        else {
-          // TODO: write FAILED_PUT value to the client socket
-        }        
+        handle_put(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "del") {
-        auto res = client->get(query_args.key());
-        gdpr_filter filter(res);
-        // if the key exists and complies with the gdpr rules
-        // then perform the delete operation
-        if (filter.validate()) {
-          auto res = client->del(query_args.key());
-          // TODO: write res value to the client socket
-        }
-        else {
-          // TODO: write FAILED_DELETE value to the client socket
-        }        
+        handle_delete(client, query_args);
       }
       else if (query_args.cmd() == "putm") { /* ignore for now */
         continue;
