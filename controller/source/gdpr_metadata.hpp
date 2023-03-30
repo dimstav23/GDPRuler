@@ -4,12 +4,28 @@
 #include <algorithm>
 #include <vector>
 #include <unordered_map>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace controller {
 
 constexpr int num_users = 64;
 constexpr int num_purposes = 64;
 constexpr int metadata_prefix_fields = 8;
+
+enum metadata_fields {
+  usr,
+  encr,
+  pur,
+  obj,
+  org,
+  exp,
+  shr,
+  log,
+  val,
+  max_enum_guard
+};
 
 // NOLINTBEGIN(cert-err58-cpp)
 static const std::unordered_map<std::string, std::size_t> pur_index = []() {
@@ -65,6 +81,12 @@ auto inline str_to_bool(const std::string& str) -> bool {
     return false;
   }
   throw std::runtime_error("Invalid string value");
+}
+
+/* convert integer (for expiration time) to an actual expiration date in seconds */
+auto inline get_expiration_time(int64_t secs_from_now) -> int64_t{
+  auto expiration_time = std::chrono::system_clock::now() + std::chrono::seconds(secs_from_now);
+  return std::chrono::duration_cast<std::chrono::seconds>(expiration_time.time_since_epoch()).count();
 }
 
 } // namespace controller
