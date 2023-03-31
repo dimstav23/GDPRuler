@@ -11,23 +11,41 @@ gdpr_filter::gdpr_filter(const std::optional<std::string> &ret_value)
     m_valid = true;
     std::istringstream iss(*ret_value);
     std::string token;
-    std::vector<std::string> tokens;
+    int count = 0;
     // retrieve the metadata fields without the actual value
-    for (int i = 0; i < metadata_prefix_fields && std::getline(iss, token, '|'); i++) {
-      tokens.push_back(token);
-      // std::cout << i << " " << token << std::endl;
+    while (count < metadata_prefix_fields && std::getline(iss, token, '|')) {
+      // std::cout << count << " " << token << std::endl;
+      switch (count) {
+        case usr: 
+          m_user_key = token;
+          break;
+        case encr:
+          m_encryption = (token == "1");
+          break;
+        case pur:
+          m_purpose = std::bitset<num_purposes>(std::stoull(token));
+          break;
+        case obj:
+          m_objection = std::bitset<num_purposes>(std::stoull(token));
+          break;
+        case org:
+          m_origin = token;
+          break;
+        case exp:
+          m_expiration = std::stoi(token);
+          break;
+        case shr:
+          m_share = token;
+          break;
+        case log:
+          m_monitor = (token == "1");
+          break;
+        default:
+          break;
+      }
+      count++;
     }
-    if (tokens.size() == metadata_prefix_fields) {
-      m_user_key = tokens[usr];
-      m_encryption = (tokens[encr] == "1");
-      m_purpose = std::bitset<num_purposes>(std::stoull(tokens[pur]));
-      m_objection = std::bitset<num_purposes>(std::stoull(tokens[obj]));
-      m_origin = tokens[org];
-      m_expiration = std::stoi(tokens[exp]);
-      m_share = tokens[shr];
-      m_monitor = (tokens[log] == "1");
-    } 
-    else {
+    if (count != metadata_prefix_fields) {
       throw std::invalid_argument("Invalid GDPR metadata format");
     }
   }
