@@ -105,9 +105,10 @@ auto gdpr_filter::validate_session_key(const std::string &user_key) const -> boo
   
   // If the user is not the owner, check if the data is shared with the client-user
   // Check if share user string contains user_key as a sub-token separated by commas
-  size_t start = 0, end;
-  while ((end = this->share.find(',', start)) != std::string::npos) {
-    if (user_key == this->share.substr(start, end - start)) {
+  size_t start = 0;
+  size_t end = std::string::npos;
+  while ((end = this->share().find(',', start)) != std::string::npos) {
+    if (user_key == this->share().substr(start, end - start)) {
       return true;
     }
     start = end + 1;
