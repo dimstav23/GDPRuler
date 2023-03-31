@@ -70,27 +70,45 @@ auto gdpr_filter::validate(const controller::query &query_args,
 {
   if (!this->is_valid()) {
     // no value found for the query key
+    #ifndef NDEBUG
+    std::cout << "no value returned by the query" << std::endl;
+    #endif
     return false;
   }
   if (!validate_session_key(def_policy.user_key())) {
     // current user is not the owner or the KV pair is not shared w/ him/her
+    #ifndef NDEBUG
+    std::cout << "client key not in the owner/share groups of the KV pair" << std::endl;
+    #endif
     return false;
   }
   if (!validate_pur(query_args.cond_purpose(), def_policy.purpose())) {
     // query purposes are not in the KV purposes list 
+    #ifndef NDEBUG
+    std::cout << "query purposes not in the allowed purposes of use of the KV pair" << std::endl;
+    #endif
     return false;
   }
   if (!validate_obj(query_args.cond_purpose(), def_policy.purpose())) {
     // query purposes are in the KV objection list 
+    #ifndef NDEBUG
+    std::cout << "query purposes in the objections of the KV pair" << std::endl;
+    #endif
     return false;
   }
   if (!validate_exp_time()) {
     // value expired
     // TODO: delete the value from the DB
+    #ifndef NDEBUG
+    std::cout << "expired KV pair" << std::endl;
+    #endif
     return false;
   }
   if (check_monitoring()) {
     // TODO: perform logging of the operation
+    #ifndef NDEBUG
+    std::cout << "Monitor required" << std::endl;
+    #endif
   }
   return true;
 }
