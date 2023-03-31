@@ -6,6 +6,8 @@
 #include <bitset>
 
 #include "gdpr_metadata.hpp"
+#include "query.hpp"
+#include "default_policy.hpp"
 
 namespace controller {
 
@@ -14,7 +16,7 @@ class gdpr_filter
 {
 public:
 	gdpr_filter();
-  explicit gdpr_filter(const std::optional<std::string> &value);
+  explicit gdpr_filter(const std::optional<std::string> &ret_value);
   // ~gdpr_filter();
 
 	[[nodiscard]] auto name() const -> std::string;
@@ -30,7 +32,15 @@ public:
   [[nodiscard]] auto share() const -> std::string;
   [[nodiscard]] auto monitor() const -> bool;
 
-  [[nodiscard]] auto validate() const -> bool;
+  [[nodiscard]] auto validate(const controller::query &query_args, 
+                              const controller::default_policy &def_policy) const -> bool;
+  [[nodiscard]] auto validate_session_key(const std::string &user_key) const -> bool;
+  [[nodiscard]] auto validate_pur(const std::bitset<num_purposes> &query_pur,
+                                  const std::bitset<num_purposes> &def_pur) const -> bool;
+  [[nodiscard]] auto validate_obj(const std::bitset<num_purposes> &query_pur,
+                                  const std::bitset<num_purposes> &def_pur) const -> bool;
+  [[nodiscard]] auto validate_exp_time() const -> bool;
+  [[nodiscard]] auto check_monitoring() const -> bool;
 
 private:
   std::string m_name;

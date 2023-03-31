@@ -4,12 +4,12 @@
 namespace controller {
 
 /* deserialize the metadata from the retrieved value and place them in the fields of the filter class */
-gdpr_filter::gdpr_filter(const std::optional<std::string> &value)
+gdpr_filter::gdpr_filter(const std::optional<std::string> &ret_value)
     : m_name {"gdpr_controller_gdpr_filter"}
 {
-  if (value) {
+  if (ret_value) {
     m_valid = true;
-    std::istringstream iss(*value);
+    std::istringstream iss(*ret_value);
     std::string token;
     std::vector<std::string> tokens;
     // retrieve the metadata fields without the actual value
@@ -46,9 +46,83 @@ auto gdpr_filter::name() const -> std::string
   return this->m_name;
 }
 
-auto gdpr_filter::validate() const -> bool
+/* Perform the validation checks for the gdpr metadata */
+auto gdpr_filter::validate(const controller::query &query_args, 
+                            const controller::default_policy &def_policy) const -> bool
 {
-  return this->m_valid;
+  if (!this->is_valid()) {
+    // no value found for the query key
+    return false;
+  }
+  if (!validate_session_key(def_policy.user_key())) {
+    // current user is not the owner or the KV pair is not shared w/ him/her
+    return false;
+  }
+  if (!validate_pur(query_args.cond_purpose(), def_policy.purpose())) {
+    // query purposes are not in the KV purposes list 
+    return false;
+  }
+  if (!validate_obj(query_args.cond_purpose(), def_policy.purpose())) {
+    // query purposes are in the KV objection list 
+    return false;
+  }
+  if (!validate_exp_time()) {
+    // value expired
+    // TODO: delete the value from the DB
+    return false;
+  }
+  if (check_monitoring()) {
+    // TODO: perform logging of the operation
+  }
+  return true;
+}
+
+/* Validate that the user session key belongs to the owner or the share_with set */
+auto gdpr_filter::validate_session_key(const std::string &user_key) const -> bool
+{
+  // TODO: add checks if the user_key is in the sharing set of the KV pair
+  return (user_key == this->user_key());
+}
+
+/* Validate that the purpose of the query is indeed in the allowed purposes */
+auto gdpr_filter::validate_pur(const std::bitset<num_purposes> &query_pur,
+                                const std::bitset<num_purposes> &def_pur) const -> bool
+{
+  if (query_pur.any()) {
+    // the query purposes override the defaults
+    return (this->purpose() & query_pur) == query_pur;
+  }
+
+  // if no query purposes are given, use the defaults of the client session
+  return (this->purpose() & def_pur) == def_pur;
+}
+
+/* Validate that the purpose of the query is not in the obejction list */
+auto gdpr_filter::validate_obj(const std::bitset<num_purposes> &query_pur,
+                                const std::bitset<num_purposes> &def_pur) const -> bool
+{
+  if (query_pur.any()) {
+    // the query purposes override the defaults
+    return ((this->objection() & query_pur) == 0);
+  }
+  
+  // if no query purposes are given, use the defaults of the client session
+  return ((this->objection() & def_pur) == 0);
+}
+
+/* Validate that the KV pair is not expired */
+auto gdpr_filter::validate_exp_time() const -> bool
+{
+  int64_t current_time = std::chrono::duration_cast<std::chrono::seconds>(
+                          std::chrono::system_clock::now().time_since_epoch()
+                          ).count();
+  return (current_time <= expiration());
+}
+
+/* Check whether the query action needs to be monitored */
+auto gdpr_filter::check_monitoring() const -> bool
+{
+  return monitor();
 }
 
 auto gdpr_filter::is_valid() const -> bool
