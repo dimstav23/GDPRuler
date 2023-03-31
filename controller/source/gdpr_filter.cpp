@@ -80,8 +80,35 @@ auto gdpr_filter::validate(const controller::query &query_args,
 /* Validate that the user session key belongs to the owner or the share_with set */
 auto gdpr_filter::validate_session_key(const std::string &user_key) const -> bool
 {
-  // TODO: add checks if the user_key is in the sharing set of the KV pair
-  return (user_key == this->user_key());
+  // Check if the user that requests the data is the owner (likely)
+  if (user_key == this->user_key()) {
+    return true;
+  }
+  // If the user is not the owner, check if the data is shared with the client-user
+  // Check if the user key matches the first user in the shared users string
+  if (user_key == this->share().substr(0, user_key.length())) {
+    return true;
+  }
+
+  // Iterate through the shared string looking for commas
+  std::size_t start = user_key.length() + 1;
+  std::size_t end = this->share().find(',', start);
+  while (end != std::string::npos) {
+    // Check if the user key matches the next user in the shared users string
+    if (user_key == this->share().substr(start, end - start)) {
+      return true;
+    }
+    start = end + 1;
+    end = this->share().find(',', start);
+  }
+
+  // Check if the user key matches the last user in the shared users string
+  if (user_key == this->share().substr(start)) {
+    return true;
+  }
+
+  // If we get here, the user key was not found in the shared users string
+  return false;
 }
 
 /* Validate that the purpose of the query is indeed in the allowed purposes */
