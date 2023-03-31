@@ -121,12 +121,8 @@ auto gdpr_filter::validate_session_key(const std::string &user_key) const -> boo
   }
 
   // Check if the user key matches the last user in the shared users string
-  if (user_key == this->share().substr(start)) {
-    return true;
-  }
-
-  // If we get here, the user key was not found in the shared users string
-  return false;
+  // if not, the function will return false
+  return (user_key == this->share().substr(start));
 }
 
 /* Validate that the purpose of the query is indeed in the allowed purposes */
