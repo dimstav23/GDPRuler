@@ -40,6 +40,8 @@ public:
                                   const std::bitset<num_purposes> &def_pur) const -> bool;
   [[nodiscard]] auto validate_obj(const std::bitset<num_purposes> &query_pur,
                                   const std::bitset<num_purposes> &def_pur) const -> bool;
+  // [[nodiscard]] auto validate_org(const std::string &query_org,
+  //                                 const std::string &def_org) const -> bool;
   [[nodiscard]] auto validate_exp_time() const -> bool;
   [[nodiscard]] auto check_monitoring() const -> bool;
 

@@ -98,6 +98,13 @@ auto gdpr_filter::validate(const controller::query &query_args,
     #endif
     return false;
   }
+  // if (!validate_org(query_args.cond_origin(), def_policy.origin())) {
+  //   // query purposes are in the KV objection list 
+  //   #ifndef NDEBUG
+  //   std::cout << "query origin requirement different than the KV pair" << std::endl;
+  //   #endif
+  //   return false;
+  // }
   if (!validate_exp_time()) {
     // value expired
     // TODO: delete the value from the DB
@@ -166,6 +173,15 @@ auto gdpr_filter::validate_obj(const std::bitset<num_purposes> &query_pur,
   // if no query purposes are given, use the defaults of the client session
   return ((this->objection() & def_pur) == 0);
 }
+
+// /* Validate that the requested query origin is the same with the KV pair */
+// auto gdpr_filter::validate_org(const std::string &query_org,
+//                                 const std::string &def_org) const -> bool
+// {
+//   std::string origin = query_org.empty() ? def_org : query_org;
+//   // Check if the origins match
+//   return (origin == this->origin());
+// }
 
 /* Validate that the KV pair is not expired */
 auto gdpr_filter::validate_exp_time() const -> bool
