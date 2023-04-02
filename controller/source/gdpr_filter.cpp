@@ -166,10 +166,14 @@ auto gdpr_filter::validate_obj(const std::bitset<num_purposes> &query_pur,
 /* Validate that the KV pair is not expired */
 auto gdpr_filter::validate_exp_time() const -> bool
 {
+  // if no expiration time has been set
+  if (this->expiration() == 0) {
+    return true;
+  }
   int64_t current_time = std::chrono::duration_cast<std::chrono::seconds>(
                           std::chrono::system_clock::now().time_since_epoch()
                           ).count();
-  return (current_time <= expiration());
+  return (current_time <= this->expiration());
 }
 
 /* Check whether the query action needs to be monitored */

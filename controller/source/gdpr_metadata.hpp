@@ -84,7 +84,11 @@ auto inline str_to_bool(const std::string& str) -> bool {
 }
 
 /* convert integer (for expiration time) to an actual expiration date in seconds */
-auto inline get_expiration_time(int64_t secs_from_now) -> int64_t{
+auto inline get_expiration_time(int64_t secs_from_now) -> int64_t {
+  // if no expiration time has been set, just return 0
+  if (secs_from_now == 0) {
+    return 0;
+  }
   auto expiration_time = std::chrono::system_clock::now() + std::chrono::seconds(secs_from_now);
   return std::chrono::duration_cast<std::chrono::seconds>(expiration_time.time_since_epoch()).count();
 }
