@@ -34,7 +34,8 @@ public:
 
   [[nodiscard]] auto validate(const controller::query &query_args, 
                               const controller::default_policy &def_policy) const -> bool;
-  [[nodiscard]] auto validate_session_key(const std::string &user_key) const -> bool;
+  [[nodiscard]] auto validate_session_key(const std::string &query_user_key,
+                                          const std::string &def_user_key) const -> bool;
   [[nodiscard]] auto validate_pur(const std::bitset<num_purposes> &query_pur,
                                   const std::bitset<num_purposes> &def_pur) const -> bool;
   [[nodiscard]] auto validate_obj(const std::bitset<num_purposes> &query_pur,
