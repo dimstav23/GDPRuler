@@ -2,10 +2,12 @@
 #include <string>
 #include "absl/strings/match.h" // for StartsWith function
 #include <chrono>
+#include <cassert>
 
 #include "default_policy.hpp"
 #include "query.hpp"
 #include "query_rewriter.hpp"
+#include "gdpr_filter.hpp"
 #include "common.hpp"
 #include "kv_client/factory.hpp"
 // #include "argh.hpp"
@@ -13,6 +15,59 @@
 using controller::default_policy;
 using controller::query;
 using controller::query_rewriter;
+using controller::gdpr_filter;
+
+auto handle_get(const std::unique_ptr<kv_client> &client, 
+                const query &query_args) -> void 
+{
+  auto res = client->get(query_args.key());
+  gdpr_filter filter(res);
+  // if the key exists and complies with the gdpr rules
+  // then return the value of the get operation
+  if (filter.validate()) {
+    // TODO: write the value to the client socket
+    assert(res);
+  } 
+  else {
+    // TODO: write FAILED_GET value to the client socket
+  }
+}
+
+auto handle_put(const std::unique_ptr<kv_client> &client, 
+                const query &query_args,
+                const default_policy &def_policy) -> void 
+{
+  auto res = client->get(query_args.key());
+  gdpr_filter filter(res);
+  // if the key does not exist or it exists and it complies with the gdpr rules
+  // then perform the put operation
+  if (!res || filter.validate()){ 
+    query_rewriter rewriter(query_args, def_policy, query_args.value());
+    auto ret_val = client->put(query_args.key(), rewriter.new_value());
+    // TODO: write ret_val value to the client socket
+    assert(ret_val);
+  }
+  else {
+    // TODO: write FAILED_PUT value to the client socket
+  }
+}
+
+auto handle_delete(const std::unique_ptr<kv_client> &client, 
+                  const query &query_args) -> void 
+{
+  auto res = client->get(query_args.key());
+  gdpr_filter filter(res);
+  // if the key exists and complies with the gdpr rules
+  // then perform the delete operation
+  if (filter.validate()) {
+    auto ret_val = client->del(query_args.key());
+    // TODO: write ret_val value to the client socket
+    assert(ret_val);
+  }
+  else {
+    // TODO: write FAILED_DELETE value to the client socket
+  }
+}
 
 auto main(int argc, char* argv[]) -> int
 { 
@@ -44,7 +99,7 @@ auto main(int argc, char* argv[]) -> int
   std::string input_query;
   while (true) {
     std::getline(std::cin, input_query);
-    query query_args(input_query);
+    const query query_args(input_query);
 
     if (query_args.cmd() == "exit") [[unlikely]] {
       // std::cout << "Exiting..." << std::endl;
@@ -55,16 +110,14 @@ auto main(int argc, char* argv[]) -> int
       break;
     }
     else [[likely]] {
-      // query_args.print();
       if (query_args.cmd() == "get") {
-        client->get(query_args.key());
+        handle_get(client, query_args);
       }
       else if (query_args.cmd() == "put") {
-        query_rewriter rewriter(query_args, def_policy, query_args.value());
-        client->put(query_args.key(), rewriter.new_value());
+        handle_put(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "del") {
-        client->del(query_args.key());
+        handle_delete(client, query_args);
       }
       else if (query_args.cmd() == "putm") { /* ignore for now */
         continue;

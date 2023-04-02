@@ -20,6 +20,7 @@ add_library(
     source/default_policy.cpp
     source/query.cpp
     source/query_rewriter.cpp
+    source/gdpr_filter.cpp
 )
 
 target_include_directories(
