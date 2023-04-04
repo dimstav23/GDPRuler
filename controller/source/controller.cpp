@@ -10,12 +10,17 @@
 #include "gdpr_filter.hpp"
 #include "common.hpp"
 #include "kv_client/factory.hpp"
-// #include "argh.hpp"
+#include "logging/logger.hpp"
 
 using controller::default_policy;
 using controller::query;
 using controller::query_rewriter;
+using controller::logger;
 using controller::gdpr_filter;
+
+// NOLINTNEXTLINE
+auto *logger = logger::get_instance();
+
 
 auto handle_get(const std::unique_ptr<kv_client> &client, 
                 const query &query_args,
@@ -26,10 +31,12 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
   // if the key exists and complies with the gdpr rules
   // then return the value of the get operation
   if (filter.validate(query_args, def_policy)) {
+    logger->log(query_args, res.has_value());
     // TODO: write the value to the client socket
     assert(res);
   } 
   else {
+    logger->log(query_args, false, "Filter validation failed.");
     // TODO: write FAILED_GET value to the client socket
   }
 }
@@ -45,10 +52,12 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
   if (!res || filter.validate(query_args, def_policy)){ 
     query_rewriter rewriter(query_args, def_policy, query_args.value());
     auto ret_val = client->put(query_args.key(), rewriter.new_value());
+    logger->log(query_args, ret_val, "new value: " + rewriter.new_value());
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
   else {
+    logger->log(query_args, false, "Filter validation failed.");
     // TODO: write FAILED_PUT value to the client socket
   }
 }
@@ -63,10 +72,12 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
   // then perform the delete operation
   if (filter.validate(query_args, def_policy)) {
     auto ret_val = client->del(query_args.key());
+    logger->log(query_args, ret_val);
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
   else {
+    logger->log(query_args, false, "Filter validation failed.");
     // TODO: write FAILED_DELETE value to the client socket
   }
 }

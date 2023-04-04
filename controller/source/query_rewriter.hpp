@@ -22,7 +22,6 @@ public:
 
 	[[nodiscard]] auto name() const -> std::string;
 
-  [[nodiscard]] auto new_key() const -> std::string;
   [[nodiscard]] auto new_value() const -> std::string;
 
 private:
