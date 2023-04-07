@@ -18,13 +18,14 @@ using controller::query_rewriter;
 using controller::gdpr_filter;
 
 auto handle_get(const std::unique_ptr<kv_client> &client, 
-                const query &query_args) -> void 
+                const query &query_args,
+                const default_policy &def_policy) -> void 
 {
   auto res = client->get(query_args.key());
   gdpr_filter filter(res);
   // if the key exists and complies with the gdpr rules
   // then return the value of the get operation
-  if (filter.validate()) {
+  if (filter.validate(query_args, def_policy)) {
     // TODO: write the value to the client socket
     assert(res);
   } 
@@ -41,7 +42,7 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
   gdpr_filter filter(res);
   // if the key does not exist or it exists and it complies with the gdpr rules
   // then perform the put operation
-  if (!res || filter.validate()){ 
+  if (!res || filter.validate(query_args, def_policy)){ 
     query_rewriter rewriter(query_args, def_policy, query_args.value());
     auto ret_val = client->put(query_args.key(), rewriter.new_value());
     // TODO: write ret_val value to the client socket
@@ -53,13 +54,14 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
 }
 
 auto handle_delete(const std::unique_ptr<kv_client> &client, 
-                  const query &query_args) -> void 
+                  const query &query_args,
+                  const default_policy &def_policy) -> void 
 {
   auto res = client->get(query_args.key());
   gdpr_filter filter(res);
   // if the key exists and complies with the gdpr rules
   // then perform the delete operation
-  if (filter.validate()) {
+  if (filter.validate(query_args, def_policy)) {
     auto ret_val = client->del(query_args.key());
     // TODO: write ret_val value to the client socket
     assert(ret_val);
@@ -111,13 +113,13 @@ auto main(int argc, char* argv[]) -> int
     }
     else [[likely]] {
       if (query_args.cmd() == "get") {
-        handle_get(client, query_args);
+        handle_get(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "put") {
         handle_put(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "del") {
-        handle_delete(client, query_args);
+        handle_delete(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "putm") { /* ignore for now */
         continue;

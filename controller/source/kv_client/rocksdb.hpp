@@ -34,12 +34,12 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    if (response.get_is_success()) {
+    if (response.op_is_successful()) {
       // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.response << std::endl;
-    } else {
-      std::cout << "GET operation failed" << std::endl;
+      return response.get_data();
     }
-    return response.get_data();
+    std::cout << "GET operation failed" << std::endl;
+    return std::nullopt;
   }
 
   // To suppress bugprone-easily-swappable-parameters warning from clang-tidy
@@ -53,12 +53,12 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    if (response.get_is_success()) {
+    if (response.op_is_successful()) {
       // std::cout << "PUT operation succeeded! Key: " << key << ", Value: " << value << std::endl;
     } else {
       std::cout << "PUT operation failed" << std::endl;
     }
-    return response.get_is_success();
+    return response.op_is_successful();
   }
 
   auto del(const std::string& key) -> bool override
@@ -69,12 +69,12 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    if (response.get_is_success()) {
+    if (response.op_is_successful()) {
       // std::cout << "DELETE operation succeeded! Key: " << key << std::endl;
     } else {
       std::cout << "DELETE operation failed" << std::endl;
     }
-    return response.get_is_success();
+    return response.op_is_successful();
   }
 
 private:

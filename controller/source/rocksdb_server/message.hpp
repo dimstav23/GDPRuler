@@ -169,7 +169,7 @@ public:
     return response_message {first_str == "success", second_str};
   }
 
-  auto get_is_success() const -> bool {
+  auto op_is_successful() const -> bool {
     return m_is_success;
   }
 
