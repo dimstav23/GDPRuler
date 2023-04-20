@@ -60,20 +60,26 @@ public:
     // lock the mutex corresponding to the key
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
 
-    // open the key's log file output stream in append only mode
-    std::ofstream log_file(log_file_path(query_args.key()), std::ios::app);
+
+    // open the key's log file output stream in append only mode if it is not already opened.
+    //  store it in the m_keys_to_log_files map for fast future retrieval.
+    if (!m_keys_to_log_files.contains(query_args.key()) || !m_keys_to_log_files[query_args.key()]->is_open()) {
+      m_keys_to_log_files[query_args.key()] = std::make_shared<std::ofstream>(log_file_path(query_args.key()), std::ios::app);
+    }
+
+    auto log_file = m_keys_to_log_files[query_args.key()];
 
     // write the log
-    log_file << std::chrono::system_clock::now().time_since_epoch().count()
+    *log_file << std::chrono::system_clock::now().time_since_epoch().count()
              << " {client: " << (query_args.user_key().has_value() ? query_args.user_key().value() : "")
              << ", oper: " << convert_operation_to_enum(query_args.cmd())
              << ", res: " << result;
              
     if (!new_val.empty()) {
-      log_file << ", newVal: " << new_val;
+      *log_file << ", newVal: " << new_val;
     }
 
-    log_file << "}" << std::endl;
+    *log_file << "}" << std::endl;
   }
 
 
@@ -93,6 +99,7 @@ private:
   }
 
   std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
+  std::unordered_map<std::string, std::shared_ptr<std::ofstream>> m_keys_to_log_files;
 };
 
 } // namespace controller
