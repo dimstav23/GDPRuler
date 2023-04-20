@@ -1,4 +1,5 @@
 #pragma once
+
 #include <iostream>
 #include <fstream>
 #include <mutex>
@@ -6,6 +7,43 @@
 #include <filesystem>
 
 namespace controller {
+
+enum operation {
+  invalid = 0,
+  get = 1,
+  put = 2,
+  del = 3,
+  getm = 4,
+  putm = 5,
+  delm = 6,
+  get_logs = 7
+};
+
+inline auto convert_operation_to_enum(const std::string& oper) -> operation {
+  if (oper == "get") {
+    return operation::get;
+  }
+  if (oper == "put") {
+    return operation::put;
+  }
+  if (oper == "del") {
+    return operation::del;
+  }
+  if (oper == "getm") {
+    return operation::getm;
+  }
+  if (oper == "putm") {
+    return operation::putm;
+  }
+  if (oper == "delm") {
+    return operation::delm;
+  }
+  if (oper == "getLogs") {
+    return operation::get_logs;
+  }
+  // Invalid case
+  return operation::invalid;
+}
 
 /**
  * Singleton logger class to store the history of each pair in a different file.
@@ -17,7 +55,7 @@ public:
     return &history_logger;
   }
 
-  void log(const query& query_args, const bool& result, const std::string& message = {}) {
+  void log(const query& query_args, const bool& result, const std::string& new_val = {}) {
     
     // lock the mutex corresponding to the key
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
@@ -27,13 +65,12 @@ public:
 
     // write the log
     log_file << std::chrono::system_clock::now().time_since_epoch().count()
-             << " {key: " << query_args.key()
-             << ", client:" << query_args.user_key()
-             << ", operation: " << query_args.cmd() 
-             << ", result: " << std::boolalpha << result;
+             << " {client: " << (query_args.user_key().has_value() ? query_args.user_key().value() : "")
+             << ", oper: " << convert_operation_to_enum(query_args.cmd())
+             << ", res: " << result;
              
-    if (!message.empty()) {
-      log_file << ", message: " << message;
+    if (!new_val.empty()) {
+      log_file << ", newVal: " << new_val;
     }
 
     log_file << "}" << std::endl;

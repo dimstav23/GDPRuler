@@ -46,20 +46,20 @@ public:
   [[nodiscard]] auto check_monitoring() const -> bool;
 
 private:
-  std::string m_name;
+  std::string m_name{};
 
   // valid field that indicates if there is a value to be returned
-  bool m_valid;
+  bool m_valid{false};
   
   // metadata fields
-  std::string m_user_key;
-  bool m_encryption;
+  std::string m_user_key{};
+  bool m_encryption{false};
   std::bitset<num_purposes> m_purpose;
   std::bitset<num_purposes> m_objection;
-  std::string m_origin;
+  std::string m_origin{};
   int64_t m_expiration;
-  std::string m_share;
-  bool m_monitor;
+  std::string m_share{};
+  bool m_monitor{false};
 };
 
 } // namespace controller

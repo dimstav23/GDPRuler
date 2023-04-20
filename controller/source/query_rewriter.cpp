@@ -13,14 +13,14 @@ query_rewriter::query_rewriter(const query &query_args,
     : m_name {"gdpr_controller_query_rewriter"}
 {
   /* create the new value based on the query arguments and the default policy */
-  std::string user_key = !query_args.user_key().empty() ? query_args.user_key() : def_policy.user_key();
+  std::string user_key = query_args.user_key().has_value() ? query_args.user_key().value() : def_policy.user_key();
   bool encryption = def_policy.encryption();
-  std::bitset<num_purposes> purpose = query_args.purpose() != 0 ? query_args.purpose() : def_policy.purpose();
-  std::bitset<num_purposes> objection = query_args.objection() != 0 ? query_args.objection() : def_policy.objection();
-  std::string origin = !query_args.origin().empty() ? query_args.origin() : def_policy.origin();
-  int64_t expiration = query_args.expiration() != 0 ? query_args.expiration() : def_policy.expiration();
-  std::string share = !query_args.share().empty() ? query_args.share() : def_policy.share();
-  bool monitor = query_args.monitor() ? query_args.monitor() : def_policy.monitor();
+  std::bitset<num_purposes> purpose = query_args.purpose().has_value() ? query_args.purpose().value() : def_policy.purpose();
+  std::bitset<num_purposes> objection = query_args.objection().has_value() ? query_args.objection().value() : def_policy.objection();
+  std::string origin = query_args.origin().has_value() ? query_args.origin().value() : def_policy.origin();
+  int64_t expiration = query_args.expiration().has_value() ? query_args.expiration().value() : def_policy.expiration();
+  std::string share = query_args.share().has_value() ? query_args.share().value() : def_policy.share();
+  bool monitor = query_args.monitor().has_value() ? query_args.monitor().value() : def_policy.monitor();
 
   std::stringstream prefix;
   prefix << user_key            << "|" << (encryption ? "1" : "0")        << "|"
