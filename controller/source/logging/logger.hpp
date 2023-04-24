@@ -129,7 +129,4 @@ private:
   std::unordered_map<std::string, std::shared_ptr<std::ofstream>> m_keys_to_log_files;
 };
 
-// NOLINTNEXTLINE
-auto *history_logger = logger::get_instance();
-
 } // namespace controller
