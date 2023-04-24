@@ -11,8 +11,8 @@ namespace controller {
 */
 class gdpr_monitor {
 public:
-  gdpr_monitor(std::shared_ptr<gdpr_filter> filter, query query_args): 
-    m_filter{std::move(filter)}, m_query_args{std::move(query_args)}, m_history_logger{logger::get_instance()} {
+  gdpr_monitor(std::shared_ptr<gdpr_filter> filter, const query& query_args): 
+    m_filter{std::move(filter)}, m_query_args{query_args}, m_history_logger{logger::get_instance()} {
   }
 
   void monitor_query_attempt() {
@@ -30,7 +30,7 @@ public:
 private:
   std::shared_ptr<gdpr_filter> m_filter;
 
-  query m_query_args;
+  const query& m_query_args;
 
   logger* m_history_logger;
 };
