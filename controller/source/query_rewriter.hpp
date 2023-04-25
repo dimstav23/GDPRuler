@@ -17,7 +17,9 @@ public:
 	query_rewriter();
   explicit query_rewriter(const query &query_args, 
                           const default_policy &def_policy, 
-                          const std::string &old_value);
+                          const std::string &new_query_value);
+  explicit query_rewriter(const std::string &res,
+                          const std::string &new_query_value);
   // ~query_rewriter();
 
 	[[nodiscard]] auto name() const -> std::string;
