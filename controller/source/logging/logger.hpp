@@ -66,7 +66,7 @@ public:
   /**
    * Logs the query attempt
   */
-  void log_attempt(const query& query_args) {
+  void log_attempt(const query& query_args, const default_policy& def_policy) {
     
     // lock the mutex corresponding to the key
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
@@ -74,29 +74,28 @@ public:
     auto log_file = get_or_open_log_stream(query_args.key());
 
     // write the log
-    *log_file << std::chrono::system_clock::now().time_since_epoch().count()
-             << " {client: " << (query_args.user_key().has_value() ? query_args.user_key().value() : "")
-             << ", oper: " << convert_operation_to_enum(query_args.cmd())
-             << "}" << std::endl;
+    // format is the following:
+    // timestamp,user_key,operation
+    *log_file << std::chrono::system_clock::now().time_since_epoch().count() << ","
+              << (query_args.user_key().has_value() ? query_args.user_key().value() : def_policy.user_key()) << ","
+              << convert_operation_to_enum(query_args.cmd()) << "," << std::endl;
   }
 
-  void log_result(const query& query_args, const bool& result, const std::string& new_val = {}) {
+  void log_result(const query& query_args, const default_policy& def_policy, const bool& result, const std::string& new_val = {}) {
     
     // lock the mutex corresponding to the key
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
 
     auto log_file = get_or_open_log_stream(query_args.key());
-    
-    *log_file << std::chrono::system_clock::now().time_since_epoch().count()
-          << " {client: " << (query_args.user_key().has_value() ? query_args.user_key().value() : "")
-          << ", oper: " << convert_operation_to_enum(query_args.cmd())
-          << ", res: " << result;
-
-    if (result && !new_val.empty()) {
-      *log_file << ", newVal: " << new_val;
-    }
-
-    *log_file << "}" << std::endl;
+  
+    // write the log
+    // format is the following:
+    // timestamp,user_key,operation,operation_result,new_value(if applicable)
+    *log_file << std::chrono::system_clock::now().time_since_epoch().count() << ","
+              << (query_args.user_key().has_value() ? query_args.user_key().value() : def_policy.user_key()) << ","
+              << convert_operation_to_enum(query_args.cmd()) << ","
+              << result << ","
+              << (new_val.empty() ? "" : new_val) << std::endl;
   }
 
 
