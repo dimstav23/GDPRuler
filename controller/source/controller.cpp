@@ -52,7 +52,7 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
   if (!res) {
     // If no value is returned, check the respective query args
     // If no query args are specified, enforce the default policy for monitoring
-    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    auto monitor = gdpr_monitor(query_args, def_policy);
     monitor.monitor_query_attempt();
     // construct the gdpr metadata for the new value
     query_rewriter rewriter(query_args, def_policy, query_args.value());
