@@ -48,15 +48,29 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
   auto res = client->get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
-  // if the key does not exist or it exists and it complies with the gdpr rules
-  // then perform the put operation
-  if (!res || filter->validate(query_args, def_policy)) {
-    // Check if the retrieved value requires logging
+  // if the key does not exist, perform the put
+  if (!res) {
     // If no value is returned, check the respective query args
     // If no query args are specified, enforce the default policy for monitoring
     auto monitor = gdpr_monitor(filter, query_args, def_policy);
     monitor.monitor_query_attempt();
+    // construct the gdpr metadata for the new value
     query_rewriter rewriter(query_args, def_policy, query_args.value());
+    auto ret_val = client->put(query_args.key(), rewriter.new_value());
+    monitor.monitor_query_result(ret_val, rewriter.new_value());
+
+    // TODO: write ret_val value to the client socket
+    assert(ret_val);
+  }
+  // if the key exists and complies with the gdpr rules, perform the put
+  else if (filter->validate(query_args, def_policy)) {
+    // Check if the retrieved value requires logging
+    // the query args do not need to be checked since they cannot update the 
+    // gpdr metadata of the value -- only putm operations can
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    monitor.monitor_query_attempt();
+    // update the current value with the new one without modifying any metadata
+    query_rewriter rewriter(res.value(), query_args.value());
     auto ret_val = client->put(query_args.key(), rewriter.new_value());
     monitor.monitor_query_result(ret_val, rewriter.new_value());
 
