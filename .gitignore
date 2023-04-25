@@ -7,3 +7,4 @@ test_outputs/
 OVMF*
 *.fd
 *.rdb
+logs/

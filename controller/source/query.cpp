@@ -6,10 +6,6 @@ namespace controller {
 
 query::query()
     : m_name {"gdpr_controller_query"},
-      m_purpose{0},
-      m_objection{0},
-      m_expiration{0},
-      m_monitor{false},
       m_cond_purpose{0},
       m_cond_objection{0},
       m_cond_expiration{0},
@@ -19,10 +15,6 @@ query::query()
 
 query::query(const std::string &input)
     : m_name {"gdpr_controller_query"},
-      m_purpose{0},
-      m_objection{0},
-      m_expiration{0},
-      m_monitor{false},
       m_cond_purpose{0},
       m_cond_objection{0},
       m_cond_expiration{0},
@@ -64,10 +56,12 @@ query::query(const std::string &input)
         this->m_expiration = stoi(value);
       }
       else if (option == "-objPur") {
-        set_bitmap(this->m_purpose, split_comma_string(value));
+        this->m_purpose.emplace();
+        set_bitmap(this->m_purpose.value(), split_comma_string(value));
       }
       else if (option == "-objObjections") {
-        set_bitmap(this->m_objection, split_comma_string(value));
+        this->m_objection.emplace();
+        set_bitmap(this->m_objection.value(), split_comma_string(value));
       }
       else if (option == "-monitor") {
         this->m_monitor = str_to_bool(value);
@@ -131,37 +125,37 @@ auto query::value() const -> std::string
   return this->m_value;
 }
 
-auto query::user_key() const -> std::string
+auto query::user_key() const -> std::optional<std::string>
 {
   return this->m_user_key;
 }
 
-auto query::purpose() const -> std::bitset<num_purposes>
+auto query::purpose() const -> std::optional<std::bitset<num_purposes>>
 {
   return this->m_purpose;
 }
 
-auto query::objection() const -> std::bitset<num_purposes>
+auto query::objection() const -> std::optional<std::bitset<num_purposes>>
 {
   return this->m_objection;
 }
 
-auto query::origin() const -> std::string
+auto query::origin() const -> std::optional<std::string>
 {
   return this->m_origin;
 }
 
-auto query::expiration() const -> int64_t
+auto query::expiration() const -> std::optional<int64_t>
 {
   return this->m_expiration;
 }
 
-auto query::share() const -> std::string
+auto query::share() const -> std::optional<std::string>
 {
   return this->m_share;
 }
 
-auto query::monitor() const -> bool
+auto query::monitor() const -> std::optional<bool>
 {
   return this->m_monitor;
 }

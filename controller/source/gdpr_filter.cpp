@@ -113,12 +113,12 @@ auto gdpr_filter::validate(const controller::query &query_args,
     #endif
     return false;
   }
-  if (check_monitoring()) {
-    // TODO: perform logging of the operation
-    #ifndef NDEBUG
-    std::cout << "Monitor required" << std::endl;
-    #endif
-  }
+  // if (check_monitoring()) {
+  //   // TODO: perform logging of the operation
+  //   #ifndef NDEBUG
+  //   std::cout << "Monitor required" << std::endl;
+  //   #endif
+  // }
   return true;
 }
 

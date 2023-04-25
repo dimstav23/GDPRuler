@@ -10,22 +10,29 @@
 #include "gdpr_filter.hpp"
 #include "common.hpp"
 #include "kv_client/factory.hpp"
-// #include "argh.hpp"
+#include "logging/logger.hpp"
+#include "logging/monitor.hpp"
 
 using controller::default_policy;
 using controller::query;
 using controller::query_rewriter;
 using controller::gdpr_filter;
+using controller::gdpr_monitor;
 
 auto handle_get(const std::unique_ptr<kv_client> &client, 
                 const query &query_args,
                 const default_policy &def_policy) -> void 
 {
   auto res = client->get(query_args.key());
-  gdpr_filter filter(res);
+  auto filter = std::make_shared<gdpr_filter>(res);
+
   // if the key exists and complies with the gdpr rules
   // then return the value of the get operation
-  if (filter.validate(query_args, def_policy)) {
+  if (filter->validate(query_args, def_policy)) {
+    // Check if the retrieved value requires logging
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    monitor.monitor_query_result(res.has_value());
+
     // TODO: write the value to the client socket
     assert(res);
   } 
@@ -39,12 +46,20 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
                 const default_policy &def_policy) -> void 
 {
   auto res = client->get(query_args.key());
-  gdpr_filter filter(res);
+  auto filter = std::make_shared<gdpr_filter>(res);
+
   // if the key does not exist or it exists and it complies with the gdpr rules
   // then perform the put operation
-  if (!res || filter.validate(query_args, def_policy)){ 
+  if (!res || filter->validate(query_args, def_policy)) {
+    // Check if the retrieved value requires logging
+    // If no value is returned, check the respective query args
+    // If no query args are specified, enforce the default policy for monitoring
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    monitor.monitor_query_attempt();
     query_rewriter rewriter(query_args, def_policy, query_args.value());
     auto ret_val = client->put(query_args.key(), rewriter.new_value());
+    monitor.monitor_query_result(ret_val, rewriter.new_value());
+
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
@@ -58,11 +73,18 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
                   const default_policy &def_policy) -> void 
 {
   auto res = client->get(query_args.key());
-  gdpr_filter filter(res);
+  auto filter = std::make_shared<gdpr_filter>(res);
+
   // if the key exists and complies with the gdpr rules
   // then perform the delete operation
-  if (filter.validate(query_args, def_policy)) {
+  if (filter->validate(query_args, def_policy)) {
+    // Check if the retrieved value requires logging
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    monitor.monitor_query_attempt();
+
     auto ret_val = client->del(query_args.key());
+    monitor.monitor_query_result(ret_val);
+
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }

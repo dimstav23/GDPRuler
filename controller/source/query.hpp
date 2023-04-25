@@ -2,6 +2,7 @@
 
 #include <string>
 #include <bitset>
+#include <optional>
 #include <sstream>
 #include <unordered_map>
 
@@ -34,13 +35,13 @@ public:
   [[nodiscard]] auto cmd() const -> std::string;
   [[nodiscard]] auto key() const -> std::string;
   [[nodiscard]] auto value() const -> std::string;
-  [[nodiscard]] auto user_key() const -> std::string;
-  [[nodiscard]] auto purpose() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto objection() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto origin() const -> std::string;
-  [[nodiscard]] auto expiration() const -> int64_t;
-  [[nodiscard]] auto share() const -> std::string;
-  [[nodiscard]] auto monitor() const -> bool;
+  [[nodiscard]] auto user_key() const -> std::optional<std::string>;
+  [[nodiscard]] auto purpose() const -> std::optional<std::bitset<num_purposes>>;
+  [[nodiscard]] auto objection() const -> std::optional<std::bitset<num_purposes>>;
+  [[nodiscard]] auto origin() const -> std::optional<std::string>;
+  [[nodiscard]] auto expiration() const -> std::optional<int64_t>;
+  [[nodiscard]] auto share() const -> std::optional<std::string>;
+  [[nodiscard]] auto monitor() const -> std::optional<bool>;
   [[nodiscard]] auto cond_user_key() const -> std::string;
   [[nodiscard]] auto cond_purpose() const -> std::bitset<num_purposes>;
   [[nodiscard]] auto cond_objection() const -> std::bitset<num_purposes>;
@@ -61,13 +62,13 @@ private:
   std::string m_value;
 
   // metadata to set
-  std::string m_user_key;
-  std::bitset<num_purposes> m_purpose;
-  std::bitset<num_purposes> m_objection;
-  std::string m_origin;
-  int64_t m_expiration;
-  std::string m_share;
-  bool m_monitor;
+  std::optional<std::string> m_user_key;
+  std::optional<std::bitset<num_purposes>> m_purpose;
+  std::optional<std::bitset<num_purposes>> m_objection;
+  std::optional<std::string> m_origin;
+  std::optional<int64_t> m_expiration;
+  std::optional<std::string> m_share;
+  std::optional<bool> m_monitor;
 
   // conditional metadata
   std::string m_cond_user_key;
