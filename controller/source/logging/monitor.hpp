@@ -52,13 +52,13 @@ public:
 
   void monitor_query_attempt() {
     if (m_monitor_needed) {
-      m_history_logger->log_attempt(m_query_args, m_def_policy);
+      m_history_logger->log_encoded_attempt(m_query_args, m_def_policy);
     }
   }
 
   void monitor_query_result(const bool& result, const std::string& new_val = {}) {
     if (m_monitor_needed) {
-      m_history_logger->log_result(m_query_args, m_def_policy, result, new_val);
+      m_history_logger->log_encoded_result(m_query_args, m_def_policy, result, new_val);
     }
   }
 

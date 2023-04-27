@@ -66,9 +66,9 @@ public:
     return &history_logger;
   }
 
-  /**
+  /*
    * Logs the query attempt
-  */
+   */
   void log_attempt(const query& query_args, const default_policy& def_policy) {
     
     // lock the mutex corresponding to the key
@@ -101,9 +101,65 @@ public:
               << (new_val.empty() ? "" : new_val) << std::endl;
   }
 
-  /**
-   * Logs the query result
-  */
+  /*
+   * Logs the encoded query attempt
+   */
+  void log_encoded_attempt(const query& query_args, const default_policy& def_policy) {
+    
+    // lock the mutex corresponding to the key
+    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
+
+    // Open or retrieve the file the file
+    auto log_file = get_or_open_log_stream(query_args.key());
+
+    // Encode the timestamp as a fixed-width integer type
+    const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+    // Encode the user key as a string
+    const std::string& user_key = query_args.user_key().value_or(def_policy.user_key());
+    // Encode the operation type (3bits) and the operation result (1 bit) as a single byte
+    const uint8_t operation = static_cast<uint8_t>((convert_operation_to_enum(query_args.cmd()) & 0x07U) << 1U);
+    // Calculate the total size of the entry
+    // We need the size of the data + 3 delimiters + a new line char
+    size_t total_size = sizeof(timestamp) + user_key.length() + 
+                                sizeof(operation) + 3 * sizeof(log_delimiter) + 1;
+
+    // Allocate an array buffer to hold the encoded entry
+    std::vector<char> buffer(total_size);
+    size_t offset = 0;
+
+    // Check if buffer is null
+    if (buffer.data() == nullptr) {
+      return;
+    }
+    
+    // Encode the first entry
+    memcpy(&buffer[offset], &timestamp, sizeof(timestamp));
+    offset += sizeof(timestamp);
+    // Encode the delimiter
+    buffer[offset] = log_delimiter;
+    offset += sizeof(log_delimiter);
+    // Encode the second entry
+    memcpy(&buffer[offset], user_key.c_str(), user_key.length());
+    offset += user_key.length();
+    // Encode the delimiter
+    buffer[offset] = log_delimiter;
+    offset += sizeof(log_delimiter);
+    // Encode the third entry as a single byte
+    buffer[offset] = static_cast<char>(operation);
+    offset += sizeof(operation);
+    // Encode the delimiter
+    buffer[offset] = log_delimiter;
+    offset += sizeof(log_delimiter);
+    // Encode the newline character
+    buffer[offset] = '\n';
+
+    // Write the encoded entry to the log file
+    log_file->write(buffer.data(), static_cast<std::streamsize>(total_size));
+  }
+
+  /*
+   * Logs the encoded query result
+   */
   void log_encoded_result(const query& query_args, const default_policy& def_policy, const bool& result, const std::string& new_val = {}) {
     
     // lock the mutex corresponding to the key
