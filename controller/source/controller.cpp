@@ -17,6 +17,7 @@ using controller::default_policy;
 using controller::query;
 using controller::query_rewriter;
 using controller::gdpr_filter;
+using controller::logger;
 using controller::gdpr_monitor;
 
 auto handle_get(const std::unique_ptr<kv_client> &client, 
@@ -130,6 +131,10 @@ auto main(int argc, char* argv[]) -> int
   }
   std::string db_address = get_command_line_argument(args, "--address");
   std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
+  
+  // set the log path based on the input parameter
+  const std::string log_path = get_command_line_argument(args, "--logpath");
+  logger::get_instance()->init_log_path(log_path);
 
   auto start = std::chrono::high_resolution_clock::now();
 

@@ -17,6 +17,7 @@ auto main() -> int
   // about its instantiation parameters
   auto const def_policy = default_policy {};
   // get the logger instance
+  logger::get_instance()->init_log_path("/scratch/dimitrios/logs/");
   logger* m_history_logger = logger::get_instance();
   
   constexpr int value_size = 1024;

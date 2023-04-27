@@ -67,6 +67,19 @@ public:
   }
 
   /*
+   * Set the directory where the log files reside 
+   * If no value is provided, use the default path
+   */
+  auto init_log_path(const std::optional<std::string>& log_path = std::nullopt) -> void {
+    if (log_path.has_value()) {
+      m_logs_dir = log_path.value();
+    }
+    if (!std::filesystem::exists(m_logs_dir)) {
+      std::filesystem::create_directory(m_logs_dir);
+    }
+  }
+
+  /*
    * Logs the query attempt
    */
   void log_attempt(const query& query_args, const default_policy& def_policy) {
@@ -223,14 +236,10 @@ public:
 
 
 private:
-  logger() {
-    if (!std::filesystem::exists(logs_dir)) {
-      std::filesystem::create_directory(logs_dir);
-    }
-  }
+  logger() = default;
 
   auto log_file_path(const std::string& key) -> std::string {
-    return logs_dir + key + log_file_extension;
+    return m_logs_dir + '/' + key + log_file_extension;
   }
 
   auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::ofstream> {
@@ -242,7 +251,7 @@ private:
     return m_keys_to_log_files[key];
   }
 
-  const std::string logs_dir = "logs/";
+  std::string m_logs_dir = "./logs";
 
   const std::string log_file_extension = ".log";
 
