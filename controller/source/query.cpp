@@ -13,6 +13,21 @@ query::query()
 {
 }
 
+// overloaded constructor only for the performance test
+query::query(const std::string &user_key, 
+             const std::string &key, 
+             const std::string &cmd)
+    : m_name {"gdpr_controller_query"},
+      m_cond_purpose{0},
+      m_cond_objection{0},
+      m_cond_expiration{0},
+      m_cond_monitor{false},
+      m_user_key{user_key},
+      m_key{key},
+      m_cmd{cmd}
+{
+}
+
 query::query(const std::string &input)
     : m_name {"gdpr_controller_query"},
       m_cond_purpose{0},

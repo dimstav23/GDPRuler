@@ -8,9 +8,15 @@ project(gdpr_controllerTests LANGUAGES CXX)
 
 add_executable(gdpr_controller_test source/gdpr_controller_test.cpp)
 target_link_libraries(gdpr_controller_test PRIVATE gdpr_controller_lib)
-target_compile_features(gdpr_controller_test PRIVATE cxx_std_17)
+target_compile_features(gdpr_controller_test PRIVATE cxx_std_20)
 
 add_test(NAME gdpr_controller_test COMMAND gdpr_controller_test)
+
+add_executable(gdpr_logger_perf_test source/gdpr_logger_perf_test.cpp)
+target_link_libraries(gdpr_logger_perf_test PRIVATE gdpr_controller_lib ${CMAKE_DL_LIBS})
+target_compile_features(gdpr_logger_perf_test PRIVATE cxx_std_20)
+
+add_test(NAME gdpr_logger_perf_test COMMAND gdpr_logger_perf_test)
 
 # ---- End-of-file commands ----
 
