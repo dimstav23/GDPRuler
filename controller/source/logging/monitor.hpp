@@ -32,9 +32,8 @@ public:
     m_filter{nullptr}, m_query_args{query_args}, m_def_policy{def_policy}, 
     m_history_logger{logger::get_instance()}
   {
-    m_monitor_needed = m_query_args.monitor().has_value() ? m_query_args.monitor().value() : m_def_policy.monitor();
+    m_monitor_needed = m_query_args.monitor().value_or(m_def_policy.monitor());
   }
-
   /* 
    * PUTM query operation 
    * Monitor constructor when the gdpr metadata of a value is updated 
@@ -59,6 +58,12 @@ public:
   void monitor_query_result(const bool& result, const std::string& new_val = {}) {
     if (m_monitor_needed) {
       m_history_logger->log_encoded_result(m_query_args, m_def_policy, result, new_val);
+    }
+  }
+
+  void monitor_query(const bool& valid, const std::string& new_val = {}) {
+    if (m_monitor_needed) {
+      m_history_logger->log_encoded_query(m_query_args, m_def_policy, valid, new_val);
     }
   }
 

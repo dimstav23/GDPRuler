@@ -27,17 +27,20 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
   auto res = client->get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
+  // Check if the retrieved value requires logging
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+
   // if the key exists and complies with the gdpr rules
   // then return the value of the get operation
-  if (filter->validate(query_args, def_policy)) {
-    // Check if the retrieved value requires logging
-    auto monitor = gdpr_monitor(filter, query_args, def_policy);
-    monitor.monitor_query_result(res.has_value());
-
+  if (bool is_valid = filter->validate(query_args, def_policy)) {
+    // Perform the logging of the valid operation -- if needed
+    monitor.monitor_query(is_valid);
     // TODO: write the value to the client socket
     assert(res);
   } 
   else {
+    // Perform the logging of the invalid operation -- if needed
+    monitor.monitor_query(is_valid);
     // TODO: write FAILED_GET value to the client socket
   }
 }
@@ -49,36 +52,41 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
   auto res = client->get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
+  bool is_valid = true;
   // if the key does not exist, perform the put
   if (!res) {
     // If no value is returned, check the respective query args
     // If no query args are specified, enforce the default policy for monitoring
     auto monitor = gdpr_monitor(query_args, def_policy);
-    monitor.monitor_query_attempt();
     // construct the gdpr metadata for the new value
     query_rewriter rewriter(query_args, def_policy, query_args.value());
+    // Perform the logging of the valid operation -- if needed
+    monitor.monitor_query(is_valid, rewriter.new_value());
     auto ret_val = client->put(query_args.key(), rewriter.new_value());
-    monitor.monitor_query_result(ret_val, rewriter.new_value());
 
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
   // if the key exists and complies with the gdpr rules, perform the put
-  else if (filter->validate(query_args, def_policy)) {
+  else if ((is_valid = filter->validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the 
     // gpdr metadata of the value -- only putm operations can
     auto monitor = gdpr_monitor(filter, query_args, def_policy);
-    monitor.monitor_query_attempt();
     // update the current value with the new one without modifying any metadata
     query_rewriter rewriter(res.value(), query_args.value());
+    // Perform the logging of the valid operation -- if needed
+    monitor.monitor_query(is_valid, rewriter.new_value());
     auto ret_val = client->put(query_args.key(), rewriter.new_value());
-    monitor.monitor_query_result(ret_val, rewriter.new_value());
+    
 
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
   else {
+    // Perform the logging of the invalid operation -- if needed
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    monitor.monitor_query(is_valid);
     // TODO: write FAILED_PUT value to the client socket
   }
 }
@@ -90,20 +98,22 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
   auto res = client->get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
+  // Check if the retrieved value requires logging
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+
   // if the key exists and complies with the gdpr rules
   // then perform the delete operation
-  if (filter->validate(query_args, def_policy)) {
-    // Check if the retrieved value requires logging
-    auto monitor = gdpr_monitor(filter, query_args, def_policy);
-    monitor.monitor_query_attempt();
-
+  if (bool is_valid = filter->validate(query_args, def_policy)) {
+    // Perform the logging of the valid operation -- if needed
+    monitor.monitor_query(is_valid);
     auto ret_val = client->del(query_args.key());
-    monitor.monitor_query_result(ret_val);
-
+    
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
   else {
+    // Perform the logging of the invalid operation -- if needed
+    monitor.monitor_query(is_valid);
     // TODO: write FAILED_DELETE value to the client socket
   }
 }

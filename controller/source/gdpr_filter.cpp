@@ -52,6 +52,8 @@ gdpr_filter::gdpr_filter(const std::optional<std::string> &ret_value)
   else {
     // no value returned for given key
     m_valid = false;
+    // no monitor is needed if no value returned for given key
+    m_monitor = false;
   }
 }
 
