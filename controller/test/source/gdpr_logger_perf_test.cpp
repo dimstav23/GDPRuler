@@ -39,56 +39,26 @@ auto main() -> int
   // Measure the time taken by log_attempt
   auto start = std::chrono::steady_clock::now();
   for (int i = 0; i < iterations; i++) {
-    m_history_logger->log_attempt(query_args1, def_policy);
+    m_history_logger->log_raw_query(query_args1, def_policy, true, dummy_value);
   }
   auto end = std::chrono::steady_clock::now();
   std::chrono::duration<double> duration = end - start;
-  std::cout << "log_attempt took " << duration.count() << " seconds." << std::endl;
+  std::cout << "log_raw_query took " << duration.count() << " seconds." << std::endl;
 
-    // setup the new query
+  // setup the new query
   std::string key2 = "key2";
   std::string user_key2 = "user2";
   std::string cmd2 = "put";
   auto const query_args2 = query {user_key2, key2, cmd2};
 
-  // Measure the time taken by log_result
-  start = std::chrono::steady_clock::now();
-  for (int i = 0; i < iterations; i++) {
-    m_history_logger->log_result(query_args2, def_policy, true, dummy_value);
-  }
-  end = std::chrono::steady_clock::now();
-  duration = end - start;
-  std::cout << "log_result took " << duration.count() << " seconds." << std::endl;
-
-  // setup the new query
-  std::string key3 = "key3";
-  std::string user_key3 = "user3";
-  std::string cmd3 = "put";
-  auto const query_args3 = query {user_key3, key3, cmd3};
-
   // Measure the time taken by log_encoded_attempt
   start = std::chrono::steady_clock::now();
   for (int i = 0; i < iterations; i++) {
-    m_history_logger->log_encoded_attempt(query_args3, def_policy);
+    m_history_logger->log_encoded_query(query_args2, def_policy, true, dummy_value);
   }
   end = std::chrono::steady_clock::now();
   duration = end - start;
-  std::cout << "log_encoded_attempt took " << duration.count() << " seconds." << std::endl;
-
-  // setup the new query
-  std::string key4 = "key4";
-  std::string user_key4 = "user4";
-  std::string cmd4 = "put";
-  auto const query_args4 = query {user_key4, key4, cmd4};
-
-  // Measure the time taken by log_encoded_result
-  start = std::chrono::steady_clock::now();
-  for (int i = 0; i < iterations; i++) {
-    m_history_logger->log_encoded_result(query_args4, def_policy, true, dummy_value);
-  }
-  end = std::chrono::steady_clock::now();
-  duration = end - start;
-  std::cout << "log_encoded_result took " << duration.count() << " seconds." << std::endl;
+  std::cout << "log_encoded_query took " << duration.count() << " seconds." << std::endl;
 
   return 0;
 }

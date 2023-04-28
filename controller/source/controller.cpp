@@ -78,7 +78,6 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
     // Perform the logging of the valid operation -- if needed
     monitor.monitor_query(is_valid, rewriter.new_value());
     auto ret_val = client->put(query_args.key(), rewriter.new_value());
-    
 
     // TODO: write ret_val value to the client socket
     assert(ret_val);
