@@ -51,7 +51,7 @@ find_library(ROCKSDB_LIB rocksdb)
 find_package(Boost REQUIRED COMPONENTS system)
 
 # ---- Add OpenSSL dependency ----
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 
 # ---- Declare executables ----
 
