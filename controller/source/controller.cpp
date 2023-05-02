@@ -30,17 +30,17 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
   // Check if the retrieved value requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
 
-  // if the key exists and complies with the gdpr rules
-  // then return the value of the get operation
-  if (bool is_valid = filter->validate(query_args, def_policy)) {
-    // Perform the logging of the valid operation -- if needed
-    monitor.monitor_query(is_valid);
+  bool is_valid = filter->validate(query_args, def_policy);
+  // Perform the logging of the (in)valid operation -- if needed
+  monitor.monitor_query(is_valid);
+
+  if (is_valid) {
+    // if the key exists and complies with the gdpr rules
+    // then return the value of the get operation
     // TODO: write the value to the client socket
     assert(res);
-  } 
+  }
   else {
-    // Perform the logging of the invalid operation -- if needed
-    monitor.monitor_query(is_valid);
     // TODO: write FAILED_GET value to the client socket
   }
 }
@@ -100,19 +100,18 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
   // Check if the retrieved value requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
 
-  // if the key exists and complies with the gdpr rules
-  // then perform the delete operation
-  if (bool is_valid = filter->validate(query_args, def_policy)) {
-    // Perform the logging of the valid operation -- if needed
-    monitor.monitor_query(is_valid);
+  bool is_valid = filter->validate(query_args, def_policy);
+  // Perform the logging of the (in)valid operation -- if needed
+  monitor.monitor_query(is_valid);
+
+  if (is_valid) {
+    // if the key exists and complies with the gdpr rules
+    // then perform the delete operation
     auto ret_val = client->del(query_args.key());
-    
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
   else {
-    // Perform the logging of the invalid operation -- if needed
-    monitor.monitor_query(is_valid);
     // TODO: write FAILED_DELETE value to the client socket
   }
 }
