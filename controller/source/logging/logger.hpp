@@ -130,7 +130,7 @@ public:
     size_t offset = 0;
 
     // Check if buffer is null
-    if (buffer.data() == nullptr) {
+    if (buffer.data() == nullptr) [[unlikely]] {
       return;
     }
     
