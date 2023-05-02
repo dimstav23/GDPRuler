@@ -15,6 +15,7 @@ def main():
   parser.add_argument('--workload', help='path to the workload trace file', default=None, required=True, type=str)
   parser.add_argument('--db', help='db to use, one of {rocksdb,redis}', default=DbType.ROCKSDB, required=False, type=DbType)
   parser.add_argument('--address', help='db ip address for client to connect', default=None, required=False, type=str)
+  parser.add_argument('--logpath', help='folder to place the gdpr log files', default="./logs", required=False, type=str)
   args = parser.parse_args()
 
   user_policy = safe_open(args.config, "r") # open the file containing the default user configuration
@@ -28,6 +29,7 @@ def main():
   process_args += ['--db', args.db]
   if args.address:
     process_args += ['--address', args.address]
+  process_args += ['--logpath', args.logpath]
   controller = subprocess.Popen(process_args, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # Write policy to process' standard input

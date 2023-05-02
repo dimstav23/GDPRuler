@@ -27,6 +27,8 @@ class query
 public:
 	query();
   explicit query(const std::string &input);
+  // overloaded constructor only for the performance test
+  explicit query(const std::string &user_key, const std::string &key, const std::string &cmd);
   // ~query();
 
 	[[nodiscard]] auto name() const -> std::string;

@@ -10,18 +10,21 @@
 
 namespace controller {
 
+/* Delimiter for the logged values */
+const char log_delimiter = ',';
+
 /**
  * Query operations enum.
 */
-enum operation {
-  invalid = 0,
-  get = 1,
-  put = 2,
-  del = 3,
-  getm = 4,
-  putm = 5,
-  delm = 6,
-  get_logs = 7
+enum operation : uint8_t {
+  invalid = 0U,
+  get = 1U,
+  put = 2U,
+  del = 3U,
+  getm = 4U,
+  putm = 5U,
+  delm = 6U,
+  get_logs = 7U
 };
 
 /**
@@ -63,25 +66,23 @@ public:
     return &history_logger;
   }
 
-  /**
-   * Logs the query attempt
-  */
-  void log_attempt(const query& query_args, const default_policy& def_policy) {
-    
-    // lock the mutex corresponding to the key
-    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
-
-    auto log_file = get_or_open_log_stream(query_args.key());
-
-    // write the log
-    // format is the following:
-    // timestamp,user_key,operation
-    *log_file << std::chrono::system_clock::now().time_since_epoch().count() << ","
-              << (query_args.user_key().has_value() ? query_args.user_key().value() : def_policy.user_key()) << ","
-              << convert_operation_to_enum(query_args.cmd()) << "," << std::endl;
+  /*
+   * Set the directory where the log files reside 
+   * If no value is provided, use the default path
+   */
+  auto init_log_path(const std::optional<std::string>& log_path = std::nullopt) -> void {
+    if (log_path.has_value()) {
+      m_logs_dir = log_path.value();
+    }
+    if (!std::filesystem::exists(m_logs_dir)) {
+      std::filesystem::create_directory(m_logs_dir);
+    }
   }
 
-  void log_result(const query& query_args, const default_policy& def_policy, const bool& result, const std::string& new_val = {}) {
+  /*
+   * Logs the raw query -- preserved for performance testing
+   */
+  void log_raw_query(const query& query_args, const default_policy& def_policy, const bool& result, const std::string& new_val = {}) {
     
     // lock the mutex corresponding to the key
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
@@ -98,16 +99,77 @@ public:
               << (new_val.empty() ? "" : new_val) << std::endl;
   }
 
+  /*
+   * Logs the encoded query
+   */
+  void log_encoded_query(const query& query_args, const default_policy& def_policy, 
+                         const bool& valid, const std::string& new_val = {}) 
+  {  
+    // lock the mutex corresponding to the key
+    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
 
-private:
-  logger() {
-    if (!std::filesystem::exists(logs_dir)) {
-      std::filesystem::create_directory(logs_dir);
+    // Open or retrieve the file the file
+    auto log_file = get_or_open_log_stream(query_args.key());
+
+    // Encode the timestamp as a fixed-width integer type
+    const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+    // Encode the user key as a string
+    const std::string& user_key = query_args.user_key().value_or(def_policy.user_key());
+    // Encode the operation type (3bits) and the operation result (1 bit) as a single byte
+    const uint8_t operation = static_cast<uint8_t>((convert_operation_to_enum(query_args.cmd()) & 0x07U) << 1U);
+    const uint8_t valid_bit = (valid ? 0x01U : 0x00U);
+    const uint8_t operation_result = operation | valid_bit;
+    // Calculate the total size of the entry
+    // We need the size of the data + 3 delimiters + a new line char
+    size_t total_size = sizeof(timestamp) + user_key.length() + 
+                                sizeof(operation_result) + new_val.length() + 
+                                3 * sizeof(log_delimiter) + 1;
+
+    // Allocate an array buffer to hold the encoded entry
+    std::vector<char> buffer(total_size);
+    size_t offset = 0;
+
+    // Check if buffer is null
+    if (buffer.data() == nullptr) [[unlikely]] {
+      return;
     }
+    
+    // Encode the first entry
+    memcpy(&buffer[offset], &timestamp, sizeof(timestamp));
+    offset += sizeof(timestamp);
+    // Encode the delimiter
+    buffer[offset] = log_delimiter;
+    offset += sizeof(log_delimiter);
+    // Encode the second entry
+    memcpy(&buffer[offset], user_key.c_str(), user_key.length());
+    offset += user_key.length();
+    // Encode the delimiter
+    buffer[offset] = log_delimiter;
+    offset += sizeof(log_delimiter);
+    // Encode the third and fourth entries as a single byte
+    buffer[offset] = static_cast<char>(operation_result);
+    offset += sizeof(operation_result);
+    // Encode the delimiter
+    buffer[offset] = log_delimiter;
+    offset += sizeof(log_delimiter);
+    // Encode the new value string, if it's not empty
+    if (!new_val.empty()) {
+      memcpy(&buffer[offset], new_val.c_str(), new_val.length());
+      offset += new_val.length();
+    }
+    // Encode the newline character
+    buffer[offset] = '\n';
+
+    // Write the encoded entry to the log file
+    log_file->write(buffer.data(), static_cast<std::streamsize>(total_size));
   }
 
+
+private:
+  logger() = default;
+
   auto log_file_path(const std::string& key) -> std::string {
-    return logs_dir + key + log_file_extension;
+    return m_logs_dir + '/' + key + log_file_extension;
   }
 
   auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::ofstream> {
@@ -119,7 +181,7 @@ private:
     return m_keys_to_log_files[key];
   }
 
-  const std::string logs_dir = "logs/";
+  std::string m_logs_dir = "./logs";
 
   const std::string log_file_extension = ".log";
 
