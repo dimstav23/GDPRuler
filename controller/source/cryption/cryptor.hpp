@@ -72,10 +72,10 @@ public:
     EVP_CIPHER_CTX* ctx = nullptr;
 
     /* +1 to include the null termination */
-    int input_len = input.size() + 1;
+    int input_len = static_cast<int>(input.size()) + 1;
 
     /* max ciphertext len for a n bytes of plaintext is n + AES_BLOCK_SIZE -1 bytes */
-    unsigned char ciphertext[input_len + AES_BLOCK_SIZE];
+    auto ciphertext = new unsigned char[static_cast<size_t>(input_len + AES_BLOCK_SIZE)];
     int temp_len, ciphertext_len;
     auto input_ptr = reinterpret_cast<const unsigned char*>(input.c_str());
 
@@ -112,7 +112,8 @@ public:
     /* Return successful encrypt result. Exclude null termination */
     std::string result_string{};
     result_string.append(reinterpret_cast<char*>(initialization_vector), initialization_vector_len);
-    result_string.append(reinterpret_cast<char*>(ciphertext), ciphertext_len - 1);
+    result_string.append(reinterpret_cast<char*>(ciphertext), static_cast<size_t>(ciphertext_len - 1));
+    delete ciphertext;
     return encrpyt_result {result_string,true};
   }
 
@@ -129,11 +130,11 @@ public:
     std::string ciphertext = iv_and_ciphertext.substr(initialization_vector_len);
 
     /* +1 to include the null termination */
-    int ciphertext_len = ciphertext.size() + 1;
+    int ciphertext_len = static_cast<int>(ciphertext.size()) + 1;
 
     /* plaintext will always be equal to or lesser than the length of ciphertext
      */
-    unsigned char plaintext[ciphertext_len];
+    auto plaintext = new unsigned char[static_cast<size_t>(ciphertext_len)];
 
     auto ciphertext_ptr = reinterpret_cast<const unsigned char*>(ciphertext.c_str());
 
@@ -168,12 +169,10 @@ public:
 
     plaintext_len += temp_len;
 
-    /* Return successful decrypt result. Provide (plaintext_len - 1) as length
-     * to exclude null termination */
-    return decrpyt_result {
-        std::string(reinterpret_cast<char*>(plaintext), plaintext_len - 1),
-        true 
-    };
+    /* Return successful decrypt result. Provide (plaintext_len - 1) as length to exclude null termination */
+    auto plaintext_str = std::string(reinterpret_cast<char*>(plaintext), static_cast<size_t>(plaintext_len - 1));
+    delete plaintext;
+    return decrpyt_result { plaintext_str, true };
   }
 
   auto init_cryption_key(const std::optional<std::string>& encryption_key = std::nullopt) -> void {
