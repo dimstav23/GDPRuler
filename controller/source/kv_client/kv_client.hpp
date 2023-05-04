@@ -6,8 +6,7 @@
 
 #include "../encryption/encryptor.hpp"
 
-using controller::encrypt;
-using controller::decrypt;
+using controller::encryptor;
 
 class kv_client
 {
@@ -24,7 +23,7 @@ public:
         return std::nullopt;
       }
 
-      auto decrypt_result = decrypt(encrypted_value.value());
+      auto decrypt_result = m_encryptor->decrypt(encrypted_value.value());
       if (decrypt_result.m_success) {
         return decrypt_result.m_plaintext;
       }
@@ -39,7 +38,7 @@ public:
       return put_pair(key, value);
     #else
       // put the pair after encryption
-      auto encrypt_result = encrypt(value);
+      auto encrypt_result = m_encryptor->encrypt(value);
       if (encrypt_result.m_success) {
         return put_pair(key, encrypt_result.m_ciphertext);
       }
@@ -71,4 +70,6 @@ protected:
   virtual auto get_value(const std::string& key) -> std::optional<std::string> = 0;
   virtual auto put_pair(const std::string& key, const std::string& value) -> bool = 0;
   virtual auto del_pair(const std::string& key) -> bool = 0;
+
+  encryptor* m_encryptor = encryptor::get_instance();
 };
