@@ -4,9 +4,7 @@
 #include <string>
 #include <optional>
 
-#include "../encryption/encryptor.hpp"
-
-using controller::encryptor;
+#include "../cryption/cryptor.hpp"
 
 class kv_client
 {
@@ -23,7 +21,7 @@ public:
         return std::nullopt;
       }
 
-      auto decrypt_result = m_encryptor->decrypt(encrypted_value.value());
+      auto decrypt_result = m_cryptor->decrypt(encrypted_value.value());
       if (decrypt_result.m_success) {
         return decrypt_result.m_plaintext;
       }
@@ -32,13 +30,14 @@ public:
     #endif
   }
 
+  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
   auto put(const std::string& key, const std::string& value) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // put the pair directly w/o encryption
       return put_pair(key, value);
     #else
       // put the pair after encryption
-      auto encrypt_result = m_encryptor->encrypt(value);
+      auto encrypt_result = m_cryptor->encrypt(value);
       if (encrypt_result.m_success) {
         return put_pair(key, encrypt_result.m_ciphertext);
       }
@@ -71,5 +70,6 @@ protected:
   virtual auto put_pair(const std::string& key, const std::string& value) -> bool = 0;
   virtual auto del_pair(const std::string& key) -> bool = 0;
 
-  encryptor* m_encryptor = encryptor::get_instance();
+private:
+  controller::cryptor* m_cryptor = controller::cryptor::get_instance();
 };

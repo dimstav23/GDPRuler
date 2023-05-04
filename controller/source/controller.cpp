@@ -15,6 +15,7 @@
 #include "gdpr_regulator.hpp"
 
 using controller::default_policy;
+using controller::cryptor;
 using controller::query;
 using controller::query_rewriter;
 using controller::gdpr_filter;
@@ -187,6 +188,10 @@ auto main(int argc, char* argv[]) -> int
   // set the log path based on the input parameter
   const std::string log_path = get_command_line_argument(args, "--logpath");
   logger::get_instance()->init_log_path(log_path);
+
+  // set the cryption key based on the input parameter
+  const std::string cryption_key = get_command_line_argument(args, "--cryptionkey");
+  cryptor::get_instance()->init_cryption_key(cryption_key);
 
   auto start = std::chrono::high_resolution_clock::now();
 

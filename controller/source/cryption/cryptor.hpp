@@ -16,8 +16,8 @@
 namespace controller
 {
 
-#define ENCRYPTION_KEY_LEN  32
-#define INITIALIZATION_VECTOR_LEN 16
+constexpr int cryption_key_len = 32;
+constexpr int initialization_vector_len = 16;
 
 class encrpyt_result
 {
@@ -45,40 +45,38 @@ public:
   bool m_success;
 };
 
-class encryptor
+class cryptor
 {
+// NOLINTBEGIN
 public:
 
   /**
-   * Get singleton encryptor object.
+   * Get singleton cryptor object.
   */
-  static auto get_instance() -> encryptor* {
-    static encryptor encryptor;
+  static auto get_instance() -> cryptor* {
+    static cryptor encryptor;
     return &encryptor;
   }
 
   /**
    * Encrypt given plain text.
    * 
-   * If successful, output's first INITIALIZATION_VECTOR_LEN chars contains initialization vector (iv) in plain text.
+   * If successful, output's first initialization_vector_len chars contains initialization vector (iv) in plain text.
    * The rest of the output string contains ciphered form of the input based on encryption key and randomly generated iv.
   */
-  auto encrypt(const std::string& input) -> encrpyt_result
-  {
-    static encrpyt_result failed_encrpyt_result {{}, false};
-    unsigned char initialization_vector[INITIALIZATION_VECTOR_LEN];
-    RAND_bytes(initialization_vector, INITIALIZATION_VECTOR_LEN);
+  auto encrypt(const std::string& input) -> encrpyt_result {
+    static encrpyt_result failed_encrpyt_result {{}, /*success*/ false};
+    unsigned char initialization_vector[initialization_vector_len];
+    RAND_bytes(initialization_vector, initialization_vector_len);
 
-    EVP_CIPHER_CTX* ctx;
+    EVP_CIPHER_CTX* ctx = nullptr;
 
     /* +1 to include the null termination */
     int input_len = input.size() + 1;
 
-    /* max ciphertext len for a n bytes of plaintext is n + AES_BLOCK_SIZE -1
-     * bytes */
+    /* max ciphertext len for a n bytes of plaintext is n + AES_BLOCK_SIZE -1 bytes */
     unsigned char ciphertext[input_len + AES_BLOCK_SIZE];
-    int temp_len;
-    int ciphertext_len;
+    int temp_len, ciphertext_len;
     auto input_ptr = reinterpret_cast<const unsigned char*>(input.c_str());
 
     /* Create and initialise the context */
@@ -88,18 +86,14 @@ public:
     }
 
     /* Initialise the encryption operation. */
-    if (1
-        != EVP_EncryptInit_ex(
-            ctx, EVP_aes_256_gcm(), NULL, m_key, initialization_vector))
-    {
+    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, m_key, initialization_vector)) {
       std::cout << "Could not initialize encrypt operation!" << std::endl;
       return failed_encrpyt_result;
     }
 
     /* Provide the plaintext to be encrypted, and obtain the encrypted output.
      */
-    if (1 != EVP_EncryptUpdate(ctx, ciphertext, &temp_len, input_ptr, input_len))
-    {
+    if (1 != EVP_EncryptUpdate(ctx, ciphertext, &temp_len, input_ptr, input_len)) {
       std::cout << "Could not update encrypt!" << std::endl;
       return failed_encrpyt_result;
     }
@@ -117,7 +111,7 @@ public:
 
     /* Return successful encrypt result. Exclude null termination */
     std::string result_string{};
-    result_string.append(reinterpret_cast<char*>(initialization_vector), INITIALIZATION_VECTOR_LEN);
+    result_string.append(reinterpret_cast<char*>(initialization_vector), initialization_vector_len);
     result_string.append(reinterpret_cast<char*>(ciphertext), ciphertext_len - 1);
     return encrpyt_result {result_string,true};
   }
@@ -125,15 +119,14 @@ public:
   /**
    * Decrypt given input. 
    * 
-   * First INITIALIZATION_VECTOR_LEN chars are expected to be initialization vector in plain text.
+   * First initialization_vector_len chars are expected to be initialization vector in plain text.
    * The rest of the characters are expected to be the cipher text
   */
-  auto decrypt(const std::string& iv_and_ciphertext) -> decrpyt_result
-  {
+  auto decrypt(const std::string& iv_and_ciphertext) -> decrpyt_result {
     static decrpyt_result failed_decrpyt_result {{}, false};
-    unsigned char initialization_vector[INITIALIZATION_VECTOR_LEN];
-    memcpy(initialization_vector, iv_and_ciphertext.c_str(), INITIALIZATION_VECTOR_LEN);
-    std::string ciphertext = iv_and_ciphertext.substr(INITIALIZATION_VECTOR_LEN);
+    unsigned char initialization_vector[initialization_vector_len];
+    memcpy(initialization_vector, iv_and_ciphertext.c_str(), initialization_vector_len);
+    std::string ciphertext = iv_and_ciphertext.substr(initialization_vector_len);
 
     /* +1 to include the null termination */
     int ciphertext_len = ciphertext.size() + 1;
@@ -145,9 +138,7 @@ public:
     auto ciphertext_ptr = reinterpret_cast<const unsigned char*>(ciphertext.c_str());
 
     EVP_CIPHER_CTX* ctx;
-    int temp_len;
-    int plaintext_len;
-    int ret;
+    int temp_len, plaintext_len;
 
     /* Create and initialise the context */
     if (!(ctx = EVP_CIPHER_CTX_new())) {
@@ -156,16 +147,13 @@ public:
     }
 
     /* Initialise the decryption operation. */
-    if (!EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, m_key, initialization_vector))
-    {
+    if (!EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, m_key, initialization_vector)) {
       std::cout << "Could not initialize decrypt operation!" << std::endl;
       return failed_decrpyt_result;
     }
 
     /* Provide the ciphertext to be decrypted, and obtain the plaintext. */
-    if (!EVP_DecryptUpdate(
-            ctx, plaintext, &temp_len, ciphertext_ptr, ciphertext_len))
-    {
+    if (!EVP_DecryptUpdate(ctx, plaintext, &temp_len, ciphertext_ptr, ciphertext_len)) {
       std::cout << "Could not update decrypt!" << std::endl;
       return failed_decrpyt_result;
     }
@@ -184,27 +172,27 @@ public:
      * to exclude null termination */
     return decrpyt_result {
         std::string(reinterpret_cast<char*>(plaintext), plaintext_len - 1),
-        true};
+        true 
+    };
   }
 
-  auto init_encryption_key(const std::optional<std::string>& encryption_key = std::nullopt) -> void {
+  auto init_cryption_key(const std::optional<std::string>& encryption_key = std::nullopt) -> void {
     if (encryption_key.has_value()) {
-      if (encryption_key.value().size() != ENCRYPTION_KEY_LEN) {
-        std::cout << "Failed to set encryption key. Expected length is " << ENCRYPTION_KEY_LEN 
+      if (encryption_key.value().size() != cryption_key_len) {
+        std::cout << "Failed to set cryption key. Expected length is " << cryption_key_len 
                   << ", given length is " <<  encryption_key.value().size()
                   << ". Falling back to the default key." << std::endl;
         return;
       }
-      memcpy(m_key, encryption_key.value().c_str(), ENCRYPTION_KEY_LEN);
+      memcpy(m_key, encryption_key.value().c_str(), cryption_key_len);
     }
   }
 
   private:
-    encryptor() = default;
+    cryptor() = default;
 
-    unsigned char m_key[ENCRYPTION_KEY_LEN] = "0123456789012345678901234567890";
+    unsigned char m_key[cryption_key_len] = "0123456789012345678901234567890";
+  // NOLINTEND
 };
-
-
 
 } // namespace controller
