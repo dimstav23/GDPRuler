@@ -14,17 +14,17 @@ query::query()
 }
 
 // overloaded constructor only for the performance test
-query::query(const std::string &user_key, 
-             const std::string &key, 
-             const std::string &cmd)
+query::query(std::string user_key, 
+             std::string key, 
+             std::string cmd)
     : m_name {"gdpr_controller_query"},
+      m_cmd{std::move(cmd)},
+      m_key{std::move(key)},
+      m_user_key{std::move(user_key)},
       m_cond_purpose{0},
       m_cond_objection{0},
       m_cond_expiration{0},
-      m_cond_monitor{false},
-      m_user_key{user_key},
-      m_key{key},
-      m_cmd{cmd}
+      m_cond_monitor{false}
 {
 }
 
@@ -38,9 +38,22 @@ query::query(const std::string &input)
   std::stringstream stream_input(input);
   /* first identify the query type and the key(s)*/
   stream_input >> this->m_cmd;
-
+  
   if (this->m_cmd == "getLogs") [[unlikely]] {
-    stream_input >> this->m_log_count;
+    stream_input >> this->m_log_key;
+    std::string option;
+    while (stream_input >> option) {
+      if (option == "-sessionKeyIs") {
+        std::string value;
+        stream_input >> value;
+        this->m_user_key = value;
+      }
+    }
+    if (!this->m_user_key) [[unlikely]] {
+      std::string error_message = "Error: getLogs query requested without providing a regulator key.";
+      throw std::invalid_argument(error_message);
+      this->m_cmd = "invalid";
+    }
   }
   else if (this->m_cmd == "exit") [[unlikely]] {
     /* do nothing */
@@ -50,11 +63,10 @@ query::query(const std::string &input)
     if (this->m_cmd == "put") {
       /* set the value */
       stream_input >> this->m_value; // to read the "VAL" placeholder
-      this->m_value = get_value();  // to set the actual value
+      this->m_value = get_value();  // to set the actual (dummy) value
     }
 
     std::string option;
-    std::unordered_map<std::string, std::string> option_map;
     while (stream_input >> option) {
       std::string value;
       stream_input >> value;
@@ -210,9 +222,9 @@ auto query::cond_monitor() const -> bool
   return this->m_cond_monitor;
 }
 
-auto query::log_count() const -> std::string
+auto query::log_key() const -> std::string
 {
-  return this->m_log_count;
+  return this->m_log_key;
 }
 
 } // namespace controller

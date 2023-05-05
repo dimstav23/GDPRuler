@@ -28,7 +28,7 @@ public:
 	query();
   explicit query(const std::string &input);
   // overloaded constructor only for the performance test
-  explicit query(const std::string &user_key, const std::string &key, const std::string &cmd);
+  explicit query(std::string user_key, std::string key, std::string cmd);
   // ~query();
 
 	[[nodiscard]] auto name() const -> std::string;
@@ -51,7 +51,7 @@ public:
   [[nodiscard]] auto cond_expiration() const -> int64_t;
   [[nodiscard]] auto cond_share() const -> std::string;
   [[nodiscard]] auto cond_monitor() const -> bool;
-  [[nodiscard]] auto log_count() const -> std::string;
+  [[nodiscard]] auto log_key() const -> std::string;
 
   auto print() -> void;
 
@@ -82,7 +82,7 @@ private:
   bool m_cond_monitor;
 
   // log metadata
-  std::string m_log_count;
+  std::string m_log_key;
 };
 
 } // namespace controller

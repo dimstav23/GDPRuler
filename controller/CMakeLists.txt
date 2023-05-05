@@ -21,6 +21,7 @@ add_library(
     source/query.cpp
     source/query_rewriter.cpp
     source/gdpr_filter.cpp
+    source/gdpr_regulator.cpp
 )
 
 target_include_directories(
