@@ -131,7 +131,7 @@ auto handle_get_logs(const std::unique_ptr<kv_client> &client,
     // TODO: redirect this output to the regulator secure channel
     for (const auto& log : log_files) {
       std::cout << "Log file: " << log << std::endl;
-      std::vector<std::string> log_entries = controller::gdpr_regulator::read_log(log);
+      std::vector<std::string> log_entries = regulator.read_log(log);
       for (const auto& entry : log_entries) {
         std::cout << entry << std::endl;
       }

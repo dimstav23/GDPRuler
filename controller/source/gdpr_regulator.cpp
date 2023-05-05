@@ -4,7 +4,8 @@ namespace controller {
 
 gdpr_regulator::gdpr_regulator()
     : m_name {"gdpr_controller_gdpr_regulator"},
-      m_history_logger{logger::get_instance()}
+      m_history_logger{logger::get_instance()},
+      m_timestamp_thres{std::chrono::system_clock::now().time_since_epoch().count()}
 {
 
 }
@@ -34,8 +35,8 @@ auto gdpr_regulator::read_key_log(const std::string &key) -> std::vector<std::st
 /*
  * return the log entries of a log in human-readable form
  */
-auto gdpr_regulator::read_log(const std::string &log_name) -> std::vector<std::string> {
-  return controller::logger::log_decode(log_name);
+auto gdpr_regulator::read_log(const std::string &log_name) const -> std::vector<std::string> {
+  return controller::logger::log_decode(log_name, this->m_timestamp_thres);
 }
 
 /*
@@ -56,6 +57,11 @@ auto gdpr_regulator::get_filenames(const std::string &dir) -> std::vector<std::s
 auto gdpr_regulator::name() const -> std::string
 {
   return this->m_name;
+}
+
+auto gdpr_regulator::timestamp_thres() const -> int64_t 
+{
+  return this->m_timestamp_thres;
 }
 
 } // namespace controller

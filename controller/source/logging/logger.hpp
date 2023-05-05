@@ -8,6 +8,7 @@
 #include <cstring>
 #include <vector>
 
+#include "../common.hpp"
 #include "../gdpr_filter.hpp"
 #include "../query.hpp"
 
@@ -87,6 +88,23 @@ inline auto convert_enum_to_operation(const operation oper) -> std::string  {
   }
   // Invalid case
   return "invalid_op";
+}
+
+/*
+ * Convert a numerical timestamp to datetime string with second precision
+ */
+inline auto timestamp_to_datetime(int64_t timestamp) -> std::string {
+  // Convert int64_t to time_t
+  const auto time = static_cast<time_t>(timestamp / s2ns);
+
+  // Convert time_t to struct tm in a thread-safe manner
+  std::tm time_info {};
+  gmtime_r(&time, &time_info);
+
+  // Format struct tm into a string
+  std::ostringstream time_stream;
+  time_stream << std::put_time(&time_info, "%Y-%m-%d %H:%M:%S");
+  return time_stream.str();
 }
 
 /**
@@ -197,7 +215,9 @@ public:
     log_file->write(buffer.data(), static_cast<std::streamsize>(total_size));
   }
 
-  static auto log_decode(const std::string &log_name) -> std::vector<std::string> {
+  static auto log_decode(const std::string &log_name, const int64_t timestamp_thres) 
+    -> std::vector<std::string> 
+  {
     std::vector<std::string> entries;
     std::filesystem::path log_path(log_name);
 
@@ -207,7 +227,7 @@ public:
 
         std::string line;
         while (std::getline(log_file, line)) {
-          entries.push_back(log_entry_decode(line));
+          entries.push_back(log_entry_decode(line, timestamp_thres));
         }
 
         if (entries.empty()) {
@@ -227,7 +247,9 @@ public:
     return entries;
   }
 
-  static auto log_entry_decode(const std::string &entry) -> std::string {
+  static auto log_entry_decode(const std::string &entry, const int64_t timestamp_thres) 
+    -> std::string 
+  {
     // initialize the variables with default values
     int64_t timestamp = 0;
     std::string user_key;
@@ -236,6 +258,10 @@ public:
     
     // extract the timestamp field as an int64_t
     std::memcpy(&timestamp, entry.c_str(), sizeof(timestamp));
+    // only decode entries with timestamp before the getLogs() query
+    if (timestamp > timestamp_thres) {
+      return "";
+    }
     
     // move past the first delimiter after the timestamp
     auto start_pos = entry.begin() + sizeof(timestamp) + sizeof(log_delimiter);
@@ -251,8 +277,10 @@ public:
 
     // extract the operation and result field as a uint8_t
     operation_result = static_cast<uint8_t>(*start_pos);
-    std::string valid = ((operation_result & 0x01U) != 0U) ? "valid" : "invalid";
-    std::string oper = convert_enum_to_operation(static_cast<operation>((operation_result >> 1U) & operation_mask));
+    uint8_t result_bit = operation_result & 0x01U;
+    std::string valid = (result_bit != 0U) ? "valid" : "invalid";
+    uint8_t operation_bits = static_cast<uint8_t>(operation_result >> 1U) & operation_mask;
+    std::string oper = convert_enum_to_operation(static_cast<operation>(operation_bits));
     
     // move the start position past the delimiter
     start_pos = end_pos + 1;
@@ -264,7 +292,7 @@ public:
 
     // create a stringstream to format the output string
     std::stringstream formatted_entry;
-    formatted_entry << "Timestamp: " << timestamp << ", "
+    formatted_entry << "Timestamp: " << timestamp_to_datetime(timestamp) << ", "
                     << "User key: " << user_key << ", "
                     << "Operation: " << oper << ", "
                     << "Result: " << valid;
