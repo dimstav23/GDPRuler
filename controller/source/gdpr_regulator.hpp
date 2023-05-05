@@ -7,6 +7,9 @@
 
 namespace controller {
 
+// NOLINTNEXTLINE(cert-err58-cpp)
+const std::string regulator_key = "reg";
+
 class gdpr_regulator
 {
 public:
@@ -19,7 +22,8 @@ public:
   auto retrieve_logs() -> std::vector<std::string>;
   auto read_key_log(const std::string &key) -> std::vector<std::string>;
   auto read_log(const std::string &log_name) const -> std::vector<std::string>;
-  
+  static auto validate_reg_key(const controller::query &query_args, 
+                               const controller::default_policy &def_policy) -> bool;
 private:
   std::string m_name{};
   logger* m_history_logger;

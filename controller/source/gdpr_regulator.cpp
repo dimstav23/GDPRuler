@@ -15,6 +15,17 @@ gdpr_regulator::gdpr_regulator()
 // }
 
 /*
+ * Validate that the key matches the regulator authority key
+ * Currently the key is pinned in the gdpr_regulator.hpp file
+ */
+auto gdpr_regulator::validate_reg_key(const controller::query &query_args, 
+                                      const controller::default_policy &def_policy) -> bool
+{
+  std::string user_key = query_args.cond_user_key().empty() ? def_policy.user_key() : query_args.cond_user_key();
+  return (user_key == regulator_key);
+}
+
+/*
  * return the directory where the logs are stored 
  * along with the filenames
  */

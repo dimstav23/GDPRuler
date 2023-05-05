@@ -46,10 +46,10 @@ query::query(const std::string &input)
       if (option == "-sessionKeyIs") {
         std::string value;
         stream_input >> value;
-        this->m_user_key = value;
+        this->m_cond_user_key = value;
       }
     }
-    if (!this->m_user_key) [[unlikely]] {
+    if (this->m_cond_user_key.empty()) [[unlikely]] {
       std::string error_message = "Error: getLogs query requested without providing a regulator key.";
       throw std::invalid_argument(error_message);
       this->m_cmd = "invalid";

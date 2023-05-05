@@ -118,13 +118,18 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
   }
 }
 
-auto handle_get_logs(const std::unique_ptr<kv_client> &client, 
-                  const query &query_args,
-                  const default_policy &def_policy) -> void 
+auto handle_get_logs(const query &query_args,
+                     const default_policy &def_policy) -> void 
 {
 
-  auto regulator = gdpr_regulator();
-  
+  /* if the current key does not match with the regulator key, return */
+  if (!gdpr_regulator::validate_reg_key(query_args, def_policy)) {
+    std::cout << "getLogs query requested without the regulator key." << std::endl;
+    return;
+  }
+
+  auto regulator = gdpr_regulator(); 
+
   if (query_args.log_key() == "read_all") {
     std::cout << "Reading all the log files..." << std::endl;
     std::vector<std::string> log_files = regulator.retrieve_logs();
@@ -219,8 +224,8 @@ auto main(int argc, char* argv[]) -> int
         continue;
       }
       else if (query_args.cmd() == "getLogs") {
-        // client resembles the regulator
-        handle_get_logs(client, query_args, def_policy);
+        // current client resembles the regulator
+        handle_get_logs(query_args, def_policy);
       }
       else {
         std::cout << "Invalid command: " << query_args.cmd() << std::endl;
