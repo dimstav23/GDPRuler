@@ -55,6 +55,11 @@ public:
   auto print() -> void;
 
 private:
+  
+  auto parse_get_logs(std::stringstream& stream_input) -> void;
+  auto parse_regular_query(std::stringstream& stream_input) -> void;
+  auto parse_option(const std::string& option, std::stringstream& stream_input) -> void;
+
   std::string m_name;
 
   // query data
