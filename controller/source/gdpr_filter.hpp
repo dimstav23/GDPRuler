@@ -3,7 +3,6 @@
 #include <string>
 #include <optional>
 #include <sstream>
-#include <bitset>
 
 #include "gdpr_metadata.hpp"
 #include "query.hpp"

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-#include <bitset>
 #include <optional>
 #include <sstream>
 #include <unordered_map>

@@ -8,104 +8,11 @@
 #include <cstring>
 #include <vector>
 
-#include "../common.hpp"
+#include "log_common.hpp"
 #include "../gdpr_filter.hpp"
 #include "../query.hpp"
 
 namespace controller {
-
-/* Delimiter for the logged values */
-const char log_delimiter = ',';
-const unsigned int operation_mask = 0x07U;
-
-/**
- * Query operations enum.
-*/
-enum operation : uint8_t {
-  invalid = 0U,
-  get = 1U,
-  put = 2U,
-  del = 3U,
-  getm = 4U,
-  putm = 5U,
-  delm = 6U,
-  get_logs = 7U
-};
-
-/**
- * Converts operation string to respective enum.
-*/
-inline auto convert_operation_to_enum(const std::string& oper) -> operation {
-  if (oper == "get") {
-    return operation::get;
-  }
-  if (oper == "put") {
-    return operation::put;
-  }
-  if (oper == "del") {
-    return operation::del;
-  }
-  if (oper == "getm") {
-    return operation::getm;
-  }
-  if (oper == "putm") {
-    return operation::putm;
-  }
-  if (oper == "delm") {
-    return operation::delm;
-  }
-  if (oper == "getLogs") {
-    return operation::get_logs;
-  }
-  // Invalid case
-  return operation::invalid;
-}
-
-/**
- * Converts the enum to its respective operation string.
-*/
-inline auto convert_enum_to_operation(const operation oper) -> std::string  {
-  if (oper == operation::get) {
-    return "get";
-  }
-  if (oper == operation::put) {
-    return "put";
-  }
-  if (oper == operation::del) {
-    return "del";
-  }
-  if (oper == operation::getm) {
-    return "getm";
-  }
-  if (oper == operation::putm) {
-    return "putm";
-  }
-  if (oper == operation::delm) {
-    return "delm";
-  }
-  if (oper == operation::get_logs) {
-    return "getLogs";
-  }
-  // Invalid case
-  return "invalid_op";
-}
-
-/*
- * Convert a numerical timestamp to datetime string with second precision
- */
-inline auto timestamp_to_datetime(int64_t timestamp) -> std::string {
-  // Convert int64_t to time_t
-  const auto time = static_cast<time_t>(timestamp / s2ns);
-
-  // Convert time_t to struct tm in a thread-safe manner
-  std::tm time_info {};
-  gmtime_r(&time, &time_info);
-
-  // Format struct tm into a string
-  std::ostringstream time_stream;
-  time_stream << std::put_time(&time_info, "%Y-%m-%d %H:%M:%S");
-  return time_stream.str();
-}
 
 /**
  * Singleton logger class to store the history of each pair in a different file.
@@ -298,7 +205,7 @@ public:
                     << "Result: " << valid;
 
     if (!new_value.empty()) {
-      formatted_entry << ", New value: " << new_value;
+      formatted_entry << ", " << gdpr_metadata_fmt(new_value);
     }
 
     return formatted_entry.str();

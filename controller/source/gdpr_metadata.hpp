@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <bitset>
 
 namespace controller {
 
@@ -24,7 +25,7 @@ enum metadata_fields {
   shr,
   log,
   val,
-  max_enum_guard
+  max_gdpr_field_guard
 };
 
 // NOLINTBEGIN(cert-err58-cpp)
@@ -58,6 +59,24 @@ auto inline set_bitmap(std::bitset<N> &bits, const std::vector<std::string> &bit
   }
 }
 
+/* 
+ *  takes as arguments a bitset and
+ *  identifies the respective set bits and, based on the defined map of purposes,
+ *  returns a comma separated string with the appropriate set of purposes
+ */
+template<std::size_t N>
+auto inline get_purposes_string(std::bitset<N> &bits) -> std::string {
+  // Iterate over the bits and check each one
+  std::stringstream res;
+  for (size_t i = 0; i < bits.size(); i++) {
+    if (bits.test(i)) {
+      // The i-th bit is set
+      res << "purpose" << i << ",";
+    }
+  }
+  return res.str();
+}
+
 auto inline split_comma_string(const std::string &str) -> std::vector<std::string> {
   std::vector<std::string> result;
   std::istringstream sstream(str);
@@ -81,6 +100,11 @@ auto inline str_to_bool(const std::string& str) -> bool {
     return false;
   }
   throw std::runtime_error("Invalid string value");
+}
+
+/* convert true -> "true", false -> "false" */
+inline auto bool_to_str(bool value) -> std::string {
+  return value ? "true" : "false";
 }
 
 /* convert integer (for expiration time) to an actual expiration date in seconds */
