@@ -43,7 +43,6 @@ public:
   [[nodiscard]] auto expiration() const -> std::optional<int64_t>;
   [[nodiscard]] auto share() const -> std::optional<std::string>;
   [[nodiscard]] auto monitor() const -> std::optional<bool>;
-  [[nodiscard]] auto cond_user_key() const -> std::string;
   [[nodiscard]] auto cond_purpose() const -> std::bitset<num_purposes>;
   [[nodiscard]] auto cond_objection() const -> std::bitset<num_purposes>;
   [[nodiscard]] auto cond_origin() const -> std::string;
@@ -77,7 +76,6 @@ private:
   std::optional<bool> m_monitor;
 
   // conditional metadata
-  std::string m_cond_user_key;
   std::bitset<num_purposes> m_cond_purpose;
   std::bitset<num_purposes> m_cond_objection;
   std::string m_cond_origin;

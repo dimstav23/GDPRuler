@@ -77,7 +77,7 @@ auto gdpr_filter::validate(const controller::query &query_args,
     #endif
     return false;
   }
-  if (!validate_session_key(query_args.cond_user_key(), def_policy.user_key())) {
+  if (!validate_session_key(query_args.user_key(), def_policy.user_key())) {
     // if no user is specified in the query, 
     // choose the current user to check if he/she
     // is the owner or the KV pair is shared w/ him/her
@@ -125,10 +125,10 @@ auto gdpr_filter::validate(const controller::query &query_args,
 }
 
 /* Validate that the user session key belongs to the owner or the share_with set */
-auto gdpr_filter::validate_session_key(const std::string &query_user_key,
+auto gdpr_filter::validate_session_key(const std::optional<std::string> &query_user_key,
                                         const std::string &def_user_key) const -> bool
 {
-  std::string user_key = query_user_key.empty() ? def_user_key : query_user_key;
+  std::string user_key = query_user_key.value_or(def_user_key);
   // Check if the user that requests the data is the owner (likely)
   if (user_key == this->user_key()) {
     return true;

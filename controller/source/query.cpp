@@ -53,14 +53,14 @@ auto query::parse_get_logs(std::stringstream& stream_input) -> void
   stream_input >> this->m_log_key;
   std::string option;
   while (stream_input >> option) {
-    if (option == "-sessionKeyIs") {
+    if (option == "-sessionKey") {
       std::string value;
       stream_input >> value;
-      this->m_cond_user_key = value;
+      this->m_user_key = value;
     }
   }
 
-  if (this->m_cond_user_key.empty()) {
+  if (!this->m_user_key) {
     std::string error_message = "Error: getLogs query requested without providing a regulator key.";
     throw std::invalid_argument(error_message);
     this->m_cmd = "invalid";
@@ -109,9 +109,6 @@ auto query::parse_option(const std::string& option, std::stringstream& stream_in
   } 
   else if (option == "-monitor") {
     this->m_monitor = str_to_bool(value);
-  } 
-  else if (option == "-sessionKeyIs") {
-    this->m_cond_user_key = value;
   } 
   else if (option == "-objOrigIs") {
     this->m_cond_origin = value;
@@ -200,11 +197,6 @@ auto query::share() const -> std::optional<std::string>
 auto query::monitor() const -> std::optional<bool>
 {
   return this->m_monitor;
-}
-
-auto query::cond_user_key() const -> std::string
-{
-  return this->m_cond_user_key;
 }
 
 auto query::cond_purpose() const -> std::bitset<num_purposes>
