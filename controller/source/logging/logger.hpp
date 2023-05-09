@@ -151,7 +151,9 @@ public:
         if (entries.empty()) {
           std::cerr << "Note: " << log_name << " is empty." << std::endl;
         }
-
+        
+        // Clear the EOF flag
+        log_file->clear(); 
         // Set put pointer to the end of the file for upcoming writes
         log_file->seekp(0, std::ios::end); 
 
