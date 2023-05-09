@@ -122,18 +122,29 @@ public:
     log_file->write(buffer.data(), static_cast<std::streamsize>(total_size));
   }
 
-  static auto log_decode(const std::string &log_name, const int64_t timestamp_thres) 
+  auto log_decode(const std::string &log_name, const int64_t timestamp_thres) 
     -> std::vector<std::string> 
   {
     std::vector<std::string> entries;
     std::filesystem::path log_path(log_name);
 
     if (std::filesystem::exists(log_path) && std::filesystem::is_regular_file(log_path)) {
-      std::ifstream log_file(log_name);
-      if (log_file.is_open()) {
+      std::string key = extract_key_from_filename(log_name);
+
+      // lock the mutex corresponding to the key
+      std::lock_guard<std::mutex> lock(m_keys_to_mutexes[key]);
+      // Open or retrieve the file the file
+      auto log_file = get_or_open_log_stream(key);
+      
+      if (log_file->is_open()) {
+        // Flush the log file buffers to ensure data is written to the file
+        log_file->flush();
+
+        // Set get pointer to the beginning of the file
+        log_file->seekg(0, std::ios::beg); 
 
         std::string line;
-        while (std::getline(log_file, line)) {
+        while (std::getline(*log_file, line)) {
           entries.push_back(log_entry_decode(line, timestamp_thres));
         }
 
@@ -141,7 +152,9 @@ public:
           std::cerr << "Note: " << log_name << " is empty." << std::endl;
         }
 
-        log_file.close();
+        // Set put pointer to the end of the file for upcoming writes
+        log_file->seekp(0, std::ios::end); 
+
       }
       else {
         std::cerr << "Error: Failed to open " << log_name << " for reading." << std::endl;
@@ -227,13 +240,35 @@ private:
     return m_logs_dir + '/' + key + log_file_extension;
   }
 
-  auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::ofstream> {
+  auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
     // open the key's log file output stream in append only mode if it is not already opened.
     //  store it in the m_keys_to_log_files map for fast future retrieval.
     if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
-      m_keys_to_log_files[key] = std::make_shared<std::ofstream>(log_file_path(key), std::ios::app);
+      m_keys_to_log_files[key] = std::make_shared<std::fstream>
+                                (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
     }
     return m_keys_to_log_files[key];
+  }
+
+  auto extract_key_from_filename(const std::string& filename) -> std::string {
+    // Find the last occurrence of '/' to get the start position of the key
+    size_t start_pos = filename.find_last_of('/');
+    if (start_pos == std::string::npos) [[unlikely]] {
+      start_pos = 0; // If '/' is not found, start from the beginning of the filename
+    } else {
+      start_pos += 1; // Move the start position after '/'
+    }
+
+    // Find the next occurrence of log_file_extension to get the end position of the key
+    size_t end_pos = filename.find(log_file_extension, start_pos);
+
+    // Extract the key from the substring
+    if (end_pos != std::string::npos) {
+      return filename.substr(start_pos, end_pos - start_pos);
+    }
+
+    // If '.' is not found, return the remaining substring
+    return filename.substr(start_pos);
   }
 
   std::string m_logs_dir = "./logs";
@@ -242,7 +277,7 @@ private:
 
   std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
 
-  std::unordered_map<std::string, std::shared_ptr<std::ofstream>> m_keys_to_log_files;
+  std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
 };
 
 } // namespace controller
