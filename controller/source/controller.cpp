@@ -12,6 +12,7 @@
 #include "kv_client/factory.hpp"
 #include "logging/logger.hpp"
 #include "logging/monitor.hpp"
+#include "gdpr_regulator.hpp"
 
 using controller::default_policy;
 using controller::query;
@@ -19,6 +20,7 @@ using controller::query_rewriter;
 using controller::gdpr_filter;
 using controller::logger;
 using controller::gdpr_monitor;
+using controller::gdpr_regulator;
 
 auto handle_get(const std::unique_ptr<kv_client> &client, 
                 const query &query_args,
@@ -116,6 +118,48 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
   }
 }
 
+auto handle_get_logs(const query &query_args,
+                     const default_policy &def_policy) -> void 
+{
+
+  /* if the current key does not match with the regulator key, return */
+  if (!gdpr_regulator::validate_reg_key(query_args, def_policy)) {
+    std::cout << "getLogs query requested without the regulator key." << std::endl;
+    return;
+  }
+
+  auto regulator = gdpr_regulator(); 
+
+  if (query_args.log_key() == "read_all") {
+    std::cout << "Reading all the log files..." << std::endl;
+    std::vector<std::string> log_files = regulator.retrieve_logs();
+    // TODO: redirect this output to the regulator secure channel
+    for (const auto& log : log_files) {
+      std::cout << "Log file: " << log << std::endl;
+      std::vector<std::string> log_entries = regulator.read_log(log);
+      for (const auto& entry : log_entries) {
+        std::cout << entry << std::endl;
+      }
+    }
+  }
+  else if (query_args.log_key() == "dir") {
+    std::cout << "Available log files:" << std::endl;
+    std::vector<std::string> log_files = regulator.retrieve_logs();
+    // TODO: redirect this output to the regulator secure channel
+    for (const auto& log : log_files) {
+      std::cout << log << std::endl;
+    }
+  }
+  else {
+    std::cout << "Reading the log file of key " << query_args.log_key() << ":" << std::endl;
+    std::vector<std::string> log_entries = regulator.read_key_log(query_args.log_key());
+    // TODO: redirect this output to the regulator secure channel
+    for (const auto& entry : log_entries) {
+      std::cout << entry << std::endl;
+    }
+  }
+}
+
 auto main(int argc, char* argv[]) -> int
 { 
   // read the default policy line
@@ -179,8 +223,9 @@ auto main(int argc, char* argv[]) -> int
       else if (query_args.cmd() == "delm") { /* ignore for now */
         continue;
       }
-      else if (query_args.cmd() == "getLogs") { /* ignore for now */
-        continue;
+      else if (query_args.cmd() == "getLogs") {
+        // current client resembles the regulator
+        handle_get_logs(query_args, def_policy);
       }
       else {
         std::cout << "Invalid command: " << query_args.cmd() << std::endl;

@@ -3,7 +3,6 @@
 #include <string>
 #include <optional>
 #include <sstream>
-#include <bitset>
 
 #include "gdpr_metadata.hpp"
 #include "query.hpp"
@@ -34,7 +33,7 @@ public:
 
   [[nodiscard]] auto validate(const controller::query &query_args, 
                               const controller::default_policy &def_policy) const -> bool;
-  [[nodiscard]] auto validate_session_key(const std::string &query_user_key,
+  [[nodiscard]] auto validate_session_key(const std::optional<std::string> &query_user_key,
                                           const std::string &def_user_key) const -> bool;
   [[nodiscard]] auto validate_pur(const std::bitset<num_purposes> &query_pur,
                                   const std::bitset<num_purposes> &def_pur) const -> bool;

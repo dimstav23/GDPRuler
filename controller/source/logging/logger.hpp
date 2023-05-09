@@ -5,56 +5,14 @@
 #include <mutex>
 #include <unordered_map>
 #include <filesystem>
+#include <cstring>
+#include <vector>
 
+#include "log_common.hpp"
+#include "../gdpr_filter.hpp"
 #include "../query.hpp"
 
 namespace controller {
-
-/* Delimiter for the logged values */
-const char log_delimiter = ',';
-
-/**
- * Query operations enum.
-*/
-enum operation : uint8_t {
-  invalid = 0U,
-  get = 1U,
-  put = 2U,
-  del = 3U,
-  getm = 4U,
-  putm = 5U,
-  delm = 6U,
-  get_logs = 7U
-};
-
-/**
- * Converts operation string to respective enum.
-*/
-inline auto convert_operation_to_enum(const std::string& oper) -> operation {
-  if (oper == "get") {
-    return operation::get;
-  }
-  if (oper == "put") {
-    return operation::put;
-  }
-  if (oper == "del") {
-    return operation::del;
-  }
-  if (oper == "getm") {
-    return operation::getm;
-  }
-  if (oper == "putm") {
-    return operation::putm;
-  }
-  if (oper == "delm") {
-    return operation::delm;
-  }
-  if (oper == "getLogs") {
-    return operation::get_logs;
-  }
-  // Invalid case
-  return operation::invalid;
-}
 
 /**
  * Singleton logger class to store the history of each pair in a different file.
@@ -116,7 +74,7 @@ public:
     // Encode the user key as a string
     const std::string& user_key = query_args.user_key().value_or(def_policy.user_key());
     // Encode the operation type (3bits) and the operation result (1 bit) as a single byte
-    const uint8_t operation = static_cast<uint8_t>((convert_operation_to_enum(query_args.cmd()) & 0x07U) << 1U);
+    const uint8_t operation = static_cast<uint8_t>((convert_operation_to_enum(query_args.cmd()) & operation_mask) << 1U);
     const uint8_t valid_bit = (valid ? 0x01U : 0x00U);
     const uint8_t operation_result = operation | valid_bit;
     // Calculate the total size of the entry
@@ -164,6 +122,118 @@ public:
     log_file->write(buffer.data(), static_cast<std::streamsize>(total_size));
   }
 
+  auto log_decode(const std::string &log_name, const int64_t timestamp_thres) 
+    -> std::vector<std::string> 
+  {
+    std::vector<std::string> entries;
+    std::filesystem::path log_path(log_name);
+
+    if (std::filesystem::exists(log_path) && std::filesystem::is_regular_file(log_path)) {
+      std::string key = extract_key_from_filename(log_name);
+
+      // lock the mutex corresponding to the key
+      std::lock_guard<std::mutex> lock(m_keys_to_mutexes[key]);
+      // Open or retrieve the file the file
+      auto log_file = get_or_open_log_stream(key);
+      
+      if (log_file->is_open()) {
+        // Flush the log file buffers to ensure data is written to the file
+        log_file->flush();
+
+        // Set get pointer to the beginning of the file
+        log_file->seekg(0, std::ios::beg); 
+
+        std::string line;
+        while (std::getline(*log_file, line)) {
+          entries.push_back(log_entry_decode(line, timestamp_thres));
+        }
+
+        if (entries.empty()) {
+          std::cerr << "Note: " << log_name << " is empty." << std::endl;
+        }
+        
+        // Clear the EOF flag
+        log_file->clear(); 
+        // Set put pointer to the end of the file for upcoming writes
+        log_file->seekp(0, std::ios::end); 
+
+      }
+      else {
+        std::cerr << "Error: Failed to open " << log_name << " for reading." << std::endl;
+      }
+    } 
+    else {
+      std::cerr << "Error: " << log_name << " does not exist or is not a regular file." << std::endl;
+    }
+
+    return entries;
+  }
+
+  static auto log_entry_decode(const std::string &entry, const int64_t timestamp_thres) 
+    -> std::string 
+  {
+    // initialize the variables with default values
+    int64_t timestamp = 0;
+    std::string user_key;
+    uint8_t operation_result = 0;
+    std::string new_value;
+    
+    // extract the timestamp field as an int64_t
+    std::memcpy(&timestamp, entry.c_str(), sizeof(timestamp));
+    // only decode entries with timestamp before the getLogs() query
+    if (timestamp > timestamp_thres) {
+      return "";
+    }
+    
+    // move past the first delimiter after the timestamp
+    auto start_pos = entry.begin() + sizeof(timestamp) + sizeof(log_delimiter);
+    // find the next delimiter
+    auto end_pos = std::find(start_pos, entry.end(), log_delimiter);
+
+    // extract the user key field as a std::string
+    user_key = std::string(start_pos, end_pos);
+    
+    // move the start and end positions past the delimiter
+    start_pos = end_pos + 1;
+    end_pos = std::find(start_pos, entry.end(), log_delimiter);
+
+    // extract the operation and result field as a uint8_t
+    operation_result = static_cast<uint8_t>(*start_pos);
+    uint8_t result_bit = operation_result & 0x01U;
+    std::string valid = (result_bit != 0U) ? "valid" : "invalid";
+    uint8_t operation_bits = static_cast<uint8_t>(operation_result >> 1U) & operation_mask;
+    std::string oper = convert_enum_to_operation(static_cast<operation>(operation_bits));
+    
+    // move the start position past the delimiter
+    start_pos = end_pos + 1;
+
+    // extract the new value field (if present) as a std::string
+    if (start_pos != entry.end()) {
+        new_value = std::string(start_pos, entry.end());
+    }
+
+    // create a stringstream to format the output string
+    std::stringstream formatted_entry;
+    formatted_entry << "Timestamp: " << timestamp_to_datetime(timestamp) << ", "
+                    << "User key: " << user_key << ", "
+                    << "Operation: " << oper << ", "
+                    << "Result: " << valid;
+
+    if (!new_value.empty()) {
+      formatted_entry << ", " << gdpr_metadata_fmt(new_value);
+    }
+
+    return formatted_entry.str();
+  }
+
+  auto get_logs_dir() -> std::string {
+    return this->m_logs_dir;
+  }
+
+  auto get_logs_extension() -> std::string {
+    return this->log_file_extension;
+  } 
+
 
 private:
   logger() = default;
@@ -172,13 +242,35 @@ private:
     return m_logs_dir + '/' + key + log_file_extension;
   }
 
-  auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::ofstream> {
+  auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
     // open the key's log file output stream in append only mode if it is not already opened.
     //  store it in the m_keys_to_log_files map for fast future retrieval.
     if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
-      m_keys_to_log_files[key] = std::make_shared<std::ofstream>(log_file_path(key), std::ios::app);
+      m_keys_to_log_files[key] = std::make_shared<std::fstream>
+                                (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
     }
     return m_keys_to_log_files[key];
+  }
+
+  auto extract_key_from_filename(const std::string& filename) -> std::string {
+    // Find the last occurrence of '/' to get the start position of the key
+    size_t start_pos = filename.find_last_of('/');
+    if (start_pos == std::string::npos) [[unlikely]] {
+      start_pos = 0; // If '/' is not found, start from the beginning of the filename
+    } else {
+      start_pos += 1; // Move the start position after '/'
+    }
+
+    // Find the next occurrence of log_file_extension to get the end position of the key
+    size_t end_pos = filename.find(log_file_extension, start_pos);
+
+    // Extract the key from the substring
+    if (end_pos != std::string::npos) {
+      return filename.substr(start_pos, end_pos - start_pos);
+    }
+
+    // If '.' is not found, return the remaining substring
+    return filename.substr(start_pos);
   }
 
   std::string m_logs_dir = "./logs";
@@ -187,7 +279,7 @@ private:
 
   std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
 
-  std::unordered_map<std::string, std::shared_ptr<std::ofstream>> m_keys_to_log_files;
+  std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
 };
 
 } // namespace controller

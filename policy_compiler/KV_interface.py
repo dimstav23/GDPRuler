@@ -91,4 +91,6 @@ def deletem(K, metadata):
 
 # Regulator API
 def getLogs(K, metadata):
+    if not K:
+      K = "dir" # for the empty key case -- list the dir
     return (f"getLogs {K} {metadata}")

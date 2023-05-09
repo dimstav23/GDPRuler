@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-#include <bitset>
 #include <optional>
 #include <sstream>
 #include <unordered_map>
@@ -28,7 +27,7 @@ public:
 	query();
   explicit query(const std::string &input);
   // overloaded constructor only for the performance test
-  explicit query(const std::string &user_key, const std::string &key, const std::string &cmd);
+  explicit query(std::string user_key, std::string key, std::string cmd);
   // ~query();
 
 	[[nodiscard]] auto name() const -> std::string;
@@ -44,18 +43,22 @@ public:
   [[nodiscard]] auto expiration() const -> std::optional<int64_t>;
   [[nodiscard]] auto share() const -> std::optional<std::string>;
   [[nodiscard]] auto monitor() const -> std::optional<bool>;
-  [[nodiscard]] auto cond_user_key() const -> std::string;
   [[nodiscard]] auto cond_purpose() const -> std::bitset<num_purposes>;
   [[nodiscard]] auto cond_objection() const -> std::bitset<num_purposes>;
   [[nodiscard]] auto cond_origin() const -> std::string;
   [[nodiscard]] auto cond_expiration() const -> int64_t;
   [[nodiscard]] auto cond_share() const -> std::string;
   [[nodiscard]] auto cond_monitor() const -> bool;
-  [[nodiscard]] auto log_count() const -> std::string;
+  [[nodiscard]] auto log_key() const -> std::string;
 
   auto print() -> void;
 
 private:
+  
+  auto parse_get_logs(std::stringstream& stream_input) -> void;
+  auto parse_regular_query(std::stringstream& stream_input) -> void;
+  auto parse_option(const std::string& option, std::stringstream& stream_input) -> void;
+
   std::string m_name;
 
   // query data
@@ -73,7 +76,6 @@ private:
   std::optional<bool> m_monitor;
 
   // conditional metadata
-  std::string m_cond_user_key;
   std::bitset<num_purposes> m_cond_purpose;
   std::bitset<num_purposes> m_cond_objection;
   std::string m_cond_origin;
@@ -82,7 +84,7 @@ private:
   bool m_cond_monitor;
 
   // log metadata
-  std::string m_log_count;
+  std::string m_log_key;
 };
 
 } // namespace controller

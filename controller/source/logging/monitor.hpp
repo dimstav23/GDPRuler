@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../gdpr_filter.hpp"
-#include "../query.hpp"
 #include "logger.hpp"
 
 namespace controller {
