@@ -16,7 +16,7 @@
 namespace controller
 {
 
-constexpr int cryption_key_len = 32;
+constexpr int encryption_key_len = 32;
 constexpr int initialization_vector_len = 16;
 
 class encrpyt_result
@@ -45,17 +45,17 @@ public:
   bool m_success;
 };
 
-class cryptor
+class cipher_engine
 {
 // NOLINTBEGIN
 public:
 
   /**
-   * Get singleton cryptor object.
+   * Get singleton cipher_engine object.
   */
-  static auto get_instance() -> cryptor* {
-    static cryptor encryptor;
-    return &encryptor;
+  static auto get_instance() -> cipher_engine* {
+    static cipher_engine cipher_inst;
+    return &cipher_inst;
   }
 
   /**
@@ -175,22 +175,22 @@ public:
     return decrpyt_result { plaintext_str, true };
   }
 
-  auto init_cryption_key(const std::optional<std::string>& encryption_key = std::nullopt) -> void {
+  auto init_encryption_key(const std::optional<std::string>& encryption_key = std::nullopt) -> void {
     if (encryption_key.has_value()) {
-      if (encryption_key.value().size() != cryption_key_len) {
-        std::cout << "Failed to set cryption key. Expected length is " << cryption_key_len 
+      if (encryption_key.value().size() != encryption_key_len) {
+        std::cout << "Failed to set encryption key. Expected length is " << encryption_key_len 
                   << ", given length is " <<  encryption_key.value().size()
                   << ". Falling back to the default key." << std::endl;
         return;
       }
-      memcpy(m_key, encryption_key.value().c_str(), cryption_key_len);
+      memcpy(m_key, encryption_key.value().c_str(), encryption_key_len);
     }
   }
 
   private:
-    cryptor() = default;
+    cipher_engine() = default;
 
-    unsigned char m_key[cryption_key_len] = "0123456789012345678901234567890";
+    unsigned char m_key[encryption_key_len] = "0123456789012345678901234567890";
   // NOLINTEND
 };
 

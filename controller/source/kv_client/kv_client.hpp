@@ -4,7 +4,7 @@
 #include <string>
 #include <optional>
 
-#include "../cryption/cryptor.hpp"
+#include "../encryption/cipher_engine.hpp"
 
 class kv_client
 {
@@ -21,7 +21,7 @@ public:
         return std::nullopt;
       }
 
-      auto decrypt_result = m_cryptor->decrypt(encrypted_value.value());
+      auto decrypt_result = m_cipher->decrypt(encrypted_value.value());
       if (decrypt_result.m_success) {
         return decrypt_result.m_plaintext;
       }
@@ -37,7 +37,7 @@ public:
       return put_pair(key, value);
     #else
       // put the pair after encryption
-      auto encrypt_result = m_cryptor->encrypt(value);
+      auto encrypt_result = m_cipher->encrypt(value);
       if (encrypt_result.m_success) {
         return put_pair(key, encrypt_result.m_ciphertext);
       }
@@ -71,5 +71,5 @@ protected:
   virtual auto del_pair(const std::string& key) -> bool = 0;
 
 private:
-  controller::cryptor* m_cryptor = controller::cryptor::get_instance();
+  controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();
 };
