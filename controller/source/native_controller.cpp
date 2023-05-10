@@ -28,14 +28,14 @@ auto main(int argc, char* argv[]) -> int
     std::cin >> command;
     if (command == "get") {
       std::cin >> key;
-      client->get(key);
+      client->gdpr_get(key);
     } else if (command == "put") {
       std::cin >> key;
       std::cin >> value;
-      client->put(key, controller::get_value());
+      client->gdpr_put(key, controller::get_value());
     } else if (command == "del") {
       std::cin >> key;
-      client->del(key);
+      client->gdpr_del(key);
     } else if (command == "exit") {
       // std::cout << "Exiting..." << std::endl;
       break;

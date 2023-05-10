@@ -10,13 +10,13 @@ class kv_client
 {
 public:
   /* kv_client interface signatures */
-  auto get(const std::string& key) -> std::optional<std::string> {
+  auto gdpr_get(const std::string& key) -> std::optional<std::string> {
     #ifndef ENCRYPTION_ENABLED
       // get the value directly w/o decryption
-      return get_value(key);
+      return get(key);
     #else
       // get the value after decryption
-      auto encrypted_value = get_value(key);
+      auto encrypted_value = get(key);
       if (!encrypted_value.has_value()) {
         return std::nullopt;
       }
@@ -25,34 +25,34 @@ public:
       if (decrypt_result.m_success) {
         return decrypt_result.m_plaintext;
       }
-      std::cout << "Error in get: Decryption failed for value: " << encrypted_value.value() << std::endl;
+      std::cerr << "Error in get: Decryption failed for value: " << encrypted_value.value() << std::endl;
       return std::nullopt;
     #endif
   }
 
   // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-  auto put(const std::string& key, const std::string& value) -> bool {
+  auto gdpr_put(const std::string& key, const std::string& value) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // put the pair directly w/o encryption
-      return put_pair(key, value);
+      return put(key, value);
     #else
       // put the pair after encryption
       auto encrypt_result = m_cipher->encrypt(value);
       if (encrypt_result.m_success) {
-        return put_pair(key, encrypt_result.m_ciphertext);
+        return put(key, encrypt_result.m_ciphertext);
       }
-      std::cout << "Error in put: Encryption failed for value: " << value << std::endl;
+      std::cerr << "Error in put: Encryption failed for value: " << value << std::endl;
       return false;
     #endif
   }
 
-  auto del(const std::string& key) -> bool {
+  auto gdpr_del(const std::string& key) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // delete the pair directly w/o decryption
-      return del_pair(key);
+      return del(key);
     #else
       // delete the pair directly w/o decryption
-      return del_pair(key);
+      return del(key);
     #endif
   }
 
@@ -66,9 +66,9 @@ public:
 
 protected:
   /* kv_client interface signatures */
-  virtual auto get_value(const std::string& key) -> std::optional<std::string> = 0;
-  virtual auto put_pair(const std::string& key, const std::string& value) -> bool = 0;
-  virtual auto del_pair(const std::string& key) -> bool = 0;
+  virtual auto get(const std::string& key) -> std::optional<std::string> = 0;
+  virtual auto put(const std::string& key, const std::string& value) -> bool = 0;
+  virtual auto del(const std::string& key) -> bool = 0;
 
 private:
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();

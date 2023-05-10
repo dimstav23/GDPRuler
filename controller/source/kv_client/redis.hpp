@@ -14,7 +14,7 @@ public:
   {
   }
 
-  auto get_value(const std::string& key) -> std::optional<std::string> override
+  auto get(const std::string& key) -> std::optional<std::string> override
   {
     auto result = m_redis.get(key);
     if (result) {
@@ -31,7 +31,7 @@ public:
     return result;
   }
 
-  auto put_pair(const std::string& key, const std::string& value) -> bool override
+  auto put(const std::string& key, const std::string& value) -> bool override
   {
     bool res = true;
     auto result = m_redis.set(key, value);
@@ -45,7 +45,7 @@ public:
     return res;
   }
 
-  auto del_pair(const std::string& key) -> bool override
+  auto del(const std::string& key) -> bool override
   {
     bool res = true;
     auto result = m_redis.del(key);
