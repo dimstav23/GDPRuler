@@ -4,6 +4,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <array>
 #include <vector>
 
 #include <openssl/aes.h>
@@ -47,6 +48,11 @@ public:
   bool m_success;
 };
 
+/*
+ * cipher engine class: Implements the encrypt/decrypt functions
+ * Note: Suppress linting from this class due to the c-style argument passing 
+ * of OpenSSL functions
+ */
 class cipher_engine
 {
 // NOLINTBEGIN
@@ -70,8 +76,8 @@ public:
     static encrypt_result failed_encrypt_result {{}, /*success*/ false};
     
     /* Generate a random IV */
-    unsigned char initialization_vector[initialization_vector_len];
-    if (RAND_bytes(initialization_vector, sizeof(initialization_vector)) != 1) {
+    std::array<unsigned char, initialization_vector_len> initialization_vector{};
+    if (RAND_bytes(initialization_vector.data(), sizeof(initialization_vector)) != 1) {
       std::cerr << "Failed to generate random initialization vector!" << std::endl;
       return failed_encrypt_result;
     }
@@ -84,7 +90,7 @@ public:
     }
 
     /* Initialise the encryption operation. */
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, m_key, initialization_vector) != 1) {
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, m_key, initialization_vector.data()) != 1) {
       std::cerr << "Failed to initialize encryption!" << std::endl;
       EVP_CIPHER_CTX_free(ctx);
       return failed_encrypt_result;
@@ -122,7 +128,7 @@ public:
     EVP_CIPHER_CTX_free(ctx);
 
     std::string result_string;
-    result_string.append(reinterpret_cast<const char*>(initialization_vector), initialization_vector_len);
+    result_string.append(reinterpret_cast<const char*>(initialization_vector.data()), initialization_vector_len);
     result_string.append(reinterpret_cast<const char*>(mac.data()), tag_len);
 
     // Encode the ciphertext length as a 4-byte integer
@@ -131,7 +137,7 @@ public:
     result_string.append(reinterpret_cast<const char*>(ciphertext.data()), 
                          static_cast<std::string::size_type>(ciphertext_len));
 
-    return encrypt_result {result_string, true};
+    return encrypt_result {result_string, /*success*/ true};
   }
 
   /**
@@ -141,13 +147,13 @@ public:
    * the calculated MAC, the size of the encrypted value, and the actual encrypted value.
    */
   auto decrypt(const std::string& ciphertext) -> decrypt_result {
-    static decrypt_result failed_decrypt_result {{}, false};
+    static decrypt_result failed_decrypt_result {{}, /*success*/ false};
 
     // Extract the components from the result string
-    const unsigned char* iv = reinterpret_cast<const unsigned char*>(ciphertext.data());
-    const unsigned char* mac = iv + initialization_vector_len;
-    const unsigned char* len_bytes = mac + tag_len;
-    const unsigned char* encrypted_value = len_bytes + sizeof(int);
+    const auto* iv = reinterpret_cast<const unsigned char*>(ciphertext.data());
+    const auto* mac = iv + initialization_vector_len;
+    const auto* len_bytes = mac + tag_len;
+    const auto* encrypted_value = len_bytes + sizeof(int);
 
     // Retrieve the ciphertext length from the 4-byte integer
     int ciphertext_len = static_cast<int>(*len_bytes);
@@ -197,7 +203,7 @@ public:
     auto result_string = std::string(reinterpret_cast<const char*>(plaintext.data()), 
                                      static_cast<std::string::size_type>(plaintext_len));
 
-    return decrypt_result { result_string, true };
+    return decrypt_result { result_string, /*success*/ true};
   }
 
   auto init_encryption_key(const std::optional<std::string>& encryption_key = std::nullopt) -> void {
@@ -216,7 +222,9 @@ public:
     cipher_engine() = default;
     // default encryption key
     unsigned char m_key[encryption_key_len] = "012345678901234";
-  // NOLINTEND
+
+// NOLINTEND
 };
+
 
 } // namespace controller
