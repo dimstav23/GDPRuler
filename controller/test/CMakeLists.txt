@@ -18,6 +18,12 @@ target_compile_features(gdpr_logger_perf_test PRIVATE cxx_std_20)
 
 add_test(NAME gdpr_logger_perf_test COMMAND gdpr_logger_perf_test)
 
+add_executable(encryption_test source/encryption_test.cpp)
+target_link_libraries(encryption_test PRIVATE gdpr_controller_lib ${CMAKE_DL_LIBS} OpenSSL::Crypto)
+target_compile_features(encryption_test PRIVATE cxx_std_20)
+
+add_test(NAME encryption_test COMMAND encryption_test)
+
 # ---- End-of-file commands ----
 
 add_folders(Test)
