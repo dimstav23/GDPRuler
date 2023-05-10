@@ -92,9 +92,9 @@ public:
 
     int ciphertext_len = 0;
     /* max ciphertext len for a n bytes of plaintext is n + AES_BLOCK_SIZE bytes */
-    unsigned char ciphertext[input.size() + EVP_CIPHER_CTX_block_size(ctx)];
+    std::vector<unsigned char> ciphertext(input.size() + static_cast<size_t>(EVP_CIPHER_CTX_block_size(ctx)));
     /* Provide the plaintext to be encrypted, and obtain the encrypted output. */
-    if (EVP_EncryptUpdate(ctx, ciphertext, &ciphertext_len, reinterpret_cast<const unsigned char*>(input.data()), static_cast<int>(input.size())) != 1) {
+    if (EVP_EncryptUpdate(ctx, ciphertext.data(), &ciphertext_len, reinterpret_cast<const unsigned char*>(input.data()), static_cast<int>(input.size())) != 1) {
       std::cerr << "Failed to perform encryption!" << std::endl;
       EVP_CIPHER_CTX_free(ctx);
       return failed_encrypt_result;
@@ -102,7 +102,7 @@ public:
 
     /* Finalise the encryption. */
     int final_len = 0;
-    if (EVP_EncryptFinal_ex(ctx, ciphertext + ciphertext_len, &final_len) != 1) {
+    if (EVP_EncryptFinal_ex(ctx, ciphertext.data() + ciphertext_len, &final_len) != 1) {
       std::cerr << "Failed to finalize encryption!" << std::endl;
       EVP_CIPHER_CTX_free(ctx);
       return failed_encrypt_result;
@@ -126,14 +126,10 @@ public:
     result_string.append(reinterpret_cast<const char*>(mac.data()), tag_len);
 
     // Encode the ciphertext length as a 4-byte integer
-    unsigned char len_bytes[4];
-    len_bytes[0] = (ciphertext_len >> 24) & 0xFF;
-    len_bytes[1] = (ciphertext_len >> 16) & 0xFF;
-    len_bytes[2] = (ciphertext_len >> 8) & 0xFF;
-    len_bytes[3] = ciphertext_len & 0xFF;
-    result_string.append(reinterpret_cast<const char*>(len_bytes), 4);
+    result_string.append(reinterpret_cast<const char*>(&ciphertext_len), sizeof(int));
 
-    result_string.append(reinterpret_cast<const char*>(ciphertext), ciphertext_len);
+    result_string.append(reinterpret_cast<const char*>(ciphertext.data()), 
+                         static_cast<std::string::size_type>(ciphertext_len));
 
     return encrypt_result {result_string, true};
   }
@@ -151,10 +147,10 @@ public:
     const unsigned char* iv = reinterpret_cast<const unsigned char*>(ciphertext.data());
     const unsigned char* mac = iv + initialization_vector_len;
     const unsigned char* len_bytes = mac + tag_len;
-    const unsigned char* encrypted_value = len_bytes + 4;
+    const unsigned char* encrypted_value = len_bytes + sizeof(int);
 
     // Retrieve the ciphertext length from the 4-byte integer
-    int ciphertext_len = (len_bytes[0] << 24) | (len_bytes[1] << 16) | (len_bytes[2] << 8) | len_bytes[3];
+    int ciphertext_len = static_cast<int>(*len_bytes);
 
     // Create and initialize the context
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -172,8 +168,8 @@ public:
 
     // Provide the ciphertext to be decrypted, and obtain the decrypted output
     int plaintext_len = 0;
-    unsigned char plaintext[ciphertext_len];
-    if (EVP_DecryptUpdate(ctx, plaintext, &plaintext_len, encrypted_value, ciphertext_len) != 1) {
+    std::vector<unsigned char> plaintext(static_cast<unsigned int>(ciphertext_len));
+    if (EVP_DecryptUpdate(ctx, plaintext.data(), &plaintext_len, encrypted_value, ciphertext_len) != 1) {
         std::cerr << "Failed to perform decryption!" << std::endl;
         EVP_CIPHER_CTX_free(ctx);
         return failed_decrypt_result;
@@ -188,7 +184,7 @@ public:
 
     // Finalize the decryption
     int final_len = 0;
-    if (EVP_DecryptFinal_ex(ctx, plaintext + plaintext_len, &final_len) != 1) {
+    if (EVP_DecryptFinal_ex(ctx, plaintext.data() + plaintext_len, &final_len) != 1) {
         std::cerr << "Failed to finalize decryption!" << std::endl;
         EVP_CIPHER_CTX_free(ctx);
         return failed_decrypt_result;
@@ -198,7 +194,8 @@ public:
     // Clean up
     EVP_CIPHER_CTX_free(ctx);
 
-    auto result_string = std::string(reinterpret_cast<const char*>(plaintext), plaintext_len);
+    auto result_string = std::string(reinterpret_cast<const char*>(plaintext.data()), 
+                                     static_cast<std::string::size_type>(plaintext_len));
 
     return decrypt_result { result_string, true };
   }
