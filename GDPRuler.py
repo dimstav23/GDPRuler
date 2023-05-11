@@ -10,7 +10,7 @@ from policy_compiler.policy_config import parse_user_policy
 # NOTE: we use send(str+"\n") to communicate with the process because the sendline() hangs with 0 delaybeforesend
 
 def main():
-  default_encryption_key = "0123456789abcdefghjk0123456789yz"
+  default_encryption_key = "0123456789abcdef"
   parser = argparse.ArgumentParser(description='Start GDPRuler instance for a specific workload.')
   parser.add_argument('--config', help='path to the default config trace file', default=None, required=True, type=str)
   parser.add_argument('--workload', help='path to the workload trace file', default=None, required=True, type=str)
