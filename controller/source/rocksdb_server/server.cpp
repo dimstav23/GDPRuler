@@ -35,15 +35,15 @@ public:
   void start() {
     // Set socket timeout in win and unix platforms
     #ifdef _WIN32
-      DWORD socket_timeout_ms = socket_timeout_seconds * s2ms;
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_ms), sizeof(socket_timeout_ms));
+    DWORD socket_timeout_ms = socket_timeout_seconds * s2ms;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_ms), sizeof(socket_timeout_ms));
     #else
-      // Set receive timeout of unix socket. See SO_RCVTIMEO in https://linux.die.net/man/7/socket
-      struct timeval socket_timeout_val{};
-      socket_timeout_val.tv_sec = socket_timeout_seconds;
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_val), sizeof(socket_timeout_val));
+    // Set receive timeout of unix socket. See SO_RCVTIMEO in https://linux.die.net/man/7/socket
+    struct timeval socket_timeout_val{};
+    socket_timeout_val.tv_sec = socket_timeout_seconds;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_val), sizeof(socket_timeout_val));
     #endif
 
     handle_read();
@@ -53,14 +53,28 @@ private:
   void handle_read() {
     while (m_socket.is_open()) {
       try {
-        auto length = boost::asio::read_until(m_socket, m_buffer, '\n');
-        auto buffer_begin = boost::asio::buffers_begin(m_buffer.data());
-        std::string raw_query(buffer_begin, buffer_begin + static_cast<int>(length) - 1);
-        m_buffer.consume(length);
+        // Read message length
+        char length_buffer[4];  // Assuming message length is a 4-byte integer1
+        boost::asio::read(m_socket, boost::asio::buffer(length_buffer, 4));
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        int message_length = *reinterpret_cast<int*>(length_buffer);
+
+        // Read actual message
+        std::vector<char> message_buffer(static_cast<size_t>(message_length));
+        boost::asio::read(m_socket, boost::asio::buffer(message_buffer));
+
+        std::string raw_query(message_buffer.begin(), message_buffer.end());
         query_message query = query_message::deserialize(raw_query);
         response_message response = m_rocksdb_proxy->execute(query);
         std::string raw_response = response.serialize();
+
+        // Send response length
+        int response_length = static_cast<int>(raw_response.size());
+        boost::asio::write(m_socket, boost::asio::buffer(&response_length, 4));
+
+        // Send response
         boost::asio::write(m_socket, boost::asio::buffer(raw_response));
+
       } catch(const boost::wrapexcept<boost::system::system_error>& e) {
         if (e.code() == boost::asio::error::eof) {
           std::cout << "Client is finished with the queries. Closing the session..." << std::endl;
@@ -128,8 +142,4 @@ auto main(int argc, char* argv[]) -> int {
     // run() method is used to dequeue the async operation results and call the respective handlers.
     io_service.run();
   } catch (std::exception& e) {
-    std::cerr << "Exception in Rocksdb server: " << e.what() << std::endl;
-    return 1;
-  }
-  return 0;
-}
+    std::cerr << "Exception in Rocks
