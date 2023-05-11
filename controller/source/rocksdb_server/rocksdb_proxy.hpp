@@ -28,7 +28,7 @@ public:
   auto execute(query_message query) -> response_message 
   {
     if (!query.get_is_valid()) {
-      return response_message{/*is_success*/false, "invalid query"};
+      return response_message{/*is_success*/false, ""};
     }
 
     if (query.get_command() == "get") {
@@ -59,7 +59,7 @@ private:
     if (status.ok()) {
       return response_message{/*is_success*/true, value};
     }
-    return response_message{/*is_success*/false, "get failed"};
+    return response_message{/*is_success*/false, ""};
   }
 
   auto put(const std::string& key, const std::string& value) -> response_message
@@ -67,17 +67,17 @@ private:
     rocksdb::Status status =
         m_rocksdb->Put(rocksdb::WriteOptions(), key, value);
     if (status.ok()) {
-      return response_message{/*is_success*/true, "put succeeded"};
+      return response_message{/*is_success*/true, ""};
     } 
-    return response_message{/*is_success*/false, "put failed"};
+    return response_message{/*is_success*/false, ""};
   }
 
   auto del(const std::string& key) -> response_message
   {
     rocksdb::Status status = m_rocksdb->Delete(rocksdb::WriteOptions(), key);
     if (status.ok()) {
-      return response_message{/*is_success*/true, "del succeeded"};
+      return response_message{/*is_success*/true, ""};
     } 
-    return response_message{/*is_success*/false, "del failed"};
+    return response_message{/*is_success*/false, ""};
   }
 };
