@@ -56,20 +56,24 @@ public:
       return invalid_query;
     }
 
-    if (splits[0] == "put" && splits.size() != 3) {
-      std::cout << "Invalid query. put query expects exactly 3 arguments."
+    if (splits[0] == "put" && splits.size() <= 2) {
+      std::cout << "Invalid query. put query expects a third value argument."
                 << std::endl;
       return invalid_query;
     }
 
-    query_message result;
-    result.m_command = splits[0];
-    result.m_key = splits[1];
-    if (splits.size() == 3) {
-      result.m_value = splits[2];
+    query_message request;
+    request.m_command = splits[0];
+    request.m_key = splits[1];
+    if (splits.size() >= 3) {
+      // use the join in case our encrypted value contains ' ' chars
+      request.m_value = boost::algorithm::join(
+        std::vector<std::string>(splits.begin() + 2, splits.end()),
+        " "
+      );
     }
-    result.m_is_valid = true;
-    return result;
+    request.m_is_valid = true;
+    return request;
   }
 
   auto get_command() -> std::string {
@@ -142,7 +146,7 @@ public:
   {
     std::string result;
     result.append(m_is_success ? "success: " : "failure: ")
-        .append(m_data);
+          .append(m_data);
     return result;
   }
 
