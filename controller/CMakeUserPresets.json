@@ -37,6 +37,15 @@
       "name": "dev-coverage",
       "binaryDir": "${sourceDir}/build/coverage",
       "inherits": ["dev-mode", "coverage-unix"]
+    },
+    {
+      "name": "dev-no-checks",
+      "binaryDir": "${sourceDir}/build/dev-no-checks",
+      "inherits": ["dev-mode", "ci-unix"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
     }
   ],
   "buildPresets": [
