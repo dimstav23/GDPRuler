@@ -20,6 +20,8 @@ def execute_queries(controller, workload_file):
   queries = workload_file.readlines()
 
   for query in queries:
+    if query.startswith("#"):
+      continue  # Skip queries starting with '#'
     new_query = analyze_query(query.rstrip())
     controller.stdin.write(new_query.encode() + b'\n')
     controller.stdin.flush()
