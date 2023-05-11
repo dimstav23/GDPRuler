@@ -32,7 +32,6 @@ public:
     if (!m_value.empty()) {
       result.append(" ").append(m_value);
     }
-    result.append("\n");
     return result;
   }
 
@@ -143,8 +142,7 @@ public:
   {
     std::string result;
     result.append(m_is_success ? "success: " : "failure: ")
-        .append(m_data)
-        .append("\n");
+        .append(m_data);
     return result;
   }
 

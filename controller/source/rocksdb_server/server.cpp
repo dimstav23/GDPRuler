@@ -69,8 +69,10 @@ private:
         std::string raw_response = response.serialize();
 
         // Send response length
-        int response_length = static_cast<int>(raw_response.size());
-        boost::asio::write(m_socket, boost::asio::buffer(&response_length, 4));
+        int response_size = static_cast<int>(raw_response.size());
+        // Prepend response size to the response
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        raw_response.insert(0, reinterpret_cast<const char*>(&response_size), sizeof(int));
 
         // Send response
         boost::asio::write(m_socket, boost::asio::buffer(raw_response));
@@ -142,4 +144,8 @@ auto main(int argc, char* argv[]) -> int {
     // run() method is used to dequeue the async operation results and call the respective handlers.
     io_service.run();
   } catch (std::exception& e) {
-    std::cerr << "Exception in Rocks
+    std::cerr << "Exception in Rocksdb server: " << e.what() << std::endl;
+    return 1;
+  }
+  return 0;
+}

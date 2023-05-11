@@ -35,7 +35,7 @@ public:
 
     response_message response = execute(query);
     if (response.op_is_successful()) {
-      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.response << std::endl;
+      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
       return response.get_data();
     }
     std::cout << "GET operation failed" << std::endl;
@@ -85,10 +85,11 @@ private:
   {
     std::string raw_query = query.serialize();
 
-    // Send message size
+    // Prepend message size to query
     int message_size = static_cast<int>(raw_query.size());
-    boost::asio::write(m_socket, boost::asio::buffer(&message_size, sizeof(int)));
-    
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    raw_query.insert(0, reinterpret_cast<const char*>(&message_size), sizeof(int));
+
     // Send query
     boost::asio::write(m_socket, boost::asio::buffer(raw_query));
 
