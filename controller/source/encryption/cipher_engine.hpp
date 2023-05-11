@@ -1,11 +1,14 @@
 #pragma once
 
 #include <cstring>
-#include <iostream>
 #include <optional>
 #include <string>
 #include <array>
 #include <vector>
+
+#ifndef NDEBUG
+#include "cipher_print_utils.hpp"
+#endif
 
 #include <openssl/aes.h>
 #include <openssl/evp.h>
@@ -137,6 +140,15 @@ public:
     result_string.append(reinterpret_cast<const char*>(ciphertext.data()), 
                          static_cast<std::string::size_type>(ciphertext_len));
 
+    // std::cout << "iv : ";
+    // print_bytes(initialization_vector);
+    // std::cout << "mac : ";
+    // print_bytes(mac);
+    // std::cout << "len: " << ciphertext_len << "  ";
+    // print_int_bytes(ciphertext_len);
+    // std::cout << "ciphertext : ";
+    // print_bytes(ciphertext);
+
     return encrypt_result {result_string, /*success*/ true};
   }
 
@@ -156,7 +168,19 @@ public:
     const auto* encrypted_value = len_bytes + sizeof(int);
 
     // Retrieve the ciphertext length from the 4-byte integer
-    int ciphertext_len = static_cast<int>(*len_bytes);
+    int ciphertext_len = 0;
+    std::copy_n(len_bytes, sizeof(int), reinterpret_cast<unsigned char*>(&ciphertext_len));
+
+    // std::cout << "to_decrypt: ";
+    // print_bytes(ciphertext);
+    // std::cout << "iv: ";
+    // print_buffer_bytes(iv, initialization_vector_len);
+    // std::cout << "mac: ";
+    // print_buffer_bytes(mac, tag_len);
+    // std::cout << "len: " << ciphertext_len << "  ";
+    // print_int_bytes(ciphertext_len);
+    // std::cout << "encrypted_value: ";
+    // print_buffer_bytes(encrypted_value, static_cast<unsigned int>(ciphertext_len));
 
     // Create and initialize the context
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -202,7 +226,7 @@ public:
 
     auto result_string = std::string(reinterpret_cast<const char*>(plaintext.data()), 
                                      static_cast<std::string::size_type>(plaintext_len));
-
+    
     return decrypt_result { result_string, /*success*/ true};
   }
 
