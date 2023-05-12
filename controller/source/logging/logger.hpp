@@ -78,20 +78,24 @@ public:
     const uint8_t valid_bit = (valid ? 0x01U : 0x00U);
     const uint8_t operation_result = operation | valid_bit;
     // Calculate the total size of the entry
-    // We need the size of the data + 3 delimiters + a new line char
-    size_t total_size = sizeof(timestamp) + user_key.length() + 
-                                sizeof(operation_result) + new_val.length() + 
-                                3 * sizeof(log_delimiter) + 1;
+    // We need the size of the data + 3 delimiters
+    size_t entry_size = sizeof(timestamp) + user_key.length() + 
+                        sizeof(operation_result) + new_val.length() + 
+                        3 * sizeof(log_delimiter);
 
-    // Allocate an array buffer to hold the encoded entry
-    std::vector<char> buffer(total_size);
-    size_t offset = 0;
+    // Allocate an array buffer to hold the encoded entry and its length
+    size_t buffer_size = sizeof(entry_size) + entry_size;
+    std::vector<char> buffer(buffer_size);
 
     // Check if buffer is null
     if (buffer.data() == nullptr) [[unlikely]] {
       return;
     }
     
+    size_t offset = 0;
+    // Encode the total size of the entry
+    memcpy(&buffer[offset], &entry_size, sizeof(entry_size));
+    offset += sizeof(entry_size);
     // Encode the first entry
     memcpy(&buffer[offset], &timestamp, sizeof(timestamp));
     offset += sizeof(timestamp);
@@ -113,13 +117,10 @@ public:
     // Encode the new value string, if it's not empty
     if (!new_val.empty()) {
       memcpy(&buffer[offset], new_val.c_str(), new_val.length());
-      offset += new_val.length();
     }
-    // Encode the newline character
-    buffer[offset] = '\n';
 
     // Write the encoded entry to the log file
-    log_file->write(buffer.data(), static_cast<std::streamsize>(total_size));
+    log_file->write(buffer.data(), static_cast<std::streamsize>(buffer_size));
   }
 
   auto log_decode(const std::string &log_name, const int64_t timestamp_thres) 
@@ -143,9 +144,25 @@ public:
         // Set get pointer to the beginning of the file
         log_file->seekg(0, std::ios::beg); 
 
-        std::string line;
-        while (std::getline(*log_file, line)) {
-          entries.push_back(log_entry_decode(line, timestamp_thres));
+        // Read the total_size of each entry and pass the entry to log_entry_decode
+        size_t entry_size = 0;
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        while (log_file->read(reinterpret_cast<char*>(&entry_size), sizeof(entry_size))) {
+          std::vector<char> entry(entry_size);
+          size_t bytes_read = 0;
+          while (bytes_read < entry_size) {
+            if (!log_file->read(&entry[bytes_read], static_cast<std::streamsize>(entry_size - bytes_read))) {
+              break; // Error occurred while reading entry
+            }
+            bytes_read += static_cast<size_t>(log_file->gcount());
+          }
+          if (bytes_read == entry_size) {
+            entries.push_back(log_entry_decode(std::string(entry.begin(), entry.end()), timestamp_thres));
+          }
+          else {
+            std::cerr << "Error while reading log entry." << std::endl;
+            break; // Error occurred while reading entry
+          }
         }
 
         if (entries.empty()) {
@@ -156,7 +173,6 @@ public:
         log_file->clear(); 
         // Set put pointer to the end of the file for upcoming writes
         log_file->seekp(0, std::ios::end); 
-
       }
       else {
         std::cerr << "Error: Failed to open " << log_name << " for reading." << std::endl;
