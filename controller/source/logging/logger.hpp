@@ -144,26 +144,7 @@ public:
         // Set get pointer to the beginning of the file
         log_file->seekg(0, std::ios::beg); 
 
-        // Read the total_size of each entry and pass the entry to log_entry_decode
-        size_t entry_size = 0;
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-        while (log_file->read(reinterpret_cast<char*>(&entry_size), sizeof(entry_size))) {
-          std::vector<char> entry(entry_size);
-          size_t bytes_read = 0;
-          while (bytes_read < entry_size) {
-            if (!log_file->read(&entry[bytes_read], static_cast<std::streamsize>(entry_size - bytes_read))) {
-              break; // Error occurred while reading entry
-            }
-            bytes_read += static_cast<size_t>(log_file->gcount());
-          }
-          if (bytes_read == entry_size) {
-            entries.push_back(log_entry_decode(std::string(entry.begin(), entry.end()), timestamp_thres));
-          }
-          else {
-            std::cerr << "Error while reading log entry." << std::endl;
-            break; // Error occurred while reading entry
-          }
-        }
+        entries = read_and_decode_log_entries(log_file, timestamp_thres);
 
         if (entries.empty()) {
           std::cerr << "Note: " << log_name << " is empty." << std::endl;
@@ -185,7 +166,97 @@ public:
     return entries;
   }
 
-  static auto log_entry_decode(const std::string &entry, const int64_t timestamp_thres) 
+  auto get_logs_dir() -> std::string {
+    return this->m_logs_dir;
+  }
+
+  auto get_logs_extension() -> std::string {
+    return this->log_file_extension;
+  } 
+
+
+private:
+  logger() = default;
+
+  std::string m_logs_dir = "./logs";
+
+  const std::string log_file_extension = ".log";
+
+  std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
+
+  std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
+
+    auto log_file_path(const std::string& key) -> std::string {
+    return m_logs_dir + '/' + key + log_file_extension;
+  }
+
+  auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
+    // open the key's log file output stream in append only mode if it is not already opened.
+    //  store it in the m_keys_to_log_files map for fast future retrieval.
+    if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
+      m_keys_to_log_files[key] = std::make_shared<std::fstream>
+                                (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
+    }
+    return m_keys_to_log_files[key];
+  }
+
+  auto extract_key_from_filename(const std::string& filename) -> std::string {
+    // Find the last occurrence of '/' to get the start position of the key
+    size_t start_pos = filename.find_last_of('/');
+    if (start_pos == std::string::npos) [[unlikely]] {
+      start_pos = 0; // If '/' is not found, start from the beginning of the filename
+    } else {
+      start_pos += 1; // Move the start position after '/'
+    }
+
+    // Find the next occurrence of log_file_extension to get the end position of the key
+    size_t end_pos = filename.find(log_file_extension, start_pos);
+
+    // Extract the key from the substring
+    if (end_pos != std::string::npos) {
+      return filename.substr(start_pos, end_pos - start_pos);
+    }
+
+    // If '.' is not found, return the remaining substring
+    return filename.substr(start_pos);
+  }
+
+  // Read and decode log entries from the log file
+  static auto read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
+    -> std::vector<std::string>
+  {
+    std::vector<std::string> entries;
+    size_t entry_size = 0;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    while (log_file->read(reinterpret_cast<char*>(&entry_size), sizeof(entry_size))) {
+      std::vector<char> entry = read_log_entry(log_file, entry_size);
+      if (entry.size() == entry_size) {
+        entries.push_back(decode_log_entry(std::string(entry.begin(), entry.end()), timestamp_thres));
+      } else {
+        std::cerr << "Error while reading log entry." << std::endl;
+        break; // Error occurred while reading entry
+      }
+    }
+    return entries;
+  }
+
+  // Read a single entry from the log file
+  static auto read_log_entry(const std::shared_ptr<std::fstream>& log_file, size_t entry_size)
+    -> std::vector<char>
+  {
+    std::vector<char> entry(entry_size);
+    size_t bytes_read = 0;
+    while (bytes_read < entry_size) {
+      if (!log_file->read(&entry[bytes_read], static_cast<std::streamsize>(entry_size - bytes_read))) {
+        break; // Error occurred while reading entry
+      }
+      bytes_read += static_cast<size_t>(log_file->gcount());
+    }
+    return entry;
+  }
+
+  // Decode the given entry if its timestamp is less (earlier) than the threshold
+  static auto decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
     -> std::string 
   {
     // initialize the variables with default values
@@ -241,61 +312,6 @@ public:
 
     return formatted_entry.str();
   }
-
-  auto get_logs_dir() -> std::string {
-    return this->m_logs_dir;
-  }
-
-  auto get_logs_extension() -> std::string {
-    return this->log_file_extension;
-  } 
-
-
-private:
-  logger() = default;
-
-  auto log_file_path(const std::string& key) -> std::string {
-    return m_logs_dir + '/' + key + log_file_extension;
-  }
-
-  auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
-    // open the key's log file output stream in append only mode if it is not already opened.
-    //  store it in the m_keys_to_log_files map for fast future retrieval.
-    if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
-      m_keys_to_log_files[key] = std::make_shared<std::fstream>
-                                (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
-    }
-    return m_keys_to_log_files[key];
-  }
-
-  auto extract_key_from_filename(const std::string& filename) -> std::string {
-    // Find the last occurrence of '/' to get the start position of the key
-    size_t start_pos = filename.find_last_of('/');
-    if (start_pos == std::string::npos) [[unlikely]] {
-      start_pos = 0; // If '/' is not found, start from the beginning of the filename
-    } else {
-      start_pos += 1; // Move the start position after '/'
-    }
-
-    // Find the next occurrence of log_file_extension to get the end position of the key
-    size_t end_pos = filename.find(log_file_extension, start_pos);
-
-    // Extract the key from the substring
-    if (end_pos != std::string::npos) {
-      return filename.substr(start_pos, end_pos - start_pos);
-    }
-
-    // If '.' is not found, return the remaining substring
-    return filename.substr(start_pos);
-  }
-
-  std::string m_logs_dir = "./logs";
-
-  const std::string log_file_extension = ".log";
-
-  std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
-
-  std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
 };
 
 } // namespace controller
