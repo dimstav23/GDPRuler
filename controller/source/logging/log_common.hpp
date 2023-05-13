@@ -158,7 +158,7 @@ inline auto gdpr_metadata_fmt(const std::string &value_str) -> std::string {
     count++;
   }
   if (count != max_gdpr_field_guard) {
-    throw std::invalid_argument("Invalid GDPR metadata format");
+    throw std::invalid_argument("Invalid GDPR metadata format in the logs");
   }
 
   return res.str();

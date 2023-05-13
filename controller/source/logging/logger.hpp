@@ -12,6 +12,8 @@
 #include "../gdpr_filter.hpp"
 #include "../query.hpp"
 
+#include "../encryption/cipher_engine.hpp"
+
 namespace controller {
 
 /**
@@ -83,9 +85,8 @@ public:
                         sizeof(operation_result) + new_val.length() + 
                         3 * sizeof(log_delimiter);
 
-    // Allocate an array buffer to hold the encoded entry and its length
-    size_t buffer_size = sizeof(entry_size) + entry_size;
-    std::vector<char> buffer(buffer_size);
+    // Allocate an array buffer to hold the encoded entry
+    std::vector<char> buffer(entry_size);
 
     // Check if buffer is null
     if (buffer.data() == nullptr) [[unlikely]] {
@@ -93,10 +94,7 @@ public:
     }
     
     size_t offset = 0;
-    // Encode the total size of the entry
-    memcpy(&buffer[offset], &entry_size, sizeof(entry_size));
-    offset += sizeof(entry_size);
-    // Encode the first entry
+    // Encode the timestamp entry
     memcpy(&buffer[offset], &timestamp, sizeof(timestamp));
     offset += sizeof(timestamp);
     // Encode the delimiter
@@ -119,8 +117,28 @@ public:
       memcpy(&buffer[offset], new_val.c_str(), new_val.length());
     }
 
+    #ifndef ENCRYPTION_ENABLED
+    // Write the encoded entry size to the log file
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    log_file->write(reinterpret_cast<const char*>(&entry_size), sizeof(entry_size));
     // Write the encoded entry to the log file
-    log_file->write(buffer.data(), static_cast<std::streamsize>(buffer_size));
+    log_file->write(buffer.data(), static_cast<std::streamsize>(entry_size));
+    #else
+    // important: pass buffer.begin() and buffer.end() as encrypt will look for 
+    // null termination character otherwise
+    auto encrypt_result = m_cipher->encrypt(std::string(buffer.begin(), buffer.end()));
+    if (encrypt_result.m_success) {
+      // Write the encrypted entry size to the log file
+      entry_size = encrypt_result.m_ciphertext.size();
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      log_file->write(reinterpret_cast<const char*>(&entry_size), sizeof(entry_size));
+      log_file->write(encrypt_result.m_ciphertext.c_str(), 
+                      static_cast<std::streamsize>(encrypt_result.m_ciphertext.size()));
+    }
+    else {
+      std::cerr << "Error in writing log entry: Encryption failed" << std::endl;
+    }
+    #endif
   }
 
   auto log_decode(const std::string &log_name, const int64_t timestamp_thres) 
@@ -140,7 +158,6 @@ public:
       if (log_file->is_open()) {
         // Flush the log file buffers to ensure data is written to the file
         log_file->flush();
-
         // Set get pointer to the beginning of the file
         log_file->seekg(0, std::ios::beg); 
 
@@ -186,7 +203,9 @@ private:
 
   std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
 
-    auto log_file_path(const std::string& key) -> std::string {
+  controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();
+
+  auto log_file_path(const std::string& key) -> std::string {
     return m_logs_dir + '/' + key + log_file_extension;
   }
 
@@ -222,7 +241,7 @@ private:
   }
 
   // Read and decode log entries from the log file
-  static auto read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
+  auto read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
     -> std::vector<std::string>
   {
     std::vector<std::string> entries;
@@ -231,7 +250,12 @@ private:
     while (log_file->read(reinterpret_cast<char*>(&entry_size), sizeof(entry_size))) {
       std::vector<char> entry = read_log_entry(log_file, entry_size);
       if (entry.size() == entry_size) {
+        #ifndef ENCRYPTION_ENABLED
         entries.push_back(decode_log_entry(std::string(entry.begin(), entry.end()), timestamp_thres));
+        #else
+        std::string decrypted_entry = decrypt_log_entry(std::string(entry.begin(), entry.end()));
+        entries.push_back(decode_log_entry(decrypted_entry, timestamp_thres));
+        #endif        
       } else {
         std::cerr << "Error while reading log entry." << std::endl;
         break; // Error occurred while reading entry
@@ -311,6 +335,16 @@ private:
     }
 
     return formatted_entry.str();
+  }
+
+  auto decrypt_log_entry(const std::string &entry) -> std::string {
+    // Decrypt the entry
+    auto decrypt_result = m_cipher->decrypt(entry);
+    if (!decrypt_result.m_success) {
+      std::cerr << "Error in decrypting log entry" << std::endl;
+      return "";
+    }
+    return decrypt_result.m_plaintext;
   }
 };
 

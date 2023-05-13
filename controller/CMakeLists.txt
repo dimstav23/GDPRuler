@@ -83,7 +83,7 @@ set_property(TARGET redis_interface_exe PROPERTY OUTPUT_NAME redis_interface)
 
 target_compile_features(redis_interface_exe PRIVATE cxx_std_20)
 
-target_link_libraries(redis_interface_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB})
+target_link_libraries(redis_interface_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} OpenSSL::Crypto)
 target_include_directories(redis_interface_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
 
 # rocksdb server
