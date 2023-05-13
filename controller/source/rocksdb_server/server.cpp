@@ -54,7 +54,8 @@ private:
     while (m_socket.is_open()) {
       try {
         // Read message length
-        char length_buffer[4];  // Assuming message length is a 4-byte integer1
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
+        char length_buffer[4];  // Assuming message length is a 4-byte integer
         boost::asio::read(m_socket, boost::asio::buffer(length_buffer, 4));
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         int message_length = *reinterpret_cast<int*>(length_buffer);

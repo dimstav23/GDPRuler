@@ -72,8 +72,10 @@ public:
   /**
    * Encrypt given plain text.
    * 
-   * If successful, output's first initialization_vector_len chars contains initialization vector (iv) in plain text.
-   * The rest of the output string contains ciphered form of the input based on encryption key and randomly generated iv.
+   * If successful, output's first initialization_vector_len chars contain initialization vector (iv) in plain text.
+   * Following tag_len chars contain calculated MAC. 
+   * Following 4 bytes contain the size of the encrypted value.
+   * The rest of the output string contains ciphered form of the input based on encryption key.
   */
   auto encrypt(const std::string& input) -> encrypt_result {
     static encrypt_result failed_encrypt_result {{}, /*success*/ false};

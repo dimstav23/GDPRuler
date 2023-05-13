@@ -1,5 +1,6 @@
 #include <iostream>
 #include "encryption/cipher_engine.hpp"
+#include <cassert>
 
 using controller::cipher_engine;
 
@@ -31,6 +32,7 @@ auto main() -> int
         if (decryption_res.m_success) {
             std::cout << "Decryption successful!" << std::endl;
             std::cout << "Decrypted text: " << decryption_res.m_plaintext << std::endl;
+            assert(plaintext == decryption_res.m_plaintext);
         } else {
             std::cout << "Decryption failed!" << std::endl;
         }
