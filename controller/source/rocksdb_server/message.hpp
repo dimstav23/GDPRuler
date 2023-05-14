@@ -32,7 +32,6 @@ public:
     if (!m_value.empty()) {
       result.append(" ").append(m_value);
     }
-    result.append("\n");
     return result;
   }
 
@@ -57,20 +56,24 @@ public:
       return invalid_query;
     }
 
-    if (splits[0] == "put" && splits.size() != 3) {
-      std::cout << "Invalid query. put query expects exactly 3 arguments."
+    if (splits[0] == "put" && splits.size() <= 2) {
+      std::cout << "Invalid query. put query expects a third value argument."
                 << std::endl;
       return invalid_query;
     }
 
-    query_message result;
-    result.m_command = splits[0];
-    result.m_key = splits[1];
-    if (splits.size() == 3) {
-      result.m_value = splits[2];
+    query_message request;
+    request.m_command = splits[0];
+    request.m_key = splits[1];
+    if (splits.size() >= 3) {
+      // use the join in case our encrypted value contains ' ' chars
+      request.m_value = boost::algorithm::join(
+        std::vector<std::string>(splits.begin() + 2, splits.end()),
+        " "
+      );
     }
-    result.m_is_valid = true;
-    return result;
+    request.m_is_valid = true;
+    return request;
   }
 
   auto get_command() -> std::string {
@@ -121,12 +124,12 @@ private:
  * data represents the value retrieved in case of a successful get operation, 
  *  or the response message otherwise.
  * 
- * Expected message protocol: "<status:{success,failure}>: <data>"
+ * Expected message protocol: "<status:{1 for success, 0 for failure}>: <data>"
  * 
  * Example query_messages         || Their meanings
- *  "success: del succeeded"      -> delete the entry with key "key_to_delete"
- *  "failure: get failed"         -> get operation failed
- *  "success: value_retrieved"    -> get operation succeded and value corresponding to key is "value_retrieved"
+ *  "1"                           -> put/get/del the entry
+ *  "0"                           -> operation failed
+ *  "1 value_retrieved"           -> get operation succeded and value corresponding to key is "value_retrieved"
 */
 class response_message
 {
@@ -142,31 +145,27 @@ public:
   auto serialize() -> std::string
   {
     std::string result;
-    result.append(m_is_success ? "success: " : "failure: ")
-        .append(m_data)
-        .append("\n");
+    result.append(m_is_success ? "1" : "0")
+          .append(m_data);
     return result;
   }
 
-  static auto deserialize(const std::string& raw_query) -> response_message
+  static auto deserialize(const std::string& raw_response) -> response_message
   {
-    static response_message invalid_response {/*is_success=*/false, "invalid"};
-    static std::unordered_set<std::string> valid_response_types {"success", "failure"};
-    static const std::string response_message_delimiter = ": ";
-    static const size_t response_message_delimiter_len = response_message_delimiter.size();
-
-    size_t index = raw_query.find(response_message_delimiter);
-    if (index == std::string::npos) {
+    static response_message invalid_response {/*is_success=*/false, ""};
+    static std::unordered_set<char> valid_response_types {'0', '1'};
+    
+    if (raw_response.empty()) {
       return invalid_response;
     }
 
-    std::string first_str = raw_query.substr(0, index);
-    if (!valid_response_types.contains(first_str)) {
+    char valid = raw_response[0];
+    if (!valid_response_types.contains(valid)) {
       return invalid_response;
     }
 
-    std::string second_str = raw_query.substr(index + response_message_delimiter_len, raw_query.size());
-    return response_message {first_str == "success", second_str};
+    std::string response_data = raw_response.substr(sizeof(valid));
+    return response_message {valid == '1', response_data};
   }
 
   auto op_is_successful() const -> bool {

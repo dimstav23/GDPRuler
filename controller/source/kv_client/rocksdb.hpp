@@ -35,7 +35,7 @@ public:
 
     response_message response = execute(query);
     if (response.op_is_successful()) {
-      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.response << std::endl;
+      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
       return response.get_data();
     }
     std::cout << "GET operation failed" << std::endl;
@@ -84,12 +84,24 @@ private:
   auto execute(query_message query) -> response_message
   {
     std::string raw_query = query.serialize();
+
+    // Prepend message size to query
+    int message_size = static_cast<int>(raw_query.size());
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    raw_query.insert(0, reinterpret_cast<const char*>(&message_size), sizeof(int));
+
+    // Send query
     boost::asio::write(m_socket, boost::asio::buffer(raw_query));
 
-    // Receive a response from the server
-    boost::asio::streambuf receive_buffer;
-    boost::asio::read_until(m_socket, receive_buffer, "\n");
-    std::string raw_response(boost::asio::buffers_begin(receive_buffer.data()), boost::asio::buffers_end(receive_buffer.data()) - 1);
+    // Receive response size
+    int response_size = 0;
+    boost::asio::read(m_socket, boost::asio::buffer(&response_size, sizeof(int)));
+
+    // Receive response
+    std::vector<char> response_buffer(static_cast<size_t>(response_size));
+    boost::asio::read(m_socket, boost::asio::buffer(response_buffer));
+    std::string raw_response(response_buffer.begin(), response_buffer.end());
+
     return response_message::deserialize(raw_response);
   }
 };

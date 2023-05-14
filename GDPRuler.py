@@ -10,12 +10,14 @@ from policy_compiler.policy_config import parse_user_policy
 # NOTE: we use send(str+"\n") to communicate with the process because the sendline() hangs with 0 delaybeforesend
 
 def main():
+  default_encryption_key = "0123456789abcdef"
   parser = argparse.ArgumentParser(description='Start GDPRuler instance for a specific workload.')
   parser.add_argument('--config', help='path to the default config trace file', default=None, required=True, type=str)
   parser.add_argument('--workload', help='path to the workload trace file', default=None, required=True, type=str)
   parser.add_argument('--db', help='db to use, one of {rocksdb,redis}', default=DbType.ROCKSDB, required=False, type=DbType)
   parser.add_argument('--address', help='db ip address for client to connect', default=None, required=False, type=str)
   parser.add_argument('--logpath', help='folder to place the gdpr log files', default="./logs", required=False, type=str)
+  parser.add_argument('--encryptionkey', help='encryption/decryption key. Expected to be exactly 16 chars', default=default_encryption_key, required=False, type=str)
   args = parser.parse_args()
 
   user_policy = safe_open(args.config, "r") # open the file containing the default user configuration
@@ -30,6 +32,8 @@ def main():
   if args.address:
     process_args += ['--address', args.address]
   process_args += ['--logpath', args.logpath]
+  if args.encryptionkey:
+    process_args += ['--encryptionkey', args.encryptionkey]
   controller = subprocess.Popen(process_args, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # Write policy to process' standard input

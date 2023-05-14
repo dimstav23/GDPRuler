@@ -15,6 +15,7 @@
 #include "gdpr_regulator.hpp"
 
 using controller::default_policy;
+using controller::cipher_engine;
 using controller::query;
 using controller::query_rewriter;
 using controller::gdpr_filter;
@@ -26,7 +27,7 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
                 const query &query_args,
                 const default_policy &def_policy) -> void 
 {
-  auto res = client->get(query_args.key());
+  auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
   // Check if the retrieved value requires logging
@@ -51,7 +52,7 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
                 const query &query_args,
                 const default_policy &def_policy) -> void 
 {
-  auto res = client->get(query_args.key());
+  auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
   bool is_valid = true;
@@ -64,7 +65,7 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
     query_rewriter rewriter(query_args, def_policy, query_args.value());
     // Perform the logging of the valid operation -- if needed
     monitor.monitor_query(is_valid, rewriter.new_value());
-    auto ret_val = client->put(query_args.key(), rewriter.new_value());
+    auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
     // TODO: write ret_val value to the client socket
     assert(ret_val);
@@ -79,7 +80,7 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
     query_rewriter rewriter(res.value(), query_args.value());
     // Perform the logging of the valid operation -- if needed
     monitor.monitor_query(is_valid, rewriter.new_value());
-    auto ret_val = client->put(query_args.key(), rewriter.new_value());
+    auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
     // TODO: write ret_val value to the client socket
     assert(ret_val);
@@ -96,7 +97,7 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
                   const query &query_args,
                   const default_policy &def_policy) -> void 
 {
-  auto res = client->get(query_args.key());
+  auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
   // Check if the retrieved value requires logging
@@ -109,7 +110,7 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then perform the delete operation
-    auto ret_val = client->del(query_args.key());
+    auto ret_val = client->gdpr_del(query_args.key());
     // TODO: write ret_val value to the client socket
     assert(ret_val);
   }
@@ -187,6 +188,10 @@ auto main(int argc, char* argv[]) -> int
   // set the log path based on the input parameter
   const std::string log_path = get_command_line_argument(args, "--logpath");
   logger::get_instance()->init_log_path(log_path);
+
+  // set the encryption key based on the input parameter
+  const std::string encryption_key = get_command_line_argument(args, "--encryptionkey");
+  cipher_engine::get_instance()->init_encryption_key(encryption_key);
 
   auto start = std::chrono::high_resolution_clock::now();
 

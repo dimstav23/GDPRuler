@@ -45,6 +45,7 @@ mkShell {
     file
     bridge-utils
     cloud-utils
+    openssl
 
     #redis specific packages
     tcl
