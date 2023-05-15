@@ -126,7 +126,8 @@ public:
     #else
     // important: pass buffer.begin() and buffer.end() as encrypt will look for 
     // null termination character otherwise
-    auto encrypt_result = m_cipher->encrypt(std::string(buffer.begin(), buffer.end()));
+    auto encrypt_result = m_cipher->encrypt(std::string(buffer.begin(), buffer.end()), 
+                                            cipher_key_type::log_key);
     if (encrypt_result.m_success) {
       // Write the encrypted entry size to the log file
       entry_size = encrypt_result.m_ciphertext.size();
@@ -339,7 +340,7 @@ private:
 
   auto decrypt_log_entry(const std::string &entry) -> std::string {
     // Decrypt the entry
-    auto decrypt_result = m_cipher->decrypt(entry);
+    auto decrypt_result = m_cipher->decrypt(entry, cipher_key_type::log_key);
     if (!decrypt_result.m_success) {
       std::cerr << "Error in decrypting log entry" << std::endl;
       return "";

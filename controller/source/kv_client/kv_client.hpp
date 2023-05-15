@@ -21,7 +21,7 @@ public:
         return std::nullopt;
       }
 
-      auto decrypt_result = m_cipher->decrypt(encrypted_value.value());
+      auto decrypt_result = m_cipher->decrypt(encrypted_value.value(), cipher_key_type::db_key);
       if (decrypt_result.m_success) {
         return decrypt_result.m_plaintext;
       }
@@ -37,7 +37,7 @@ public:
       return put(key, value);
     #else
       // put the pair after encryption
-      auto encrypt_result = m_cipher->encrypt(value);
+      auto encrypt_result = m_cipher->encrypt(value, cipher_key_type::db_key);
       if (encrypt_result.m_success) {
         return put(key, encrypt_result.m_ciphertext);
       }
