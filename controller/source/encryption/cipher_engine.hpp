@@ -113,7 +113,7 @@ public:
     }
 
     /* Initialise the encryption operation. */
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, m_db_key, initialization_vector.data()) != 1) {
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, initialization_vector.data()) != 1) {
       std::cerr << "Failed to initialize encryption!" << std::endl;
       EVP_CIPHER_CTX_free(ctx);
       return failed_encrypt_result;
@@ -221,7 +221,7 @@ public:
     }
 
     // Initialize the decryption operation
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, m_db_key, iv) != 1) {
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, iv) != 1) {
         std::cerr << "Failed to initialize decryption!" << std::endl;
         EVP_CIPHER_CTX_free(ctx);
         return failed_decrypt_result;
