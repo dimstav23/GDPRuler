@@ -9,6 +9,12 @@ from policy_compiler.policy_config import parse_user_policy
 
 # NOTE: we use send(str+"\n") to communicate with the process because the sendline() hangs with 0 delaybeforesend
 
+# Define a custom validation function for the --db_encryptionkey argument
+def validate_encryption_key(key):
+  if len(key) != 16:
+    raise argparse.ArgumentTypeError('Encryption keys must be exactly 16 characters long')
+  return key
+
 def main():
   default_db_encryption_key = "0123456789abcdef"
   default_log_encryption_key = "abcdef0123456789"
@@ -19,9 +25,9 @@ def main():
   parser.add_argument('--address', help='db ip address for client to connect', default=None, required=False, type=str)
   parser.add_argument('--logpath', help='folder to place the gdpr log files', default="./logs", required=False, type=str)
   parser.add_argument('--db_encryptionkey', help='DB encryption/decryption key. Expected to be exactly 16 chars', 
-                      default=default_db_encryption_key, required=False, type=str)
+                      default=default_db_encryption_key, required=False, type=validate_encryption_key)
   parser.add_argument('--log_encryptionkey', help='Log encryption/decryption key. Expected to be exactly 16 chars', 
-                      default=default_log_encryption_key, required=False, type=str)
+                      default=default_log_encryption_key, required=False, type=validate_encryption_key)
   args = parser.parse_args()
 
   user_policy = safe_open(args.config, "r") # open the file containing the default user configuration
