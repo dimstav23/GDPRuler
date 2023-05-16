@@ -7,7 +7,7 @@ using controller::cipher_engine;
 auto main() -> int
 {
     // Set the encryption key
-    cipher_engine::get_instance()->init_encryption_key("0123456789012345");
+    cipher_engine::get_instance()->init_encryption_key("0123456789012345", cipher_key_type::db_key);
 
     // Get the instance of the cipher_engine class
     cipher_engine* encryption = cipher_engine::get_instance();
@@ -17,7 +17,7 @@ auto main() -> int
     std::cout << "Plain text: " << plaintext << std::endl;
 
     // Encrypt the plaintext
-    auto encrypt_result = encryption->encrypt(plaintext);
+    auto encrypt_result = encryption->encrypt(plaintext, cipher_key_type::db_key);
 
     // Check if encryption was successful
     if (encrypt_result.m_success) {
@@ -26,7 +26,8 @@ auto main() -> int
         std::cout << encrypt_result.m_ciphertext << std::endl;
 
         // Decrypt the ciphertext
-        auto decryption_res = encryption->decrypt(encrypt_result.m_ciphertext);
+        auto decryption_res = encryption->decrypt(encrypt_result.m_ciphertext,
+                                                  cipher_key_type::db_key);
 
         // Check if decryption was successful
         if (decryption_res.m_success) {

@@ -18,6 +18,13 @@
   #define ENCRYPTION_ENABLED
 #endif
 
+// Encryption key types
+enum class cipher_key_type {
+  db_key,   // Key type for the database
+  log_key,  // Key type for the log
+  max_key   // Maximum key value for range checking
+};
+
 namespace controller
 {
 
@@ -70,16 +77,27 @@ public:
   }
 
   /**
-   * Encrypt given plain text.
+   * Encrypts the input using the specified encryption key type.
    * 
-   * If successful, output's first initialization_vector_len chars contain initialization vector (iv) in plain text.
+   * If successful, output's first initialization_vector_len chars contain 
+   * the initialization vector (iv) in plain text.
    * Following tag_len chars contain calculated MAC. 
-   * Following 4 bytes contain the size of the encrypted value.
+   * Next 4 bytes contain the size of the encrypted value.
    * The rest of the output string contains ciphered form of the input based on encryption key.
-  */
-  auto encrypt(const std::string& input) -> encrypt_result {
+   *
+   * @param input The plaintext to encrypt.
+   * @param keyType The encryption key type to use.
+   * @return An encrypt_result object containing the ciphertext and success status.
+   */
+  auto encrypt(const std::string& input, cipher_key_type key_type) -> encrypt_result {
     static encrypt_result failed_encrypt_result {{}, /*success*/ false};
     
+    const unsigned char* key = get_encryption_key(key_type);
+    if (key == nullptr) {
+      std::cerr << "Invalid encryption key type!" << std::endl;
+      return failed_encrypt_result;
+    }
+
     /* Generate a random IV */
     std::array<unsigned char, initialization_vector_len> initialization_vector{};
     if (RAND_bytes(initialization_vector.data(), sizeof(initialization_vector)) != 1) {
@@ -95,7 +113,7 @@ public:
     }
 
     /* Initialise the encryption operation. */
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, m_key, initialization_vector.data()) != 1) {
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, initialization_vector.data()) != 1) {
       std::cerr << "Failed to initialize encryption!" << std::endl;
       EVP_CIPHER_CTX_free(ctx);
       return failed_encrypt_result;
@@ -154,14 +172,25 @@ public:
     return encrypt_result {result_string, /*success*/ true};
   }
 
+
   /**
-   * Decrypt given input. 
+   * Decrypts the ciphertext using the specified encryption key type.
    * 
    * First initialization_vector_len chars are expected to be the initialization vector,
    * the calculated MAC, the size of the encrypted value, and the actual encrypted value.
+   * 
+   * @param ciphertext The ciphertext to decrypt.
+   * @param keyType The encryption key type to use.
+   * @return A decrypt_result object containing the plaintext and success status.
    */
-  auto decrypt(const std::string& ciphertext) -> decrypt_result {
+  auto decrypt(const std::string& ciphertext, cipher_key_type key_type) -> decrypt_result {
     static decrypt_result failed_decrypt_result {{}, /*success*/ false};
+
+    const unsigned char* key = get_encryption_key(key_type);
+    if (key == nullptr) {
+      std::cerr << "Invalid encryption key type!" << std::endl;
+      return failed_decrypt_result;
+    }
 
     // Extract the components from the result string
     const auto* iv = reinterpret_cast<const unsigned char*>(ciphertext.data());
@@ -192,7 +221,7 @@ public:
     }
 
     // Initialize the decryption operation
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, m_key, iv) != 1) {
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, iv) != 1) {
         std::cerr << "Failed to initialize decryption!" << std::endl;
         EVP_CIPHER_CTX_free(ctx);
         return failed_decrypt_result;
@@ -232,22 +261,56 @@ public:
     return decrypt_result { result_string, /*success*/ true};
   }
 
-  auto init_encryption_key(const std::optional<std::string>& encryption_key = std::nullopt) -> void {
+  /**
+   * Initializes the encryption key for the specified key type.
+   * If no encryption key is provided, it falls back to the default test key.
+   *
+   * @param encryption_key The encryption key to set.
+   * @param keyType The encryption key type to initialize.
+   */
+  auto init_encryption_key(const std::optional<std::string>& encryption_key = std::nullopt,
+                          cipher_key_type key_type = cipher_key_type::max_key) -> bool 
+  {
     if (encryption_key.has_value()) {
+      const unsigned char* key = get_encryption_key(key_type);
+      if (key == nullptr) {
+        std::cerr << "Invalid encryption key type!" << std::endl;
+        return false;
+      }
+
       if (encryption_key.value().size() != encryption_key_len) {
         std::cerr << "Failed to set encryption key. Expected length is " << encryption_key_len 
                   << ", given length is " <<  encryption_key.value().size()
                   << ". Falling back to the default key." << std::endl;
-        return;
+        return false;
       }
-      memcpy(m_key, encryption_key.value().c_str(), encryption_key_len);
+      memcpy(const_cast<unsigned char*>(key), encryption_key.value().c_str(), encryption_key_len);
     }
+    return true;
   }
 
   private:
     cipher_engine() = default;
-    // default encryption key
-    unsigned char m_key[encryption_key_len] = "012345678901234";
+    // Default database encryption key
+    unsigned char m_db_key[encryption_key_len] = "012345678901234";
+    // Default gdpr log encryption key
+    unsigned char m_log_key[encryption_key_len] = "123401234567890";
+    // Array of encryption key
+    const unsigned char* m_encryption_keys[2] = { m_db_key, m_log_key }; 
+
+    /**
+     * Retrieves the encryption key based on the specified key type.
+     *
+     * @param keyType The encryption key type.
+     * @return The encryption key for the specified key type.
+     */
+    const unsigned char* get_encryption_key(cipher_key_type key_type) const {
+      if (key_type >= cipher_key_type::max_key) {
+        std::cerr << "Invalid encryption key type!" << std::endl;
+        return nullptr;
+      }
+      return m_encryption_keys[static_cast<int>(key_type)];
+    }
 
 // NOLINTEND
 };

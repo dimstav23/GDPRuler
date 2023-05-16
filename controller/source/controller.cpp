@@ -189,9 +189,13 @@ auto main(int argc, char* argv[]) -> int
   const std::string log_path = get_command_line_argument(args, "--logpath");
   logger::get_instance()->init_log_path(log_path);
 
-  // set the encryption key based on the input parameter
-  const std::string encryption_key = get_command_line_argument(args, "--encryptionkey");
-  cipher_engine::get_instance()->init_encryption_key(encryption_key);
+  // set the database encryption key based on the input parameter
+  const std::string db_encryption_key = get_command_line_argument(args, "--db_encryptionkey");
+  assert(cipher_engine::get_instance()->init_encryption_key(db_encryption_key, cipher_key_type::db_key));
+
+  // set the log encryption key based on the input parameter
+  const std::string log_encryption_key = get_command_line_argument(args, "--log_encryptionkey");
+  assert(cipher_engine::get_instance()->init_encryption_key(log_encryption_key, cipher_key_type::log_key));
 
   auto start = std::chrono::high_resolution_clock::now();
 
