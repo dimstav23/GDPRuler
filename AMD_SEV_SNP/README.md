@@ -114,6 +114,9 @@ Configuration examples are given in the [cloud_configs](./cloud_configs/) folder
 In step 5 above, we use the parameter `-bridge virbr0`, so that our VMs use the virtual network bridge `virbr0`. 
 Our script [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) checks the given virtual bridge and adjust the prefix of the IP declared in the network configuration file. Example configuration files are given in the [cloud_configs](./cloud_configs/) folder. They are used mainly to pre-determine the IPs of the VMs in the network.
 
+### 8. Attestation:
+For more information about the attestation process, please consult our [dedicated documentation](./ATTESTATION.md).
+
 ### Manual ssh connection setup
 - After you make sure that networking works fine and you can reach the VM guest from the host, you can log-in the VM using ssh (after placing your ssh keys in the `~/.ssh/autorhized_keys` file of the guest VM).
 
