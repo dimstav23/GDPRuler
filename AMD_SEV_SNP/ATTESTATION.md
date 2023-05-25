@@ -37,3 +37,120 @@ You can also parse the report to dump its contents `sudo ./sev-guest-parse-repor
 **Known current issues:**
 1. Cert issue when building the latest guest kernel. ([SOLVED](https://github.com/AMDESE/AMDSEV/issues/156))
 2. `sev-guest-get-report` fails to provide a second report. ([PENDING](https://github.com/AMDESE/sev-guest/issues/40))
+
+**WIP:** [This](https://github.com/AMDESE/sev-guest/blob/main/docs/guest-owner-setup.md) is a guide to perform an end-to-end remote attestation procedure.
+
+**Notes for nginx and fcgiwrap setup in a nix-shell**:
+
+**Important!**
+All the following commands should be executed from the folder where the `default.nix` file is located!
+
+- For the `nginx` add the following in your `default.nix` configuration *let* block :
+```
+nginxConfigureFlags = dir: [
+  "--with-threads"
+  "--with-http_ssl_module"
+  "--http-log-path=${dir}/nginx/access.log"
+  "--error-log-path=${dir}/nginx/error.log"
+  "--pid-path=${dir}/nginx/nginx.pid"
+  "--http-client-body-temp-path=${dir}/nginx/client_body"
+  "--http-proxy-temp-path=${dir}/nginx/proxy"
+  "--http-fastcgi-temp-path=${dir}/nginx/fastcgi"
+  "--http-uwsgi-temp-path=${dir}/nginx/uwsgi"
+  "--http-scgi-temp-path=${dir}/nginx/scgi"
+];
+nginx_override = (nginx.override {
+  gd = null;
+  geoip = null;
+  libxslt = null;
+  withStream = false;
+}).overrideAttrs (old: {
+  configureFlags = nginxConfigureFlags "/proc/self/cwd";
+});
+```
+and append the following in the build inputs:
+```
+nginx_override
+fcgiwrap
+```
+
+- For the `fcgiwrap` service add the following in the server's configuration and deploy it:
+```
+  services.fcgiwrap = {
+    enable = true;
+    user = "myuser";    # Replace "myuser" with the desired username
+    group = "mygroup";  # Replace "mygroup" with the desired group name
+  };
+
+  #gnutar is needed by the ssh-key-exchange.sh script used by the attestation example
+  systemd.services.fcgiwrap.path = [ pkgs.gnutar ];
+``` 
+- Create a directory named `cgi-bin` and place inside the [scripts](https://github.com/AMDESE/sev-guest/tree/main/attestation/nginx) provided by the `sev-guest` utility. Make sure they have executable permissions.
+
+- Create the `fcgiwrap.conf` configuration file with the following content:
+```
+location /cgi-bin/ { 
+  # Disable gzip (it makes scripts feel slower since they have to complete
+  # before getting gzipped)
+  gzip off;
+ 
+  # Set the root to the folder where the directory cgi-bin is
+  # (inside this location this means that we are
+  # giving access to the files under cgi-bin)
+  root /home/my_user/folder_where_the_cgi_bin_directory_is;
+ 
+  # Fastcgi socket / choose the one that is used
+  fastcgi_pass  unix:/run/fcgiwrap.sock;
+  #fastcgi_pass  unix:/var/run/fcgiwrap.sock;
+ 
+  # Fastcgi parameters, include the standard ones
+  # include /etc/nginx/fastcgi_params;
+  include /nix/store/97r1wm31iq77lgw7lkwzb15xxyvd73ij-nginx-1.22.1/conf/fastcgi_params;
+
+  # Adjust non standard parameters (SCRIPT_FILENAME)
+  #fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+  fastcgi_param SCRIPT_FILENAME  /home/my_user/folder_where_the_cgi_bin_directory_is$fastcgi_script_name;
+}
+```
+
+- Now define the `nginx` configuration file.
+In our case we based our configuration on the `http.conf` file, provided [here](https://github.com/AMDESE/sev-guest/blob/main/attestation/nginx/http.conf).
+```
+worker_processes  1;
+
+user my_user my_group;
+
+events {
+  worker_connections  1024;
+}
+
+http {
+  default_type  application/octet-stream;
+
+  server {
+    ##
+    # Replace LISTEN_ADDRESS below with the external IP address of the
+    # web server, e.g.:
+    # sed -i "s/LISTEN_ADDRESS/${IP}/" attestation/nginx/http.conf
+    ##
+    listen LISTEN_ADDRESS:80;
+
+    server_name attestation.example.com;
+
+    # Fast cgi support from fcgiwrap
+    include /path/to/fcgiwrap.conf;
+    #include /usr/share/doc/fcgiwrap/examples/nginx.conf;
+  }
+}
+```
+
+- Validate your `nginx` configuration:
+```
+nginx -c /path/to/nginx/configuration/http.conf -t
+```
+
+- If everything is fine, start your `nginx` service:
+```
+nginx -c /path/to/nginx/configuration/http.conf
+```
+*Note*: If you want to reload/stop the service, just run `nginx -s reload`/`nginx -s quit` respectively.
