@@ -5,7 +5,7 @@ let
       ps.pexpect
       ps.matplotlib
     ]);
-  libraries = [ pixman zlib zstd glib libpng ];
+  libraries = [ pixman zlib zstd glib libpng snappy ];
 in
 mkShell {
   buildInputs = libraries;
@@ -17,6 +17,7 @@ mkShell {
     msr-tools
     linuxPackages_latest.kernel.dev
     unzip
+    rpm
 
     #for the sev-tool
     autoconf
