@@ -1,0 +1,24 @@
+{
+  "sessionKey": "user0",
+  "encryption": "true",
+  "default_policy": {
+      "purpose": [
+          "purpose0"
+      ],
+      "objection": [
+          "purpose5"
+      ],
+      "origin": [
+          "src0"
+      ],
+      "expTime": [
+          "0"
+      ],
+      "objShare": [
+          "user0"
+      ],
+      "monitor": [
+          "false"
+      ]
+  }
+}

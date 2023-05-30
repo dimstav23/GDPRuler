@@ -26,7 +26,7 @@ public:
     } else {
       // Redis server returns a NULL Bulk String Reply.
       // It's invalid to dereference a null Optional<T> object.
-      std::cout << "GET operation failed" << std::endl;
+      // std::cout << "GET operation failed" << std::endl;
     }
     return result;
   }

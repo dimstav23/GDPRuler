@@ -38,7 +38,7 @@ public:
       // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
       return response.get_data();
     }
-    std::cout << "GET operation failed" << std::endl;
+    // std::cout << "GET operation failed" << std::endl;
     return std::nullopt;
   }
 
