@@ -37,7 +37,7 @@ run_test() {
 
   # start clients in parallel and redirect their outputs to different files
   for ((i=1; i<=$n_clients; i++)); do
-    python GDPRuler.py --config ./configs/owner_policy.json --workload ./workload_traces/${workload_name} --db ${db} > ${test_outputs_folder}/${test_name_suffix}_client_${i}.txt &
+    python GDPRuler.py --config ./configs/log_test_user.json --workload ./workload_traces/${workload_name} --db ${db} > ${test_outputs_folder}/${test_name_suffix}_client_${i}.txt &
     pids[${i}]=$!
   done
 
@@ -115,7 +115,7 @@ mkdir -p ${test_outputs_folder}
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
 clients="1 2 4 8 16 32"
 dbs="rocksdb redis"
-workloads="workloada_test workloadb_test workloadc_test workloadd_test workloadf_test"
+workloads="workload_monitor_0 workload_monitor_10 workload_monitor_20 workload_monitor_50 workload_monitor_100"
 
 for n_clients in $clients; do
   for db in $dbs; do
