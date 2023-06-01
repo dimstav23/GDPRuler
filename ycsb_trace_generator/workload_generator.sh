@@ -78,6 +78,16 @@ python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GD
 sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workload_monitor_100|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_100 
 python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_100
 
+### workload monitor vanilla (has the same configs with monitor workloads but does not contain any metadata)
+echo "Generating trace for workload workload_monitor_vanilla in ${TRACE_FOLDER}/workload_monitor_vanilla"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workload_monitor_vanilla
+# set the trace path in the workload config: workload_monitor_vanilla for load, workload_monitor_vanilla for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workload_monitor_vanilla|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_vanilla 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_vanilla
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workload_monitor_vanilla|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_vanilla 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_vanilla
+
 # ### workload A
 echo "Generating trace for workload A in ${TRACE_FOLDER}/workloada"
 # remove trace file, if it exists
