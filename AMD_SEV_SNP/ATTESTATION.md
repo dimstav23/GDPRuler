@@ -26,12 +26,22 @@ Tested with [this](https://github.com/AMDESE/AMDSEV/tree/b04cde73313687cbd6c21c4
 Therefore, you now need to run `sudo modprobe sev-guest` to load the kernel module.
 For more information about this undocumented phenomenon of SEV-SNP guests, you can have a look at [this thesis](https://kth.diva-portal.org/smash/get/diva2:1737821/FULLTEXT01.pdf).
 
-6. Now, go back to the base directory and install the [`sev-guest`](https://github.com/AMDESE/sev-guest/tree/main) utility. 
+6. The remote attestation is perform using the [`snpguest`](https://github.com/virtee/snpguest) tool which is linked as a submodule in the existing [`sev-snp-attestation`](https://github.com/dimstav23/sev-snp-attestation) submodule. So, run `git submodule update --init --recursive` to fetch them all. 
+
+7. Compile the `snpguest` utility. A simple `cargo build` in its root folder should do the job. The required `rust nightly` version is already included in the `default.nix` of this project.
+
+8. Follow the documentation of the [`sev-snp-attestation`](https://github.com/dimstav23/sev-snp-attestation) to perform the mutual attestation using self-signed certificates. The `server.py` should be executed inside the guest VM while the `client.py` resembles the side of the attester.
+
+## Alternative solution (not tested & not maintained)
+
+After you complete steps 1-5 above:
+
+1. H back to the base directory and install the [`sev-guest`](https://github.com/AMDESE/sev-guest/tree/main) utility. 
 Importantly, since the `sev-guest` repository is poorly maintained, you need to perform the steps listed [here](https://arkivm.github.io/sev/2022/11/25/running-amd-svsm/) to successfully compile it.
 More precisely, since you need to unpack the guest kernel’s libc-dev inside sev-guest using the `dpkg -x linux-libc-dev_{version}_amd64.deb ./libc-guest` where this `.deb` package is in the `AMDSEV/snp-release-{date}/linux/guest/` directory you used earlier.
 Then, perform the presented adaptations of the Makefile and run `make`.
 
-7. To get a simple attestation report, go to sev-guest directory and run `sudo ./sev-guest-get-report report.bin`.
+2. To get a simple attestation report, go to sev-guest directory and run `sudo ./sev-guest-get-report report.bin`.
 You can also parse the report to dump its contents `sudo ./sev-guest-parse-report report.bin`.
 
 **Known current issues:**

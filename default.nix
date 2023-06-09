@@ -5,6 +5,15 @@ let
       ps.pexpect
       ps.matplotlib
     ]);
+  fenix = callPackage
+    (fetchFromGitHub {
+      owner = "nix-community";
+      repo = "fenix";
+      # commit from: 2023-03-03
+      rev = "e2ea04982b892263c4d939f1cc3bf60a9c4deaa1";
+      hash = "sha256-AsOim1A8KKtMWIxG+lXh5Q4P2bhOZjoUhFWJ1EuZNNk=";
+    })
+    { };
   libraries = [ pixman zlib zstd glib libpng snappy ];
 in
 mkShell {
@@ -78,6 +87,12 @@ mkShell {
     doxygen
     codespell
     abseil-cpp
+  
+    #for the snpguest -- rust nightly is required
+    # cargo
+    # rustup
+    # Note: to use stable, just replace `default` with `stable`
+    fenix.default.toolchain
   ];
 
   # make install strips valueable libraries from our rpath
@@ -85,6 +100,9 @@ mkShell {
   shellHook = ''
     export KDIR=${linuxPackages_latest.kernel.dev}/lib/modules/${linuxPackages_latest.kernel.dev.modDirVersion}/build
     export PATH=${pythonEnv}/bin:$PATH
-  ''; 
+  '';
+
+  # Set Environment Variables
+  RUST_BACKTRACE = 1;
 }
 
