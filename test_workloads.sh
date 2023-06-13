@@ -54,7 +54,7 @@ run_test() {
     # tune script args. do not include user policy for native controller.
     script_args="$controller_path --workload ./workload_traces/$workload_name --db $db"
     if [ $controller == gdpr ]; then
-      script_args="$script_args --config ./configs/log_test_user.json"
+      script_args="$script_args --config ./configs/owner_policy.json"
     fi
     
     # run the workload
@@ -140,10 +140,11 @@ fi
 #   {1,2,4,8,16,32} clients,
 #   {redis, rocksdb} dbs,
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
-clients="1 2 4 8 16 32"
-dbs="redis rocksdb"
-workloads="workload_monitor_vanilla workload_monitor_0 workload_monitor_10 workload_monitor_20 workload_monitor_50 workload_monitor_100"
-controllers="native gdpr"
+clients="1"
+dbs="rocksdb"
+# workloads="workload_monitor_vanilla workload_monitor_0 workload_monitor_10 workload_monitor_20 workload_monitor_50 workload_monitor_100"
+workloads="workload_monitor_50 workloada_test workloadb_test workloadc_test workloadd_test workloadf_test"
+controllers="gdpr"
 
 for n_clients in $clients; do
   for db in $dbs; do
