@@ -1,6 +1,9 @@
 #!/bin/sh
 
 test_outputs_folder="test_outputs"
+test_results_csv_file="tests.csv"
+user=$(whoami)
+db_dump_and_logs_dir="/scratch/${user}/test_data"
 
 # start a test by running the server and clients
 # Args:
@@ -12,10 +15,22 @@ run_test() {
   local workload_name=$2
   local db=$3
   local test_name_suffix=${workload_name}_${db}_${n_clients}
+  local controller=$4
+  
+  # setup controller path
+  if [ $controller == gdpr ]; then
+    controller_path=GDPRuler.py
+  elif [ $controller == native ]; then
+    controller_path=native_ctl.py
+  fi
+
+  # clear logs and db dumps
+  rm -rf ${db_dump_and_logs_dir}
+  mkdir ${db_dump_and_logs_dir}
 
   if [ $db == rocksdb ]; then
     # run rocksdb server
-    ./controller/build/rocksdb_server 15001 ./db > ${test_outputs_folder}/${test_name_suffix}_server.txt &
+    ./controller/build/rocksdb_server 15001 ${db_dump_and_logs_dir} > ${test_outputs_folder}/${test_name_suffix}_server.txt &
 
     # wait for server to start up
     sleep 3
@@ -26,10 +41,10 @@ run_test() {
       exit
     fi
     # run redis server
-    ./KVs/redis/src/redis-server --protected-mode no > ${test_outputs_folder}/${test_name_suffix}_server.txt &
+    ./KVs/redis/src/redis-server --dir ${db_dump_and_logs_dir} --protected-mode no > ${test_outputs_folder}/${test_name_suffix}_server.txt &
 
     # wait for server to start up
-    sleep 3
+    sleep 10
   fi
 
   local controller_times=0
@@ -37,7 +52,14 @@ run_test() {
 
   # start clients in parallel and redirect their outputs to different files
   for ((i=1; i<=$n_clients; i++)); do
-    python GDPRuler.py --config ./configs/owner_policy.json --workload ./workload_traces/${workload_name} --db ${db} > ${test_outputs_folder}/${test_name_suffix}_client_${i}.txt &
+    # tune script args. do not include user policy for native controller.
+    script_args="$controller_path --workload ./workload_traces/$workload_name --db $db"
+    if [ $controller == gdpr ]; then
+      script_args="$script_args --config ./configs/owner_policy.json --logpath $db_dump_and_logs_dir"
+    fi
+    
+    # run the workload
+    python ${script_args} > ${test_outputs_folder}/${test_name_suffix}_client_${i}.txt &
     pids[${i}]=$!
   done
 
@@ -70,10 +92,11 @@ run_test() {
     
     sleep 3
   elif [ $db == redis ]; then
+    echo "Stopping redis server"
     # Stop redis server
     kill $(pgrep redis-server)
 
-    sleep 3
+    sleep 10
   fi
 
   # Remove the temp file for server output
@@ -88,9 +111,8 @@ run_test() {
   if [ $(echo "$avg_system_time < 0" | bc) -eq 1 ]; then
     avg_system_time="0$avg_system_time"
   fi
-  # Write the avg controller and system time to the result file
-  echo "$workload,controller_time,$avg_controller_time" > ${test_outputs_folder}/${test_name_suffix}.csv
-  echo "$workload,system_time,$avg_system_time" > ${test_outputs_folder}/${test_name_suffix}.csv
+  # Write the avg controller and system time to the result csv file
+  echo -e "$workload,$controller,$db,$n_clients,$avg_controller_time,$avg_system_time" >> ${test_outputs_folder}/${test_results_csv_file}
 
 }
 
@@ -109,20 +131,30 @@ cd ..
 # create test_outputs folder to store the output txt files
 mkdir -p ${test_outputs_folder}
 
+# create test outputs csv file
+if [ ! -f "${test_outputs_folder}/${test_results_csv_file}" ]; then
+  touch ${test_outputs_folder}/${test_results_csv_file}
+  echo -e "workload,controller,db,n_clients,controller_time,system_time" >> ${test_outputs_folder}/${test_results_csv_file}
+fi
+
 # TESTS with combibations of
 #   {1,2,4,8,16,32} clients,
 #   {redis, rocksdb} dbs,
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
 clients="1 2 4 8 16 32"
-dbs="rocksdb redis"
+dbs="redis rocksdb"
+#workloads="workload_monitor_vanilla workload_monitor_0 workload_monitor_10 workload_monitor_20 workload_monitor_50 workload_monitor_100"
 workloads="workloada_test workloadb_test workloadc_test workloadd_test workloadf_test"
+controllers="native gdpr"
 
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
-      echo "Starting a test with $n_clients clients, $db store, and $workload."
-      run_test $n_clients $workload $db
-      echo ""
+      for controller in $controllers; do
+        echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload."
+        run_test $n_clients $workload $db $controller
+        echo ""
+      done
     done
   done
 done
