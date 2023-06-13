@@ -2,6 +2,7 @@
 
 test_outputs_folder="test_outputs"
 test_results_csv_file="tests.csv"
+db_dump_and_logs_dir="/scratch/eaypek/test_data"
 
 # start a test by running the server and clients
 # Args:
@@ -22,13 +23,13 @@ run_test() {
     controller_path=native_ctl.py
   fi
 
-  # clear logs
-  rm -rf logs/
+  # clear logs and db dumps
+  rm -rf ${db_dump_and_logs_dir}
+  mkdir ${db_dump_and_logs_dir}
 
   if [ $db == rocksdb ]; then
     # run rocksdb server
-    rm -rf ./db
-    ./controller/build/rocksdb_server 15001 ./db > ${test_outputs_folder}/${test_name_suffix}_server.txt &
+    ./controller/build/rocksdb_server 15001 ${db_dump_and_logs_dir} > ${test_outputs_folder}/${test_name_suffix}_server.txt &
 
     # wait for server to start up
     sleep 3
@@ -39,8 +40,7 @@ run_test() {
       exit
     fi
     # run redis server
-    rm -rf ./KVs/redis/dump.rdb
-    ./KVs/redis/src/redis-server --protected-mode no > ${test_outputs_folder}/${test_name_suffix}_server.txt &
+    ./KVs/redis/src/redis-server --dir ${db_dump_and_logs_dir} --protected-mode no > ${test_outputs_folder}/${test_name_suffix}_server.txt &
 
     # wait for server to start up
     sleep 10
@@ -54,7 +54,7 @@ run_test() {
     # tune script args. do not include user policy for native controller.
     script_args="$controller_path --workload ./workload_traces/$workload_name --db $db"
     if [ $controller == gdpr ]; then
-      script_args="$script_args --config ./configs/owner_policy.json"
+      script_args="$script_args --config ./configs/owner_policy.json --logpath $db_dump_and_logs_dir"
     fi
     
     # run the workload
@@ -95,7 +95,7 @@ run_test() {
     # Stop redis server
     kill $(pgrep redis-server)
 
-    sleep 15
+    sleep 10
   fi
 
   # Remove the temp file for server output
