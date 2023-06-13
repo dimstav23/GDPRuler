@@ -2,7 +2,8 @@
 
 test_outputs_folder="test_outputs"
 test_results_csv_file="tests.csv"
-db_dump_and_logs_dir="/scratch/eaypek/test_data"
+user=$(whoami)
+db_dump_and_logs_dir="/scratch/${user}/test_data"
 
 # start a test by running the server and clients
 # Args:
