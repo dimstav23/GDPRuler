@@ -5,6 +5,7 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <algorithm>
 
 #ifndef NDEBUG
 #include "cipher_print_utils.hpp"
