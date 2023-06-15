@@ -14,9 +14,9 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
-#ifndef ENCRYPTION_ENABLED
-  #define ENCRYPTION_ENABLED
-#endif
+// #ifndef ENCRYPTION_ENABLED
+//   // #define ENCRYPTION_ENABLED
+// #endif
 
 // Encryption key types
 enum class cipher_key_type {

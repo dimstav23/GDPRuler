@@ -13,6 +13,17 @@ project(
 include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
 
+# Set the default value for ENCRYPTION_ENABLED to ON
+option(ENCRYPTION_ENABLED "Enable encryption" ON)
+
+# Add a preprocessor definition based on the ENCRYPTION_ENABLED option
+if(ENCRYPTION_ENABLED)
+  add_definitions(-DENCRYPTION_ENABLED)
+  message(STATUS "Encryption enabled: ON")
+else()
+  message(STATUS "Encryption enabled: OFF")
+endif()
+
 # ---- Declare library ----
 
 add_library(
