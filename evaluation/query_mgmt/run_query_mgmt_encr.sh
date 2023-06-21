@@ -77,7 +77,7 @@ run_test() {
     fi
     
     # run the workload
-    python ${script_args} > ${outputs_folder}/${test_name_suffix}_client_${i}.txt &
+    python3 ${script_args} > ${outputs_folder}/${test_name_suffix}_client_${i}.txt &
     pids[${i}]=$!
   done
 
@@ -156,12 +156,15 @@ fi
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
 # clients="1 2 4 8 16 32"
 clients="1"
-dbs="redis rocksdb"
+#dbs="redis rocksdb"
+dbs="redis"
 #workloads="workload_monitor_vanilla workload_monitor_0 workload_monitor_10 workload_monitor_20 workload_monitor_50 workload_monitor_100"
 # workloads="workloada_test workloadb_test workloadc_test workloadd_test workloadf_test"
 # workloads="workloada_test workloadb_test"
-workloads="workloada workloadb workloadc workloadd workloadf"
-controllers="native gdpr"
+# workloads="workloada workloadb workloadc workloadd workloadf"
+workloads="workloadf"
+#controllers="native gdpr"
+controllers="gdpr"
 
 for n_clients in $clients; do
   for db in $dbs; do

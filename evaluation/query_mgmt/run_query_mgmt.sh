@@ -77,7 +77,7 @@ run_test() {
     fi
     
     # run the workload
-    python ${script_args} > ${outputs_folder}/${test_name_suffix}_client_${i}.txt &
+    python3 ${script_args} > ${outputs_folder}/${test_name_suffix}_client_${i}.txt &
     pids[${i}]=$!
   done
 
