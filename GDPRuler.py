@@ -18,9 +18,8 @@ def validate_encryption_key(key):
 def main():
   default_db_encryption_key = "0123456789abcdef"
   default_log_encryption_key = "abcdef0123456789"
-  parser = argparse.ArgumentParser(description='Start GDPRuler instance for a specific workload.')
+  parser = argparse.ArgumentParser(description='Start GDPRuler instance.')
   parser.add_argument('--config', help='path to the default config trace file', default=None, required=True, type=str)
-  parser.add_argument('--workload', help='path to the workload trace file', default=None, required=True, type=str)
   parser.add_argument('--db', help='db to use, one of {rocksdb,redis}', default=DbType.ROCKSDB, required=False, type=DbType)
   parser.add_argument('--db_address', help='db ip address for client to connect', default=None, required=False, type=str)
   parser.add_argument('--logpath', help='folder to place the gdpr log files', default="./logs", required=False, type=str)
