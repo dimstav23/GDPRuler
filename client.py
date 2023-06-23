@@ -22,13 +22,14 @@ def send_queries(server_address, server_port, workload_file, latency_results):
 
       # Receive the server's response
       response = client_socket.recv(1024).decode().strip()
-      print(response)
+      # print(response)
       end_time = time.perf_counter()  # End the timer
 
       # Calculate and accumulate the latency
       latency = end_time - start_time
       total_latency += latency
       request_count += 1
+      # print(request_count)
 
   # Close the connection
   client_socket.close()
