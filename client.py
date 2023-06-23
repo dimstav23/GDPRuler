@@ -4,6 +4,8 @@ import threading
 import time
 from policy_compiler.helper import safe_open
 
+exit_query="query(exit)\n"
+
 def send_queries(server_address, server_port, workload_file, latency_results):
   # Open a connection to the server
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -30,7 +32,8 @@ def send_queries(server_address, server_port, workload_file, latency_results):
       total_latency += latency
       request_count += 1
       # print(request_count)
-
+  
+  client_socket.send(exit_query.encode())
   # Close the connection
   client_socket.close()
 
@@ -70,8 +73,11 @@ def main():
   elapsed_time = end_time - start_time
 
   # Calculate and print the average latency
-  average_latency = sum(latency_results) / len(latency_results)
-  print(f"Average Latency: {average_latency:.6f} seconds")
+  if len(latency_results) > 0:
+    average_latency = sum(latency_results) / len(latency_results)
+    print(f"Average Latency: {average_latency:.6f} seconds")
+  else:
+    print("Did not gathered latency statistics --- experiments failed.")
 
   # Print the overall elapsed time
   print(f"Elapsed time: {elapsed_time:.3f} seconds")

@@ -43,7 +43,7 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     } else if (query_args.cmd() == "delete") {
       client->gdpr_del(query_args.key());
     } else if (query_args.cmd() == "exit") {
-      // std::cout << "Exiting..." << std::endl;
+      std::cout << "Client exiting..." << std::endl;
       break;
     } else {
       std::cout << "Invalid command" << std::endl;

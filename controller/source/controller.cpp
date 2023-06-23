@@ -189,7 +189,7 @@ auto handle_connection
 
     const query query_args(buffer.data());
     if (query_args.cmd() == "exit") [[unlikely]] {
-      std::cout << "Exiting..." << std::endl;
+      std::cout << "Client exiting..." << std::endl;
       break;
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
