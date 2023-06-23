@@ -108,7 +108,7 @@ static auto extract_key(const std::string& query) -> std::string
   
   if (open_quote == std::string::npos || close_quote == std::string::npos || close_quote <= open_quote) {
     std::cout << "Invalid query format: " << query << std::endl;
-    exit(1);
+    return "";
   }
   
   return query.substr(open_quote + 1, close_quote - open_quote - 1);

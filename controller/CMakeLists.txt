@@ -84,7 +84,7 @@ set_property(TARGET native_controller_exe PROPERTY OUTPUT_NAME native_controller
 
 target_compile_features(native_controller_exe PRIVATE cxx_std_20)
 
-target_link_libraries(native_controller_exe PRIVATE ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
+target_link_libraries(native_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
 
 # redis interface
 add_executable(redis_interface_exe source/redis_interface.cpp)

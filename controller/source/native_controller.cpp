@@ -1,11 +1,59 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <thread>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "kv_client/factory.hpp"
 #include "query.hpp"
 #include "common.hpp"
 // #include "argh.hpp"
+
+using controller::query;
+
+void handle_connection(int socket, const std::unique_ptr<kv_client> &client) {
+  std::array<char, max_msg_size> buffer{};
+  
+  while (true) {
+    // Read data from the socket
+    ssize_t bytes_read = recv(socket, buffer.data(), buffer.size() - 1, 0);
+    if (bytes_read <= 0) {
+      // Failed to read from socket or connection closed
+      break;
+    }
+    // Ensure non-negative value for valid length
+    auto valid_length = static_cast<std::array<char, max_msg_size>::size_type>(bytes_read);
+    if (valid_length >= buffer.size() - 1) {
+      valid_length = buffer.size() - 1;
+    }
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+    buffer[valid_length] = '\0';
+
+    const query query_args(buffer.data());
+    if (query_args.cmd() == "get") {
+      client->gdpr_get(query_args.key());
+    } else if (query_args.cmd() == "put") {
+      client->gdpr_put(query_args.key(), query_args.value());
+    } else if (query_args.cmd() == "delete") {
+      client->gdpr_del(query_args.key());
+    } else if (query_args.cmd() == "exit") {
+      // std::cout << "Exiting..." << std::endl;
+      break;
+    } else {
+      std::cout << "Invalid command" << std::endl;
+    }
+
+    // Send an acknowledgment (ACK) back to the client
+    std::string ack_message = "ACK";
+    ssize_t bytes_sent = send(socket, ack_message.c_str(), ack_message.length(), 0);
+    if (bytes_sent <= 0) {
+      // Failed to send ACK or connection closed
+      break;
+    }
+  }
+}
 
 auto main(int argc, char* argv[]) -> int
 { 
@@ -16,43 +64,55 @@ auto main(int argc, char* argv[]) -> int
     std::cerr << "--db {redis,rocksdb} argument is not passed!" << std::endl;
     std::quick_exit(1);
   }
-  std::string db_address = get_command_line_argument(args, "--address");
+  std::string db_address = get_command_line_argument(args, "--db_address");
+  // create the connection with the database instance
   std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
   
-  auto start = std::chrono::high_resolution_clock::now();
+  // Create a socket and accept for clients
+  std::string frontend_address = get_command_line_argument(args, "--frontend_address");
+  std::string frontend_port = get_command_line_argument(args, "--frontend_port");
 
-  std::string command;
-  std::string key;
-  std::string value;
-  while (true) {
-    std::cin >> command;
-    if (command == "get") {
-      std::cin >> key;
-      client->gdpr_get(key);
-    } else if (command == "put") {
-      std::cin >> key;
-      std::cin >> value;
-      client->gdpr_put(key, controller::get_value());
-    } else if (command == "del") {
-      std::cin >> key;
-      client->gdpr_del(key);
-    } else if (command == "exit") {
-      // std::cout << "Exiting..." << std::endl;
-      break;
-    } else {
-      std::cout << "Invalid command" << std::endl;
-      break;
-    }
+  int listen_socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (listen_socket == -1) {
+    std::cerr << "Failed to create socket" << std::endl;
+    return 1;
+  }
+  struct sockaddr_in server_address{};
+  server_address.sin_family = AF_INET;
+  server_address.sin_addr.s_addr = inet_addr(frontend_address.c_str());
+  server_address.sin_port = htons(static_cast<uint16_t>(std::stoi(frontend_port)));
+
+  // Bind the socket to the address and port
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  if (bind(listen_socket, reinterpret_cast<struct sockaddr*>(&server_address), sizeof(server_address)) == -1) {
+    std::cerr << "Failed to bind socket to address" << std::endl;
+    close(listen_socket);
+    return 1;
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = end - start;
-  auto duration_in_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-  auto duration_in_s = static_cast<long double>(duration_in_ns) / s2ns;
-  std::cout.precision(ns_precision);
-  std::cout << "Controller time: "
-            << std::fixed << duration_in_s
-            << " s" << std::endl;
+  // Start listening for incoming connections
+  if (listen(listen_socket, SOMAXCONN) == -1) {
+    std::cerr << "Failed to listen for connections" << std::endl;
+    close(listen_socket);
+    return 1;
+  }
+
+  while (true) {
+    // Accept an incoming connection
+    struct sockaddr_in client_address{};
+    socklen_t client_address_length = sizeof(client_address);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    int client_socket = accept4(listen_socket, reinterpret_cast<struct sockaddr*>(&client_address), 
+                                &client_address_length, SOCK_CLOEXEC);
+    if (client_socket == -1) {
+      std::cerr << "Failed to accept connection" << std::endl;
+      break;
+    }
+
+    // Create a new thread and pass the client socket to it
+    std::thread connection_thread(handle_connection, client_socket, std::ref(client));
+    connection_thread.detach();  // Detach the thread and let it run independently
+  }
 
   return 0;
 }
