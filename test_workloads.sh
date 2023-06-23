@@ -50,9 +50,6 @@ run_test() {
     sleep 10
   fi
 
-  local controller_times=0
-  local system_times=0
-
   # tune controller script args. do not include user policy for native controller.
   ctl_script_args="$controller_path --db $db"
   if [ $controller == gdpr ]; then
@@ -108,7 +105,7 @@ run_test() {
     sleep 10
   fi
 
-  # Remove the temp file for server output
+  # Remove the temp file for the outputs
   rm ${test_outputs_folder}/${test_name_suffix}_server.txt
   rm ${test_outputs_folder}/${test_name_suffix}_controller.txt
   rm ${test_outputs_folder}/${test_name_suffix}_clients.txt
