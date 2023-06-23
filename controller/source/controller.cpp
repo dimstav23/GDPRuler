@@ -165,10 +165,13 @@ auto handle_get_logs(const query &query_args,
 }
 
 auto handle_connection
-(int socket, const std::unique_ptr<kv_client> &client, const default_policy& def_policy) -> void 
+(int socket, const std::string& db_type, const std::string& db_address, const default_policy& def_policy) -> void 
 {
   std::array<char, max_msg_size> buffer{};
   
+  // create the connection with the database instance
+  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
+
   while (true) {
     // Read data from the socket
     ssize_t bytes_read = recv(socket, buffer.data(), buffer.size() - 1, 0);
@@ -253,7 +256,6 @@ auto main(int argc, char* argv[]) -> int
     std::quick_exit(1);
   }
   std::string db_address = get_command_line_argument(args, "--db_address");
-  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
   
   // set the log path based on the input parameter
   const std::string log_path = get_command_line_argument(args, "--logpath");
@@ -309,7 +311,7 @@ auto main(int argc, char* argv[]) -> int
     }
 
     // Create a new thread and pass the client socket to it
-    std::thread connection_thread(handle_connection, client_socket, std::ref(client), def_policy);
+    std::thread connection_thread(handle_connection, client_socket, db_type, db_address, def_policy);
     connection_thread.detach();  // Detach the thread and let it run independently
   }
 

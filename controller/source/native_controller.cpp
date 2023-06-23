@@ -13,8 +13,12 @@
 
 using controller::query;
 
-void handle_connection(int socket, const std::unique_ptr<kv_client> &client) {
+auto handle_connection(int socket, const std::string& db_type, const std::string& db_address) -> void
+{
   std::array<char, max_msg_size> buffer{};
+  
+  // create the connection with the database instance
+  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
   
   while (true) {
     // Read data from the socket
@@ -65,8 +69,6 @@ auto main(int argc, char* argv[]) -> int
     std::quick_exit(1);
   }
   std::string db_address = get_command_line_argument(args, "--db_address");
-  // create the connection with the database instance
-  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
   
   // Create a socket and accept for clients
   std::string frontend_address = get_command_line_argument(args, "--frontend_address");
@@ -110,7 +112,7 @@ auto main(int argc, char* argv[]) -> int
     }
 
     // Create a new thread and pass the client socket to it
-    std::thread connection_thread(handle_connection, client_socket, std::ref(client));
+    std::thread connection_thread(handle_connection, client_socket, db_type, db_address);
     connection_thread.detach();  // Detach the thread and let it run independently
   }
 
