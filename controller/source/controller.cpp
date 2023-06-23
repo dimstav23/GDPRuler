@@ -2,7 +2,12 @@
 #include <string>
 #include "absl/strings/match.h" // for StartsWith function
 #include <chrono>
+#include <thread>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <cassert>
+#include <functional>
 
 #include "default_policy.hpp"
 #include "query.hpp"
@@ -99,14 +104,12 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
 {
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
-
   // Check if the retrieved value requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-
   bool is_valid = filter->validate(query_args, def_policy);
   // Perform the logging of the (in)valid operation -- if needed
   monitor.monitor_query(is_valid);
-
+  
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then perform the delete operation
@@ -161,6 +164,67 @@ auto handle_get_logs(const query &query_args,
   }
 }
 
+auto handle_connection
+(int socket, const std::unique_ptr<kv_client> &client, const default_policy& def_policy) -> void 
+{
+  char buffer[1024];
+  
+  while (true) {
+    // Read data from the socket
+    ssize_t bytes_read = recv(socket, buffer, sizeof(buffer) - 1, 0);
+    if (bytes_read <= 0) {
+      // Failed to read from socket or connection closed
+      break;
+    }
+    buffer[bytes_read] = '\0';
+
+    const query query_args(buffer);
+    if (query_args.cmd() == "exit") [[unlikely]] {
+      std::cout << "Exiting..." << std::endl;
+      break;
+    }
+    else if (query_args.cmd() == "invalid") [[unlikely]] {
+      std::cout << "Invalid command" << std::endl;
+      break;
+    }
+    else [[likely]] {
+      if (query_args.cmd() == "get") {
+        handle_get(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "put") {
+        handle_put(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "delete") {
+        handle_delete(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "putm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "getm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "delm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "getlogs") {
+        // current client resembles the regulator
+        handle_get_logs(query_args, def_policy);
+      }
+      else {
+        std::cout << "Invalid command: " << query_args.cmd() << std::endl;
+      }
+    }
+
+    // Send an acknowledgment (ACK) back to the client for now
+    std::string ack_message = "ACK";
+    ssize_t bytes_sent = send(socket, ack_message.c_str(), ack_message.length(), 0);
+    if (bytes_sent <= 0) {
+      // Failed to send ACK or connection closed
+      break;
+    }
+  }
+}
+
 auto main(int argc, char* argv[]) -> int
 { 
   // read the default policy line
@@ -182,7 +246,7 @@ auto main(int argc, char* argv[]) -> int
     std::cerr << "--db {redis,rocksdb} argument is not passed!" << std::endl;
     std::quick_exit(1);
   }
-  std::string db_address = get_command_line_argument(args, "--address");
+  std::string db_address = get_command_line_argument(args, "--db_address");
   std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
   
   // set the log path based on the input parameter
@@ -197,60 +261,48 @@ auto main(int argc, char* argv[]) -> int
   const std::string log_encryption_key = get_command_line_argument(args, "--log_encryptionkey");
   assert(cipher_engine::get_instance()->init_encryption_key(log_encryption_key, cipher_key_type::log_key));
 
-  auto start = std::chrono::high_resolution_clock::now();
+  // Create a socket and accept for clients
+  std::string frontend_address = get_command_line_argument(args, "--frontend_address");
+  std::string frontend_port = get_command_line_argument(args, "--frontend_port");
 
-  /* read the upcoming queries -- one per line */
-  std::string input_query;
-  while (true) {
-    std::getline(std::cin, input_query);
-    const query query_args(input_query);
+  int listen_socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (listen_socket == -1) {
+    std::cerr << "Failed to create socket" << std::endl;
+    return 1;
+  }
+  struct sockaddr_in server_address{};
+  server_address.sin_family = AF_INET;
+  server_address.sin_addr.s_addr = inet_addr(frontend_address.c_str());
+  server_address.sin_port = htons(std::stoi(frontend_port));
 
-    if (query_args.cmd() == "exit") [[unlikely]] {
-      // std::cout << "Exiting..." << std::endl;
-      break;
-    }
-    else if (query_args.cmd() == "invalid") [[unlikely]] {
-      std::cout << "Invalid command" << std::endl;
-      break;
-    }
-    else [[likely]] {
-      if (query_args.cmd() == "get") {
-        handle_get(client, query_args, def_policy);
-      }
-      else if (query_args.cmd() == "put") {
-        handle_put(client, query_args, def_policy);
-      }
-      else if (query_args.cmd() == "del") {
-        handle_delete(client, query_args, def_policy);
-      }
-      else if (query_args.cmd() == "putm") { /* ignore for now */
-        continue;
-      }
-      else if (query_args.cmd() == "getm") { /* ignore for now */
-        continue;
-      }
-      else if (query_args.cmd() == "delm") { /* ignore for now */
-        continue;
-      }
-      else if (query_args.cmd() == "getLogs") {
-        // current client resembles the regulator
-        handle_get_logs(query_args, def_policy);
-      }
-      else {
-        std::cout << "Invalid command: " << query_args.cmd() << std::endl;
-        break;
-      }
-    }
+  // Bind the socket to the address and port
+  if (bind(listen_socket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
+    std::cerr << "Failed to bind socket to address" << std::endl;
+    close(listen_socket);
+    return 1;
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = end - start;
-  auto duration_in_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-  auto duration_in_s = static_cast<long double>(duration_in_ns) / s2ns;
-  std::cout.precision(ns_precision);
-  std::cout << "Controller time: "
-            << std::fixed << duration_in_s
-            << " s" << std::endl;
+  // Start listening for incoming connections
+  if (listen(listen_socket, SOMAXCONN) == -1) {
+    std::cerr << "Failed to listen for connections" << std::endl;
+    close(listen_socket);
+    return 1;
+  }
+
+  while (true) {
+    // Accept an incoming connection
+    struct sockaddr_in client_address{};
+    socklen_t client_address_length = sizeof(client_address);
+    int client_socket = accept(listen_socket, (struct sockaddr*)&client_address, &client_address_length);
+    if (client_socket == -1) {
+      std::cerr << "Failed to accept connection" << std::endl;
+      break;
+    }
+
+    // Create a new thread and pass the client socket to it
+    std::thread connection_thread(handle_connection, client_socket, std::ref(client), def_policy);
+    connection_thread.detach();  // Detach the thread and let it run independently
+  }
 
   return 0;
 }

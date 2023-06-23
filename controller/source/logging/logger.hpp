@@ -242,7 +242,7 @@ private:
   }
 
   // Read and decode log entries from the log file
-  auto read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
+  auto static read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
     -> std::vector<std::string>
   {
     std::vector<std::string> entries;

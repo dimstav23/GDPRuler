@@ -20,6 +20,42 @@ auto inline get_value() -> std::string
   return value;
 }
 
+// Consts for query parsing
+// NOLINTBEGIN(cert-err58-cpp)
+const std::vector<std::string> policy_predicates = {
+  "eq",
+  "le",
+  "lt",
+  "ge",
+  "gt",
+  "sessionKey",
+  "sessionKeyIs",
+  "objExp",
+  "objExpIs",
+  "objPur",
+  "objPurIs",
+  "objOrig",
+  "objOrigIs",
+  "objShare",
+  "objShareIs",
+  "objObjections",
+  "objObjectionsIs",
+  "objOwner",
+  "objOwnerIs",
+  "monitor",
+  "query"
+};
+const std::vector<std::string> query_types = {
+  "put",
+  "get",
+  "delete",
+  "putm",
+  "getm",
+  "delm",
+  "getlogs"
+};
+// NOLINTEND(cert-err58-cpp)
+
 /* class for storing query info */
 class query
 {
@@ -55,9 +91,9 @@ public:
 
 private:
   
-  auto parse_get_logs(std::stringstream& stream_input) -> void;
-  auto parse_regular_query(std::stringstream& stream_input) -> void;
-  auto parse_option(const std::string& option, std::stringstream& stream_input) -> void;
+  auto process_predicate(const std::string &predicate) -> void;
+  auto parse_query(const std::string& reg_query_args) -> void;
+  auto parse_option(const std::string& option, const std::string& value) -> void;
 
   std::string m_name;
 
