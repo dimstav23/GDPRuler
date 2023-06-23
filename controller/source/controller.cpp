@@ -167,18 +167,24 @@ auto handle_get_logs(const query &query_args,
 auto handle_connection
 (int socket, const std::unique_ptr<kv_client> &client, const default_policy& def_policy) -> void 
 {
-  char buffer[1024];
+  std::array<char, max_msg_size> buffer{};
   
   while (true) {
     // Read data from the socket
-    ssize_t bytes_read = recv(socket, buffer, sizeof(buffer) - 1, 0);
+    ssize_t bytes_read = recv(socket, buffer.data(), buffer.size() - 1, 0);
     if (bytes_read <= 0) {
       // Failed to read from socket or connection closed
       break;
     }
-    buffer[bytes_read] = '\0';
+    // Ensure non-negative value for valid length
+    auto valid_length = static_cast<std::array<char, max_msg_size>::size_type>(bytes_read);
+    if (valid_length >= buffer.size() - 1) {
+      valid_length = buffer.size() - 1;
+    }
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+    buffer[valid_length] = '\0';
 
-    const query query_args(buffer);
+    const query query_args(buffer.data());
     if (query_args.cmd() == "exit") [[unlikely]] {
       std::cout << "Exiting..." << std::endl;
       break;
@@ -273,10 +279,11 @@ auto main(int argc, char* argv[]) -> int
   struct sockaddr_in server_address{};
   server_address.sin_family = AF_INET;
   server_address.sin_addr.s_addr = inet_addr(frontend_address.c_str());
-  server_address.sin_port = htons(std::stoi(frontend_port));
+  server_address.sin_port = htons(static_cast<uint16_t>(std::stoi(frontend_port)));
 
   // Bind the socket to the address and port
-  if (bind(listen_socket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  if (bind(listen_socket, reinterpret_cast<struct sockaddr*>(&server_address), sizeof(server_address)) == -1) {
     std::cerr << "Failed to bind socket to address" << std::endl;
     close(listen_socket);
     return 1;
@@ -293,7 +300,9 @@ auto main(int argc, char* argv[]) -> int
     // Accept an incoming connection
     struct sockaddr_in client_address{};
     socklen_t client_address_length = sizeof(client_address);
-    int client_socket = accept(listen_socket, (struct sockaddr*)&client_address, &client_address_length);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    int client_socket = accept4(listen_socket, reinterpret_cast<struct sockaddr*>(&client_address), 
+                                &client_address_length, SOCK_CLOEXEC);
     if (client_socket == -1) {
       std::cerr << "Failed to accept connection" << std::endl;
       break;

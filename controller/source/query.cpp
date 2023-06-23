@@ -76,8 +76,8 @@ auto query::process_predicate(const std::string& predicate) -> void
     std::size_t query_cmd_end = pred_val.find('(');
     this->m_cmd = pred_val.substr(0, query_cmd_end);
     // Convert this->m_cmd to lowercase
-    std::transform(this->m_cmd.begin(), this->m_cmd.end(), this->m_cmd.begin(), [](unsigned char c) {
-      return std::tolower(c);
+    std::transform(this->m_cmd.begin(), this->m_cmd.end(), this->m_cmd.begin(), [](unsigned char cmd_char) {
+      return std::tolower(cmd_char);
     });
 
     if (this->m_cmd == "exit") [[unlikely]] {
@@ -129,6 +129,7 @@ auto query::parse_query(const std::string& reg_query_args) -> void
   }
 }
 
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 auto query::parse_option(const std::string& option, const std::string& value) -> void
 {
   if (option == "sessionKey") {
