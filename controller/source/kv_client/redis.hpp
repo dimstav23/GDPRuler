@@ -17,17 +17,17 @@ public:
   auto get(const std::string& key) -> std::optional<std::string> override
   {
     auto result = m_redis.get(key);
-    if (result) {
-      // Key exists. Dereference val to get the string result.
-      // #ifndef NDEBUG
-      // std::cout << "GET operation done with key: " << key
-      //           << " and value: " << *result << std::endl;
-      // #endif
-    } else {
-      // Redis server returns a NULL Bulk String Reply.
-      // It's invalid to dereference a null Optional<T> object.
-      // std::cout << "GET operation failed" << std::endl;
-    }
+    // if (result) {
+    //   // Key exists. Dereference val to get the string result.
+    //   // #ifndef NDEBUG
+    //   // std::cout << "GET operation done with key: " << key
+    //   //           << " and value: " << *result << std::endl;
+    //   // #endif
+    // } else {
+    //   // Redis server returns a NULL Bulk String Reply.
+    //   // It's invalid to dereference a null Optional<T> object.
+    //   // std::cout << "GET operation failed" << std::endl;
+    // }
     return result;
   }
 

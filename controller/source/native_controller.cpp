@@ -36,26 +36,50 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     buffer[valid_length] = '\0';
 
     const query query_args(buffer.data());
+    std::string response;
+
     if (query_args.cmd() == "get") {
-      client->gdpr_get(query_args.key());
+      auto ret_val = client->gdpr_get(query_args.key());
+      if (ret_val) {
+        response = ret_val.value();
+      } else {
+        response = "GET_FAILED: Invalid key";
+      }
     } else if (query_args.cmd() == "put") {
-      client->gdpr_put(query_args.key(), query_args.value());
+      bool success = client->gdpr_put(query_args.key(), query_args.value());
+      if (success) {
+        response = "PUT_SUCCESS";
+      } else {
+        response = "PUT_FAILED: Failed to put value";
+      }
     } else if (query_args.cmd() == "delete") {
-      client->gdpr_del(query_args.key());
+      bool success = client->gdpr_del(query_args.key()); 
+      if (success) {
+        response = "DELETE_SUCCESS";
+      } else {
+        response = "DELETE_FAILED: Failed to delete key";
+      }
     } else if (query_args.cmd() == "exit") {
       std::cout << "Client exiting..." << std::endl;
       break;
     } else {
-      std::cout << "Invalid command" << std::endl;
+      // std::cout << "Invalid command" << std::endl;
+      response = "Invalid command";
     }
 
-    // Send an acknowledgment (ACK) back to the client
-    std::string ack_message = "ACK";
-    ssize_t bytes_sent = send(socket, ack_message.c_str(), ack_message.length(), 0);
+    ssize_t bytes_sent = send(socket, response.c_str(), response.length(), 0);
     if (bytes_sent <= 0) {
-      // Failed to send ACK or connection closed
+      // Failed to send response or connection closed
       break;
     }
+
+    // // Send an acknowledgment (ACK) back to the client
+    // std::string ack_message = "ACK";
+    // ssize_t bytes_sent = send(socket, ack_message.c_str(), ack_message.length(), 0);
+    // if (bytes_sent <= 0) {
+    //   // Failed to send ACK or connection closed
+    //   break;
+    // }
   }
 }
 
