@@ -245,6 +245,7 @@ auto handle_connection
     ssize_t bytes_sent = send(socket, response.c_str(), response.length(), 0);
     if (bytes_sent <= 0) {
       // Failed to send response or connection closed
+      std::cerr << "Failed to send response to the client or the connection is closed." << std::endl;
       break;
     }
 
