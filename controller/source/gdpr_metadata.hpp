@@ -117,4 +117,22 @@ auto inline get_expiration_time(int64_t secs_from_now) -> int64_t {
   return std::chrono::duration_cast<std::chrono::seconds>(expiration_time.time_since_epoch()).count();
 }
 
+/**
+ * Removes the metadata from the given string containing GDPR metadata and returns the actual value.
+ * The input string is modified in-place.
+ *
+ * @param value The string containing the GDPR metadata and actual value.
+ * @return The actual value after removing the metadata.
+ */
+auto inline remove_gdpr_metadata(std::string &value) -> std::string {
+  size_t last_delimiter_idx = value.find_last_of('|');
+  if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
+  {
+    // Erase the metadata and return the actual value
+    value.erase(0, last_delimiter_idx + 1);
+  }  
+  return value;
+}
+
+
 } // namespace controller

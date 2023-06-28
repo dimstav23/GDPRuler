@@ -45,7 +45,7 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then return the value of the get operation
-    return res.value();
+    return controller::remove_gdpr_metadata(res.value());
   }
   
   return "GET_FAILED: Invalid key or does not comply with GDPR rules";
