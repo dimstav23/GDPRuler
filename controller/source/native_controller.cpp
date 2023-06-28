@@ -95,18 +95,20 @@ auto main(int argc, char* argv[]) -> int
   std::string db_address = get_command_line_argument(args, "--db_address");
   
   // Create a socket and accept for clients
-  std::string frontend_address = get_command_line_argument(args, "--frontend_address");
-  std::string frontend_port = get_command_line_argument(args, "--frontend_port");
+  std::string controller_address = get_command_line_argument(args, "--controller_address");
+  std::string controller_port = get_command_line_argument(args, "--controller_port");
 
   int listen_socket = socket(AF_INET, SOCK_STREAM, 0);
   if (listen_socket == -1) {
     std::cerr << "Failed to create socket" << std::endl;
     return 1;
   }
+
+  // Setup the frontend server (controller) socket
   struct sockaddr_in server_address{};
   server_address.sin_family = AF_INET;
-  server_address.sin_addr.s_addr = inet_addr(frontend_address.c_str());
-  server_address.sin_port = htons(static_cast<uint16_t>(std::stoi(frontend_port)));
+  server_address.sin_addr.s_addr = inet_addr(controller_address.c_str());
+  server_address.sin_port = htons(static_cast<uint16_t>(std::stoi(controller_port)));
 
   // Bind the socket to the address and port
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
