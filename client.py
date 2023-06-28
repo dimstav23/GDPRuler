@@ -1,6 +1,6 @@
 import socket
 import argparse
-import threading
+import multiprocessing
 import time
 from policy_compiler.helper import safe_open
 
@@ -42,10 +42,10 @@ def send_queries(server_address, server_port, workload_file, latency_results):
     average_latency = total_latency / request_count
     latency_results.append(average_latency)
 
-def create_client_thread(server_address, server_port, workload_file, latency_results):
-  thread = threading.Thread(target=send_queries, args=(server_address, server_port, workload_file, latency_results))
-  thread.start()
-  return thread
+def create_client_process(server_address, server_port, workload_file, latency_results):
+  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, workload_file, latency_results))
+  process.start()
+  return process
 
 def main():
   parser = argparse.ArgumentParser(description='Start a client.')
@@ -58,15 +58,16 @@ def main():
   # Start the time measurement before sending the workload
   start_time = time.perf_counter()
 
-  latency_results = []
-  threads = []
+  manager = multiprocessing.Manager()
+  latency_results = manager.list()
+  processes = []
   for _ in range(args.clients):
-    thread = create_client_thread(args.address, args.port, args.workload, latency_results)
-    threads.append(thread)
+    process = create_client_process(args.address, args.port, args.workload, latency_results)
+    processes.append(process)
 
-  # Wait for all client threads to finish
-  for thread in threads:
-    thread.join()
+  # Wait for all client processes to finish
+  for process in processes:
+    process.join()
 
   # End the timer after the controller has returned
   end_time = time.perf_counter()
