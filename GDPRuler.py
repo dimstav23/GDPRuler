@@ -57,6 +57,15 @@ def main():
 
   # Wait for the controller process to exit
   controller.wait()
+  
+  # Read the stderr output
+  stderr_output = controller.stderr.read()
+  # Decode the output if it is in bytes format
+  if isinstance(stderr_output, bytes):
+    stderr_output = stderr_output.decode()
+  # Print the stderr output if it is not empty
+  if stderr_output:
+    print(stderr_output)
 
   return
 
