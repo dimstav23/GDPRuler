@@ -61,9 +61,9 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     std::memcpy(&msg_size, buffer.data(), sizeof(uint32_t));
     msg_size = ntohl(msg_size);
 
-    // Resize the buffer if needed
-    if (msg_size + header_size > buffer.size()) {
-      buffer.resize(msg_size + header_size);
+    // Resize the buffer if needed (+-1 for the null termination character)
+    if (msg_size + header_size > buffer.size() - 1) {
+      buffer.resize(msg_size + header_size + 1);
     }
 
     // Read the message data from the socket
@@ -73,6 +73,10 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
       std::cerr << "Failed to read the message or the connection is closed." << std::endl;
       break;
     }
+
+    // Set the termination character for the string
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    buffer[static_cast<size_t>(bytes_read) + header_size] = '\0';
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     const query query_args(buffer.data() + header_size);
@@ -90,6 +94,11 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     } else {
       // std::cout << "Invalid command" << std::endl;
       response = "Invalid command";
+    }
+
+    // Resize the buffer (if needed) to accommodate the response
+    if (header_size + response.length() > buffer.size()) {
+      buffer.resize(header_size + response.length());
     }
 
     // Prepare the response size header

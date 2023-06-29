@@ -37,11 +37,9 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
 
   // Check if the retrieved value requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-
   bool is_valid = filter->validate(query_args, def_policy);
   // Perform the logging of the (in)valid operation -- if needed
   monitor.monitor_query(is_valid);
-
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then return the value of the get operation
@@ -201,9 +199,9 @@ auto handle_connection
     std::memcpy(&msg_size, buffer.data(), sizeof(uint32_t));
     msg_size = ntohl(msg_size);
 
-    // Resize the buffer if needed
-    if (msg_size + header_size > buffer.size()) {
-      buffer.resize(msg_size + header_size);
+    // Resize the buffer if needed (+-1 for the null termination character)
+    if (msg_size + header_size > buffer.size() - 1) {
+      buffer.resize(msg_size + header_size + 1);
     }
 
     // Read the message data from the socket
@@ -213,6 +211,10 @@ auto handle_connection
       std::cerr << "Failed to read the message or the connection is closed." << std::endl;
       break;
     }
+
+    // Set the termination character for the string
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    buffer[static_cast<size_t>(bytes_read) + header_size] = '\0';
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     const query query_args(buffer.data() + header_size);
@@ -253,6 +255,11 @@ auto handle_connection
         // std::cout << "Invalid command: " << query_args.cmd() << std::endl;
         response = "Invalid command";
       }
+    }
+
+    // Resize the buffer (if needed) to accommodate the response
+    if (header_size + response.length() > buffer.size()) {
+      buffer.resize(header_size + response.length());
     }
 
     // Prepare the response size header
@@ -362,6 +369,6 @@ auto main(int argc, char* argv[]) -> int
     std::thread connection_thread(handle_connection, client_socket, db_type, db_address, def_policy);
     connection_thread.detach();  // Detach the thread and let it run independently
   }
-
+  
   return 0;
 }

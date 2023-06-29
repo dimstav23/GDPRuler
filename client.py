@@ -4,7 +4,7 @@ import multiprocessing
 import time
 from policy_compiler.helper import safe_open
 
-exit_query="query(exit)\0"
+exit_query="query(exit)\n"
 msg_header_size=4
 default_msg_buffer_size=8192
 
