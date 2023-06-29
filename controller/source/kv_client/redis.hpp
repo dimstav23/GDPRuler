@@ -39,7 +39,7 @@ public:
       // std::cout << "PUT operation done with key: " << key
       //           << " and value: " << value << std::endl;
     } else {
-      std::cout << "PUT operation failed" << std::endl;
+      // std::cout << "PUT operation failed" << std::endl;
       res = false;
     }
     return res;
@@ -52,8 +52,8 @@ public:
     if (result == 1) {
       // std::cout << "DEL operation done with key: " << key << std::endl;
     } else if (result == 0) {
-      std::cout << "DEL operation failed -- key " << key << " not found"
-                << std::endl;
+      // std::cout << "DEL operation failed -- key " << key << " not found"
+      //           << std::endl;
       res = false;
     }
     return res;

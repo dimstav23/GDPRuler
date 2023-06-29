@@ -57,7 +57,7 @@ public:
     if (response.op_is_successful()) {
       // std::cout << "PUT operation succeeded! Key: " << key << std::endl;
     } else {
-      std::cout << "PUT operation failed" << std::endl;
+      // std::cout << "PUT operation failed" << std::endl;
     }
     return response.op_is_successful();
   }
@@ -73,7 +73,7 @@ public:
     if (response.op_is_successful()) {
       // std::cout << "DELETE operation succeeded! Key: " << key << std::endl;
     } else {
-      std::cout << "DELETE operation failed" << std::endl;
+      // std::cout << "DELETE operation failed" << std::endl;
     }
     return response.op_is_successful();
   }
