@@ -11,8 +11,8 @@ def main():
   parser = argparse.ArgumentParser(description='Start Native controller instance.')
   parser.add_argument('--db', help='db to use, one of {rocksdb,redis}', default=DbType.ROCKSDB, required=False, type=DbType)
   parser.add_argument('--db_address', help='db IP address for client to connect', default=None, required=False, type=str)
-  parser.add_argument('--frontend_address', help='frontend IP address', default="127.0.0.1", required=False, type=str)
-  parser.add_argument('--frontend_port', help='frontend port', default="1312", required=False, type=str)
+  parser.add_argument('--controller_address', help='controller IP address', default="127.0.0.1", required=False, type=str)
+  parser.add_argument('--controller_port', help='controller port', default="1312", required=False, type=str)
   args = parser.parse_args()
 
   # Open the controller process
@@ -20,8 +20,8 @@ def main():
   process_args += ['--db', args.db]
   if args.db_address:
     process_args += ['--db_address', args.db_address]
-  process_args += ['--frontend_address', args.frontend_address]
-  process_args += ['--frontend_port', args.frontend_port]
+  process_args += ['--controller_address', args.controller_address]
+  process_args += ['--controller_port', args.controller_port]
   controller = subprocess.Popen(process_args, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
   
   # Wait for the controller process to exit

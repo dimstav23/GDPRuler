@@ -182,27 +182,40 @@ auto handle_get_logs(const query &query_args,
 auto handle_connection
 (int socket, const std::string& db_type, const std::string& db_address, const default_policy& def_policy) -> void 
 {
-  std::array<char, max_msg_size> buffer{};
+  constexpr size_t header_size = sizeof(uint32_t);  // Size of the header containing the message size
+  std::vector<char> buffer(max_msg_size);  // Buffer to hold the message and its size
   
   // create the connection with the database instance
   std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
 
   while (true) {
-    // Read data from the socket
-    ssize_t bytes_read = recv(socket, buffer.data(), buffer.size() - 1, 0);
-    if (bytes_read <= 0) {
-      // Failed to read from socket or connection closed
+    // Read the message size from the socket
+    ssize_t bytes_read = safe_sock_receive(socket, buffer.data(), header_size);
+    if (bytes_read != header_size) {
+      std::cerr << "Failed to read the message size or the connection is closed." << std::endl;
       break;
     }
-    // Ensure non-negative value for valid length
-    auto valid_length = static_cast<std::array<char, max_msg_size>::size_type>(bytes_read);
-    if (valid_length >= buffer.size() - 1) {
-      valid_length = buffer.size() - 1;
-    }
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
-    buffer[valid_length] = '\0';
+    
+    // Convert network byte order to host byte order
+    uint32_t msg_size = 0;
+    std::memcpy(&msg_size, buffer.data(), sizeof(uint32_t));
+    msg_size = ntohl(msg_size);
 
-    const query query_args(buffer.data());
+    // Resize the buffer if needed
+    if (msg_size + header_size > buffer.size()) {
+      buffer.resize(msg_size + header_size);
+    }
+
+    // Read the message data from the socket
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    bytes_read = safe_sock_receive(socket, buffer.data() + header_size, msg_size);
+    if (bytes_read != static_cast<ssize_t>(msg_size)) {
+      std::cerr << "Failed to read the message or the connection is closed." << std::endl;
+      break;
+    }
+
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const query query_args(buffer.data() + header_size);
     std::string response;
 
     if (query_args.cmd() == "exit") [[unlikely]] {
@@ -210,7 +223,7 @@ auto handle_connection
       break;
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
-      std::cout << "Invalid command" << std::endl;
+      // std::cout << "Invalid command" << std::endl;
       response = "Invalid command";
     }
     else [[likely]] {
@@ -242,20 +255,22 @@ auto handle_connection
       }
     }
 
-    ssize_t bytes_sent = send(socket, response.c_str(), response.length(), 0);
+    // Prepare the response size header
+    auto response_size = static_cast<uint32_t>(response.length());
+    response_size = htonl(response_size);
+    std::memcpy(buffer.data(), &response_size, header_size);
+
+    // Copy the response data to the buffer
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    std::memcpy(buffer.data() + header_size, response.c_str(), response.length());
+
+    // Send the response to the client
+    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response.length());
     if (bytes_sent <= 0) {
-      // Failed to send response or connection closed
-      std::cerr << "Failed to send response to the client or the connection is closed." << std::endl;
+      // Failed to send the response or connection closed
+      std::cerr << "Failed to send the response to the client or the connection is closed." << std::endl;
       break;
     }
-
-    // Send an acknowledgment (ACK) back to the client for now
-    // std::string ack_message = "ACK";
-    // ssize_t bytes_sent = send(socket, ack_message.c_str(), ack_message.length(), 0);
-    // if (bytes_sent <= 0) {
-    //   // Failed to send ACK or connection closed
-    //   break;
-    // }
   }
 }
 

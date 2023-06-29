@@ -4,43 +4,73 @@ import multiprocessing
 import time
 from policy_compiler.helper import safe_open
 
-exit_query="query(exit)\n"
+exit_query="query(exit)\0"
+msg_header_size=4
+default_msg_buffer_size=8192
+
+def safe_receive(socket, size):
+    """
+    Safely receives data from a socket, ensuring that the desired number of bytes are received.
+    Args:
+      socket (socket.socket): The socket object used for communication.
+      size (int): The number of bytes to receive.
+    Returns:
+      bytes: The received data, or an empty bytes object if receiving fails.
+    """
+    data = b""
+    total_bytes_received = 0
+    while total_bytes_received < size:
+      chunk = socket.recv(size - total_bytes_received)
+      if not chunk:
+        # Failed to receive data or connection closed
+        return b""
+      data += chunk
+      total_bytes_received += len(chunk)
+    return data
 
 def send_queries(server_address, server_port, workload_file, latency_results):
-  # Open a connection to the server
-  client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  client_socket.connect((server_address, server_port))
+    # Open a connection to the server
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((server_address, server_port))
 
-  # Read the contents of the workload file line by line
-  total_latency = 0
-  request_count = 0
-  with safe_open(workload_file, 'r') as file:
-    for line in file:
-      if line.startswith("#"):
-        continue  # Skip queries starting with '#'
-      # Send each line to the server
-      start_time = time.perf_counter()  # Start the timer
-      client_socket.send(line.encode())
+    # Read the contents of the workload file line by line
+    total_latency = 0
+    request_count = 0
+    with safe_open(workload_file, 'r') as file:
+      for line in file:
+        if line.startswith("#"):
+          continue  # Skip queries starting with '#'
+        
+        start_time = time.perf_counter()  # Start the timer
 
-      # Receive the server's response
-      response = client_socket.recv(1024).decode().strip()
-      # print(response)
-      end_time = time.perf_counter()  # End the timer
+        # Send each line to the server with message size header
+        query = line.encode()
+        msg_size = len(query).to_bytes(msg_header_size, 'big')
+        client_socket.sendall(msg_size + query)
 
-      # Calculate and accumulate the latency
-      latency = end_time - start_time
-      total_latency += latency
-      request_count += 1
-      # print(request_count)
-  
-  client_socket.send(exit_query.encode())
-  # Close the connection
-  client_socket.close()
+        # Receive the server's response with message size header
+        response_size_data = safe_receive(client_socket, msg_header_size)
+        response_size = int.from_bytes(response_size_data, 'big')
+        response = safe_receive(client_socket, response_size).decode().strip()
+        # print(response)
+        end_time = time.perf_counter()  # End the timer
 
-  # Save the average latency
-  if request_count > 0:
-    average_latency = total_latency / request_count
-    latency_results.append(average_latency)
+        # Calculate and accumulate the latency
+        latency = end_time - start_time
+        total_latency += latency
+        request_count += 1
+
+    # Send exit query to the server
+    exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
+    client_socket.sendall(exit_msg_size + exit_query.encode())
+
+    # Close the connection
+    client_socket.close()
+
+    # Save the average latency
+    if request_count > 0:
+      average_latency = total_latency / request_count
+      latency_results.append(average_latency)
 
 def create_client_process(server_address, server_port, workload_file, latency_results):
   process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, workload_file, latency_results))

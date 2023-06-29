@@ -27,8 +27,8 @@ def main():
                       default=default_db_encryption_key, required=False, type=validate_encryption_key)
   parser.add_argument('--log_encryptionkey', help='Log encryption/decryption key. Expected to be exactly 16 chars', 
                       default=default_log_encryption_key, required=False, type=validate_encryption_key)
-  parser.add_argument('--frontend_address', help='frontend IP address', default="127.0.0.1", required=False, type=str)
-  parser.add_argument('--frontend_port', help='frontend port', default="1312", required=False, type=str)
+  parser.add_argument('--controller_address', help='controller IP address', default="127.0.0.1", required=False, type=str)
+  parser.add_argument('--controller_port', help='controller port', default="1312", required=False, type=str)
   args = parser.parse_args()
 
   user_policy = safe_open(args.config, "r") # open the file containing the default user configuration
@@ -47,8 +47,8 @@ def main():
     process_args += ['--db_encryptionkey', args.db_encryptionkey]
   if args.log_encryptionkey:
     process_args += ['--log_encryptionkey', args.log_encryptionkey]
-  process_args += ['--frontend_address', args.frontend_address]
-  process_args += ['--frontend_port', args.frontend_port]
+  process_args += ['--controller_address', args.controller_address]
+  process_args += ['--controller_port', args.controller_port]
   controller = subprocess.Popen(process_args, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
   # Write policy to process' standard input
