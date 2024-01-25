@@ -10,6 +10,6 @@ runcmd:
  - [ wget, https://raw.githubusercontent.com/dimstav23/GDPRuler/main/AMD_SEV_SNP/setup_vm.sh ]
  - [ chmod, +x, ./setup_vm.sh ]
  - [ sh, ./setup_vm.sh ]
-# cloud_final_modules:
-#   - [scripts-user, always]
+cloud_final_modules:
+  - [scripts-user, always]
 final_message: "Cloud init is done!"

@@ -17,32 +17,40 @@ export CXX="/usr/bin/clang++-${CLANG_VERSION}"
 cd /home/ubuntu
 
 # Fetch and install libredis++:
-git clone https://github.com/sewenew/redis-plus-plus.git
-cd redis-plus-plus
-mkdir build
-cd build
-cmake -DREDIS_PLUS_PLUS_CXX_STANDARD=17 ..
-make
-sudo make install
+if [ -d "redis-plus-plus" ]; then
+  echo "redis-plus-plus already exists -- skip cloning"
+else
+  git clone https://github.com/sewenew/redis-plus-plus.git
+  cd redis-plus-plus
+  mkdir build
+  cd build
+  cmake -DREDIS_PLUS_PLUS_CXX_STANDARD=17 ..
+  make
+  sudo make install
+fi
 
 # Fetch GDPRuler
 cd /home/ubuntu
-git clone https://github.com/dimstav23/GDPRuler.git
-cd GDPRuler
-git submodule update --init
+if [ -d "GDPRuler" ]; then
+  echo "GDPRuler already exists -- skip cloning"
+else
+  git clone https://github.com/dimstav23/GDPRuler.git
+  cd GDPRuler
+  git submodule update --init
 
-# Compile redis to get the redis-server exec:
-cd /home/ubuntu/GDPRuler/KVs/redis/
-make BUILD_TLS=yes MALLOC=libc
-# Optional command to test the success of the installation
-make test
+  # Compile redis to get the redis-server exec:
+  cd /home/ubuntu/GDPRuler/KVs/redis/
+  make BUILD_TLS=yes MALLOC=libc
+  # Optional command to test the success of the installation
+  make test
 
-# Compile the controller (release version)
-cd /home/ubuntu/GDPRuler/controller
-cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
-cmake --build build
+  # Compile the controller (release version)
+  cd /home/ubuntu/GDPRuler/controller
+  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
+  cmake --build build
 
-# Optional -- workload generation
-sudo apt-get install -y maven python2
-cd /home/ubuntu/GDPRuler/ycsb_trace_generator
-./workload_generator.sh
+  # Optional -- workload generation
+  sudo apt-get install -y maven python2
+  cd /home/ubuntu/GDPRuler/ycsb_trace_generator
+  ./workload_generator.sh
+fi

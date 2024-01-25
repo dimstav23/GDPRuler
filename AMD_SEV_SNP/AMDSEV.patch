@@ -1,15 +1,15 @@
 diff --git a/common.sh b/common.sh
-index 9eee947..5d707a3 100755
+index 9eee947..5e9a7a5 100755
 --- a/common.sh
 +++ b/common.sh
 @@ -40,8 +40,10 @@ build_kernel()
  
  		if [ "${V}" = "guest" ]; then
  			BRANCH="${KERNEL_GUEST_BRANCH}"
-+      GIT_COMMIT="${KERNEL_GUEST_COMMIT}"
++			GIT_COMMIT="${KERNEL_GUEST_COMMIT}"
  		else
  			BRANCH="${KERNEL_HOST_BRANCH}"
-+      GIT_COMMIT="${KERNEL_HOST_COMMIT}"
++			GIT_COMMIT="${KERNEL_HOST_COMMIT}"
  		fi
  
  		# If ${KERNEL_GIT_URL} is ever changed, 'current' remote will be out
@@ -19,7 +19,7 @@ index 9eee947..5d707a3 100755
  			run_cmd git fetch current
 -			run_cmd git checkout current/${BRANCH}
 +			# run_cmd git checkout current/${BRANCH}
-+      run_cmd git checkout ${GIT_COMMIT}
++			run_cmd git checkout ${GIT_COMMIT}
  			COMMIT=$(git log --format="%h" -1 HEAD)
  
  			run_cmd "cp /boot/config-$(uname -r) .config"
@@ -29,8 +29,8 @@ index 9eee947..5d707a3 100755
  		run_cmd git fetch current
 -		run_cmd git checkout current/${OVMF_BRANCH}
 +		# run_cmd git checkout current/${OVMF_BRANCH}
-+    run_cmd git checkout ${OVMF_COMMIT}
-+    run_cmd git apply ${OVMF_PATCH}
++		run_cmd git checkout ${OVMF_COMMIT}
++		run_cmd git apply ${OVMF_PATCH}
  		run_cmd git submodule update --init --recursive
  		run_cmd make -C BaseTools
  		. ./edksetup.sh --reconfig
@@ -40,15 +40,23 @@ index 9eee947..5d707a3 100755
  		run_cmd git fetch current
 -		run_cmd git checkout current/${QEMU_BRANCH}
 +		# run_cmd git checkout current/${QEMU_BRANCH}
-+    run_cmd git checkout ${QEMU_COMMIT}
++		run_cmd git checkout ${QEMU_COMMIT}
  		run_cmd ./configure --target-list=x86_64-softmmu --prefix=$DEST
  		run_cmd $MAKE
  		run_cmd $MAKE install
 diff --git a/launch-qemu.sh b/launch-qemu.sh
-index cfbe7d3..0fb1e79 100755
+index cfbe7d3..51fe23c 100755
 --- a/launch-qemu.sh
 +++ b/launch-qemu.sh
-@@ -15,7 +15,8 @@ CPU_MODEL="EPYC-v4"
+@@ -1,5 +1,7 @@
+ #!/bin/bash
+ 
++THIS_DIR=$(dirname "$(readlink -f "$0")")
++
+ #
+ # user changeable parameters
+ #
+@@ -15,7 +17,8 @@ CPU_MODEL="EPYC-v4"
  MONITOR_PATH=monitor
  QEMU_CONSOLE_LOG=`pwd`/stdout.log
  CERTS_PATH=
@@ -58,16 +66,25 @@ index cfbe7d3..0fb1e79 100755
  
  SEV="0"
  SEV_ES="0"
-@@ -49,6 +50,8 @@ usage() {
+@@ -23,7 +26,7 @@ SEV_SNP="0"
+ ALLOW_DEBUG="0"
+ USE_GDB="0"
+ 
+-EXEC_PATH="./usr/local"
++EXEC_PATH="$THIS_DIR/usr/local"
+ UEFI_PATH="$EXEC_PATH/share/qemu"
+ 
+ usage() {
+@@ -49,6 +52,8 @@ usage() {
  	echo " -monitor PATH      Path to QEMU monitor socket (default: $MONITOR_PATH)"
  	echo " -log PATH          Path to QEMU console log (default: $QEMU_CONSOLE_LOG)"
  	echo " -certs PATH        Path to SNP certificate blob for guest (default: none)"
-+  echo " -bridge            Use the specified bridge device for networking"
-+  echo " -novirtio          Do not use virtio devices"
++	echo " -bridge            Use the specified bridge device for networking"
++	echo " -novirtio          Do not use virtio devices"
  	exit 1
  }
  
-@@ -56,7 +59,43 @@ add_opts() {
+@@ -56,7 +61,43 @@ add_opts() {
  	echo -n "$* " >> ${QEMU_CMDLINE}
  }
  
@@ -106,24 +123,24 @@ index cfbe7d3..0fb1e79 100755
 +}
 +
  exit_from_int() {
-+  stop_network
++	stop_network
 +
  	rm -rf ${QEMU_CMDLINE}
  	# restore the mapping
  	stty intr ^c
-@@ -152,6 +191,11 @@ while [ -n "$1" ]; do
+@@ -152,6 +193,11 @@ while [ -n "$1" ]; do
  		-certs) CERTS_PATH="$2"
  				shift
  				;;
-+    -bridge)	BRIDGE=$2
++		-bridge)	BRIDGE=$2
 +				shift
 +				;;
-+    -novirtio)  USE_VIRTIO=""
++		-novirtio)  USE_VIRTIO=""
 +				;;
  		*) 		usage
  				;;
  	esac
-@@ -241,7 +285,7 @@ add_opts "-no-reboot"
+@@ -241,7 +287,7 @@ add_opts "-no-reboot"
  # The OVMF binary, including the non-volatile variable store, appears as a
  # "normal" qemu drive on the host side, and it is exposed to the guest as a
  # persistent flash device.
@@ -132,7 +149,22 @@ index cfbe7d3..0fb1e79 100755
  add_opts "-drive if=pflash,format=raw,unit=1,file=${UEFI_VARS}"
  
  # add CDROM if specified
-@@ -322,6 +366,12 @@ fi
+@@ -251,10 +297,10 @@ add_opts "-drive if=pflash,format=raw,unit=1,file=${UEFI_VARS}"
+ # distros like Ubuntu 20.04 still only provide 4.1, so only enable
+ # usermode network if specifically requested.
+ if [ "$USE_DEFAULT_NETWORK" = "1" ]; then
+-    #echo "guest port 22 is fwd to host 8000..."
+-    #add_opts "-netdev user,id=vmnic,hostfwd=tcp::8000-:22 -device e1000,netdev=vmnic,romfile="
+-    add_opts "-netdev user,id=vmnic"
+-    add_opts " -device virtio-net-pci,disable-legacy=on,iommu_platform=true,netdev=vmnic,romfile="
++	#echo "guest port 22 is fwd to host 8000..."
++	#add_opts "-netdev user,id=vmnic,hostfwd=tcp::8000-:22 -device e1000,netdev=vmnic,romfile="
++	add_opts "-netdev user,id=vmnic"
++	add_opts " -device virtio-net-pci,disable-legacy=on,iommu_platform=true,netdev=vmnic,romfile="
+ fi
+ 
+ # If harddisk file is specified then add the HDD drive
+@@ -322,6 +368,12 @@ fi
  # start monitor on pty and named socket 'monitor'
  add_opts "-monitor pty -monitor unix:${MONITOR_PATH},server,nowait"
  
