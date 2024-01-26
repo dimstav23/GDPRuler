@@ -16,3 +16,6 @@
 [submodule "AMD_SEV_SNP/sev-snp-attestation"]
 	path = AMD_SEV_SNP/sev-snp-attestation
 	url = https://github.com/dimstav23/sev-snp-attestation.git
+[submodule "AMD_SEV_SNP/AMDSEV"]
+	path = AMD_SEV_SNP/AMDSEV
+	url = https://github.com/dimstav23/AMDSEV.git

@@ -14,7 +14,7 @@ let
       hash = "sha256-AsOim1A8KKtMWIxG+lXh5Q4P2bhOZjoUhFWJ1EuZNNk=";
     })
     { };
-  libraries = [ pixman zlib zstd glib libpng snappy ];
+  libraries = [ pixman zlib zstd glib libpng snappy elfutils ];
 in
 mkShell {
   buildInputs = libraries;
@@ -41,6 +41,7 @@ mkShell {
     elfutils
     smatch
     rpm
+    libslirp
 
     #general
     bc
