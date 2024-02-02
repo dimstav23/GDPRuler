@@ -53,10 +53,11 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
+    // std::cout << "PUT operation request Key: " << key << std::endl;
     if (response.op_is_successful()) {
-      // std::cout << "PUT operation succeeded! Key: " << key << ", Value: " << value << std::endl;
+      // std::cout << "PUT operation succeeded! Key: " << key << std::endl;
     } else {
-      std::cout << "PUT operation failed" << std::endl;
+      // std::cout << "PUT operation failed" << std::endl;
     }
     return response.op_is_successful();
   }
@@ -72,7 +73,7 @@ public:
     if (response.op_is_successful()) {
       // std::cout << "DELETE operation succeeded! Key: " << key << std::endl;
     } else {
-      std::cout << "DELETE operation failed" << std::endl;
+      // std::cout << "DELETE operation failed" << std::endl;
     }
     return response.op_is_successful();
   }
@@ -101,7 +102,6 @@ private:
     std::vector<char> response_buffer(static_cast<size_t>(response_size));
     boost::asio::read(m_socket, boost::asio::buffer(response_buffer));
     std::string raw_response(response_buffer.begin(), response_buffer.end());
-
     return response_message::deserialize(raw_response);
   }
 };

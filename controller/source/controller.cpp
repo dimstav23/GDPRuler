@@ -2,7 +2,12 @@
 #include <string>
 #include "absl/strings/match.h" // for StartsWith function
 #include <chrono>
+#include <thread>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <cassert>
+#include <functional>
 
 #include "default_policy.hpp"
 #include "query.hpp"
@@ -25,32 +30,28 @@ using controller::gdpr_regulator;
 
 auto handle_get(const std::unique_ptr<kv_client> &client, 
                 const query &query_args,
-                const default_policy &def_policy) -> void 
+                const default_policy &def_policy) -> std::string 
 {
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
   // Check if the retrieved value requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-
   bool is_valid = filter->validate(query_args, def_policy);
   // Perform the logging of the (in)valid operation -- if needed
   monitor.monitor_query(is_valid);
-
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then return the value of the get operation
-    // TODO: write the value to the client socket
-    assert(res);
+    return controller::remove_gdpr_metadata(res.value());
   }
-  else {
-    // TODO: write FAILED_GET value to the client socket
-  }
+  
+  return "GET_FAILED: Invalid key or does not comply with GDPR rules";
 }
 
 auto handle_put(const std::unique_ptr<kv_client> &client, 
                 const query &query_args,
-                const default_policy &def_policy) -> void 
+                const default_policy &def_policy) -> std::string 
 {
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
@@ -67,11 +68,14 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
     monitor.monitor_query(is_valid, rewriter.new_value());
     auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
-    // TODO: write ret_val value to the client socket
-    assert(ret_val);
+    if (ret_val) {
+      return "PUT_SUCCESS";
+    }
+    return "PUT_FAILED: Failed to put value";
   }
+
   // if the key exists and complies with the gdpr rules, perform the put
-  else if ((is_valid = filter->validate(query_args, def_policy))) {
+  if ((is_valid = filter->validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the 
     // gpdr metadata of the value -- only putm operations can
@@ -82,81 +86,197 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
     monitor.monitor_query(is_valid, rewriter.new_value());
     auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
-    // TODO: write ret_val value to the client socket
-    assert(ret_val);
+    if (ret_val) {
+      return "PUT_SUCCESS";
+    }
+    return "PUT_FAILED: Failed to put value";
   }
-  else {
-    // Perform the logging of the invalid operation -- if needed
-    auto monitor = gdpr_monitor(filter, query_args, def_policy);
-    monitor.monitor_query(is_valid);
-    // TODO: write FAILED_PUT value to the client socket
-  }
+  
+  // Perform the logging of the invalid operation -- if needed
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+  monitor.monitor_query(is_valid);
+  return "PUT_FAILED: Invalid key or does not comply with GDPR rules";
+  
 }
 
 auto handle_delete(const std::unique_ptr<kv_client> &client, 
                   const query &query_args,
-                  const default_policy &def_policy) -> void 
+                  const default_policy &def_policy) -> std::string 
 {
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
-
   // Check if the retrieved value requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-
   bool is_valid = filter->validate(query_args, def_policy);
   // Perform the logging of the (in)valid operation -- if needed
   monitor.monitor_query(is_valid);
-
+  
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then perform the delete operation
     auto ret_val = client->gdpr_del(query_args.key());
-    // TODO: write ret_val value to the client socket
-    assert(ret_val);
+
+    if (ret_val) {
+      return "DELETE_SUCCESS";
+    }
+    return "DELETE_FAILED: Failed to delete key";
   }
-  else {
-    // TODO: write FAILED_DELETE value to the client socket
-  }
+
+  return "DELETE_FAILED: Invalid key or does not comply with GDPR rules";
 }
 
 auto handle_get_logs(const query &query_args,
-                     const default_policy &def_policy) -> void 
+                     const default_policy &def_policy) -> std::string 
 {
 
   /* if the current key does not match with the regulator key, return */
   if (!gdpr_regulator::validate_reg_key(query_args, def_policy)) {
-    std::cout << "getLogs query requested without the regulator key." << std::endl;
-    return;
+    // std::cout << "getLogs query requested without the regulator key." << std::endl;
+    return "GET_LOGS_FAILED: Invalid regulator key";
   }
 
   auto regulator = gdpr_regulator(); 
+  std::stringstream response;
 
   if (query_args.log_key() == "read_all") {
-    std::cout << "Reading all the log files..." << std::endl;
+    // std::cout << "Reading all the log files..." << std::endl;
+    response << "Reading all the log files:" << std::endl;
     std::vector<std::string> log_files = regulator.retrieve_logs();
     // TODO: redirect this output to the regulator secure channel
     for (const auto& log : log_files) {
-      std::cout << "Log file: " << log << std::endl;
+      // std::cout << "Log file: " << log << std::endl;
+      response << "Log file: " << log << std::endl;
       std::vector<std::string> log_entries = regulator.read_log(log);
       for (const auto& entry : log_entries) {
-        std::cout << entry << std::endl;
+        // std::cout << entry << std::endl;
+        response << entry << std::endl;
       }
     }
   }
   else if (query_args.log_key() == "dir") {
-    std::cout << "Available log files:" << std::endl;
+    // std::cout << "Available log files:" << std::endl;
+    response << "Available log files:" << std::endl;
     std::vector<std::string> log_files = regulator.retrieve_logs();
     // TODO: redirect this output to the regulator secure channel
     for (const auto& log : log_files) {
-      std::cout << log << std::endl;
+      // std::cout << log << std::endl;
+      response << log << std::endl;
     }
   }
   else {
-    std::cout << "Reading the log file of key " << query_args.log_key() << ":" << std::endl;
+    // std::cout << "Reading the log file of key " << query_args.log_key() << ":" << std::endl;
+    response << "Reading the log file of key " << query_args.log_key() << ":" << std::endl;
     std::vector<std::string> log_entries = regulator.read_key_log(query_args.log_key());
     // TODO: redirect this output to the regulator secure channel
     for (const auto& entry : log_entries) {
-      std::cout << entry << std::endl;
+      // std::cout << entry << std::endl;
+      response << entry << std::endl;
+    }
+  }
+
+  return response.str();
+}
+
+auto handle_connection
+(int socket, const std::string& db_type, const std::string& db_address, const default_policy& def_policy) -> void 
+{
+  constexpr size_t header_size = sizeof(uint32_t);  // Size of the header containing the message size
+  std::vector<char> buffer(max_msg_size);  // Buffer to hold the message and its size
+  
+  // create the connection with the database instance
+  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
+
+  while (true) {
+    // Read the message size from the socket
+    ssize_t bytes_read = safe_sock_receive(socket, buffer.data(), header_size);
+    if (bytes_read != header_size) {
+      std::cerr << "Failed to read the message size or the connection is closed." << std::endl;
+      break;
+    }
+    
+    // Convert network byte order to host byte order
+    uint32_t msg_size = 0;
+    std::memcpy(&msg_size, buffer.data(), sizeof(uint32_t));
+    msg_size = ntohl(msg_size);
+
+    // Resize the buffer if needed (+-1 for the null termination character)
+    if (msg_size + header_size > buffer.size() - 1) {
+      buffer.resize(msg_size + header_size + 1);
+    }
+
+    // Read the message data from the socket
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    bytes_read = safe_sock_receive(socket, buffer.data() + header_size, msg_size);
+    if (bytes_read != static_cast<ssize_t>(msg_size)) {
+      std::cerr << "Failed to read the message or the connection is closed." << std::endl;
+      break;
+    }
+
+    // Set the termination character for the string
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    buffer[static_cast<size_t>(bytes_read) + header_size] = '\0';
+
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const query query_args(buffer.data() + header_size);
+    std::string response;
+
+    if (query_args.cmd() == "exit") [[unlikely]] {
+      std::cout << "Client exiting..." << std::endl;
+      break;
+    }
+    else if (query_args.cmd() == "invalid") [[unlikely]] {
+      // std::cout << "Invalid command" << std::endl;
+      response = "Invalid command";
+    }
+    else [[likely]] {
+      if (query_args.cmd() == "get") {
+        response = handle_get(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "put") {
+        response = handle_put(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "delete") {
+        response = handle_delete(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "putm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "getm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "delm") { /* ignore for now */
+        continue;
+      }
+      else if (query_args.cmd() == "getlogs") {
+        // current client resembles the regulator
+        response = handle_get_logs(query_args, def_policy);
+      }
+      else {
+        // std::cout << "Invalid command: " << query_args.cmd() << std::endl;
+        response = "Invalid command";
+      }
+    }
+
+    // Resize the buffer (if needed) to accommodate the response
+    if (header_size + response.length() > buffer.size()) {
+      buffer.resize(header_size + response.length());
+    }
+
+    // Prepare the response size header
+    auto response_size = static_cast<uint32_t>(response.length());
+    response_size = htonl(response_size);
+    std::memcpy(buffer.data(), &response_size, header_size);
+
+    // Copy the response data to the buffer
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    std::memcpy(buffer.data() + header_size, response.c_str(), response.length());
+
+    // Send the response to the client
+    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response.length());
+    if (bytes_sent <= 0) {
+      // Failed to send the response or connection closed
+      std::cerr << "Failed to send the response to the client or the connection is closed." << std::endl;
+      break;
     }
   }
 }
@@ -182,8 +302,7 @@ auto main(int argc, char* argv[]) -> int
     std::cerr << "--db {redis,rocksdb} argument is not passed!" << std::endl;
     std::quick_exit(1);
   }
-  std::string db_address = get_command_line_argument(args, "--address");
-  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
+  std::string db_address = get_command_line_argument(args, "--db_address");
   
   // set the log path based on the input parameter
   const std::string log_path = get_command_line_argument(args, "--logpath");
@@ -191,66 +310,65 @@ auto main(int argc, char* argv[]) -> int
 
   // set the database encryption key based on the input parameter
   const std::string db_encryption_key = get_command_line_argument(args, "--db_encryptionkey");
-  assert(cipher_engine::get_instance()->init_encryption_key(db_encryption_key, cipher_key_type::db_key));
+  if (!cipher_engine::get_instance()->init_encryption_key(db_encryption_key, cipher_key_type::db_key)) {
+    std::cerr << "cipher engine error at the db encryption key init phase" << std::endl;
+    std::quick_exit(1);
+  }
 
   // set the log encryption key based on the input parameter
   const std::string log_encryption_key = get_command_line_argument(args, "--log_encryptionkey");
-  assert(cipher_engine::get_instance()->init_encryption_key(log_encryption_key, cipher_key_type::log_key));
-
-  auto start = std::chrono::high_resolution_clock::now();
-
-  /* read the upcoming queries -- one per line */
-  std::string input_query;
-  while (true) {
-    std::getline(std::cin, input_query);
-    const query query_args(input_query);
-
-    if (query_args.cmd() == "exit") [[unlikely]] {
-      // std::cout << "Exiting..." << std::endl;
-      break;
-    }
-    else if (query_args.cmd() == "invalid") [[unlikely]] {
-      std::cout << "Invalid command" << std::endl;
-      break;
-    }
-    else [[likely]] {
-      if (query_args.cmd() == "get") {
-        handle_get(client, query_args, def_policy);
-      }
-      else if (query_args.cmd() == "put") {
-        handle_put(client, query_args, def_policy);
-      }
-      else if (query_args.cmd() == "del") {
-        handle_delete(client, query_args, def_policy);
-      }
-      else if (query_args.cmd() == "putm") { /* ignore for now */
-        continue;
-      }
-      else if (query_args.cmd() == "getm") { /* ignore for now */
-        continue;
-      }
-      else if (query_args.cmd() == "delm") { /* ignore for now */
-        continue;
-      }
-      else if (query_args.cmd() == "getLogs") {
-        // current client resembles the regulator
-        handle_get_logs(query_args, def_policy);
-      }
-      else {
-        std::cout << "Invalid command: " << query_args.cmd() << std::endl;
-        break;
-      }
-    }
+  if (!cipher_engine::get_instance()->init_encryption_key(log_encryption_key, cipher_key_type::log_key)) {
+    std::cerr << "cipher engine error at the log encryption key init phase" << std::endl;
+    std::quick_exit(1);
   }
 
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = end - start;
-  auto duration_in_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-  auto duration_in_s = static_cast<long double>(duration_in_ns) / s2ns;
-  std::cout.precision(ns_precision);
-  std::cout << "Controller time: "
-            << std::fixed << duration_in_s
-            << " s" << std::endl;
+  // Create a socket and accept for clients
+  std::string controller_address = get_command_line_argument(args, "--controller_address");
+  std::string controller_port = get_command_line_argument(args, "--controller_port");
 
+  int listen_socket = socket(AF_INET, SOCK_STREAM, 0);
+  if (listen_socket == -1) {
+    std::cerr << "Failed to create socket" << std::endl;
+    return 1;
+  }
+
+  // Setup the frontend server (controller) socket
+  struct sockaddr_in server_address{};
+  server_address.sin_family = AF_INET;
+  server_address.sin_addr.s_addr = inet_addr(controller_address.c_str());
+  server_address.sin_port = htons(static_cast<uint16_t>(std::stoi(controller_port)));
+
+  // Bind the socket to the address and port
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  if (bind(listen_socket, reinterpret_cast<struct sockaddr*>(&server_address), sizeof(server_address)) == -1) {
+    std::cerr << "Failed to bind socket to address" << std::endl;
+    close(listen_socket);
+    return 1;
+  }
+
+  // Start listening for incoming connections
+  if (listen(listen_socket, SOMAXCONN) == -1) {
+    std::cerr << "Failed to listen for connections" << std::endl;
+    close(listen_socket);
+    return 1;
+  }
+
+  while (true) {
+    // Accept an incoming connection
+    struct sockaddr_in client_address{};
+    socklen_t client_address_length = sizeof(client_address);
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    int client_socket = accept4(listen_socket, reinterpret_cast<struct sockaddr*>(&client_address), 
+                                &client_address_length, SOCK_CLOEXEC);
+    if (client_socket == -1) {
+      std::cerr << "Failed to accept connection" << std::endl;
+      break;
+    }
+
+    // Create a new thread and pass the client socket to it
+    std::thread connection_thread(handle_connection, client_socket, db_type, db_address, def_policy);
+    connection_thread.detach();  // Detach the thread and let it run independently
+  }
+  
   return 0;
 }

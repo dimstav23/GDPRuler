@@ -8,3 +8,4 @@ OVMF*
 *.fd
 *.rdb
 logs/
+workload_traces/

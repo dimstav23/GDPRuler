@@ -19,6 +19,7 @@ in
 mkShell {
   buildInputs = libraries;
   nativeBuildInputs = [
+    gdb
     #for the kernel module build
     cpuid
     dmidecode

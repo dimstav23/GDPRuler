@@ -88,7 +88,7 @@ python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GD
 sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workload_monitor_vanilla|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_vanilla 
 python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_vanilla
 
-# ### workload A
+### workload A
 echo "Generating trace for workload A in ${TRACE_FOLDER}/workloada"
 # remove trace file, if it exists
 rm -f ${TRACE_FOLDER}/workloada
@@ -138,7 +138,7 @@ python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GD
 sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadd|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadd
 python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadd
 
-# ### workload E
+### workload E
 echo "Generating trace for workload E in ${TRACE_FOLDER}/workloade"
 # remove trace file, if it exists
 rm -f ${TRACE_FOLDER}/workloade
@@ -168,7 +168,7 @@ python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GD
 sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/gdpr_processor|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/gdpr_processor 
 python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/gdpr_processor
 
-# ### workload GDPR Customer
+### workload GDPR Customer
 echo "Generating trace for workload GDPR Customer in ${TRACE_FOLDER}/gdpr_customer"
 # remove trace file, if it exists
 rm -f ${TRACE_FOLDER}/gdpr_customer
@@ -180,6 +180,72 @@ python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDP
 
 # revert tracefile for workloada to avoid confusion
 sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloada|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada 
+
+### TEST workloads ###
+# Minimal workloads, mainly used for testing
+
+### workload A test
+echo "Generating trace for TEST workload A in ${TRACE_FOLDER}/workloada_test"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workloada_test
+# set the trace path in the workload config: workloada_test for load, workloada_test for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloada_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloada_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+
+### workload B test
+echo "Generating trace for TEST workload B in ${TRACE_FOLDER}/workloadb_test"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workloadb_test
+# set the trace path in the workload config: workloada_test for load, workloadb_test for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadb_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadb_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadb_test 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadb_test
+
+### workload C test
+echo "Generating trace for TEST workload C in ${TRACE_FOLDER}/workloadc_test"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workloadc_test
+# set the trace path in the workload config: workloada_test for load, workloadc_test for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadc_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadc_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadc_test
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadc_test
+
+### workload F test
+echo "Generating trace for TEST workload F in ${TRACE_FOLDER}/workloadf_test"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workloadf_test
+# set the trace path in the workload config: workloada_test for load, workloadf_test for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadf_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadf_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadf_test 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadf_test
+
+### workload D test
+echo "Generating trace for TEST workload D in ${TRACE_FOLDER}/workloadd_test"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workloadd_test
+# set the trace path in the workload config: workloada_test for load, workloadd_test for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadd_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloadd_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadd_test
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloadd_test
+
+# ### workload E test
+echo "Generating trace for TEST workload E in ${TRACE_FOLDER}/workloade_test"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workloade_test
+# set the trace path in the workload config: workloade_test for load, workloade_test for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloade_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloade_test 
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloade_test
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloade_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloade_test
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloade_test
+
+# revert tracefile for workloada_test to avoid confusion
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloada_test|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_test
 
 popd
 

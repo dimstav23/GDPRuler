@@ -13,6 +13,24 @@ project(
 include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
 
+# Set the default value for ENCRYPTION_ENABLED to ON
+option(ENCRYPTION_ENABLED "Enable encryption" ON)
+
+# Add a preprocessor definition based on the ENCRYPTION_ENABLED option
+if(ENCRYPTION_ENABLED)
+  add_definitions(-DENCRYPTION_ENABLED)
+  message(STATUS "Encryption enabled: ON")
+else()
+  message(STATUS "Encryption enabled: OFF")
+endif()
+
+if(SANITIZER_ENABLED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address  -fsanitize=leak -g")
+  message(STATUS "ASan: ON")
+else()
+  message(STATUS "ASan: OFF")
+endif()
+
 # ---- Declare library ----
 
 add_library(
@@ -73,7 +91,7 @@ set_property(TARGET native_controller_exe PROPERTY OUTPUT_NAME native_controller
 
 target_compile_features(native_controller_exe PRIVATE cxx_std_20)
 
-target_link_libraries(native_controller_exe PRIVATE ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
+target_link_libraries(native_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
 
 # redis interface
 add_executable(redis_interface_exe source/redis_interface.cpp)

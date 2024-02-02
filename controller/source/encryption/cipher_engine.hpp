@@ -5,6 +5,7 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <algorithm>
 
 #ifndef NDEBUG
 #include "cipher_print_utils.hpp"
@@ -14,9 +15,9 @@
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
-#ifndef ENCRYPTION_ENABLED
-  #define ENCRYPTION_ENABLED
-#endif
+// #ifndef ENCRYPTION_ENABLED
+//   // #define ENCRYPTION_ENABLED
+// #endif
 
 // Encryption key types
 enum class cipher_key_type {
