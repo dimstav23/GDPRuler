@@ -108,7 +108,7 @@ def main():
     average_latency = sum(latency_results) / len(latency_results)
     print(f"Average Latency: {average_latency:.6f} seconds")
   else:
-    print("Did not gathered latency statistics --- experiments failed.")
+    print("Did not gathered latency statistics --- experiment failed.")
 
   # Print the overall elapsed time
   print(f"Elapsed time: {elapsed_time:.3f} seconds")

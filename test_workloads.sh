@@ -4,6 +4,7 @@ test_outputs_folder="test_outputs"
 test_results_csv_file="tests.csv"
 user=$(whoami)
 db_dump_and_logs_dir="/scratch/${user}/test_data"
+failed_tests=""
 
 # start a test by running the server and clients
 # Args:
@@ -16,6 +17,7 @@ run_test() {
   local db=$3
   local test_name_suffix=${workload_name}_${db}_${n_clients}
   local controller=$4
+  local logging=$5
   
   # setup controller path
   if [ $controller == gdpr ]; then
@@ -53,7 +55,11 @@ run_test() {
   # tune controller script args. do not include user policy for native controller.
   ctl_script_args="$controller_path --db $db"
   if [ $controller == gdpr ]; then
-    ctl_script_args="$ctl_script_args --config ./configs/owner_policy.json --logpath $db_dump_and_logs_dir"
+    if [ $logging == ON ]; then
+      ctl_script_args="$ctl_script_args --config ./configs/test_user_logging.json --logpath $db_dump_and_logs_dir"
+    else
+      ctl_script_args="$ctl_script_args --config ./configs/test_user.json --logpath $db_dump_and_logs_dir"
+    fi
   fi
   # run the controller
   python3 ${ctl_script_args} > ${test_outputs_folder}/${test_name_suffix}_controller.txt &
@@ -110,9 +116,47 @@ run_test() {
   rm ${test_outputs_folder}/${test_name_suffix}_controller.txt
   rm ${test_outputs_folder}/${test_name_suffix}_clients.txt
 
-  # Write the total elapsed time for all the threads and the average latency
-  echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${test_outputs_folder}/${test_results_csv_file}
+  if [ -z $avg_latency ]; then
+    # Case of a failed test
+    failed_tests="$failed_tests $workload,controller=$controller,encr=$encr,logging=$logging,$db,clients=$n_clients"
+  else
+    # Write the total elapsed time for all the threads and the average latency
+    echo -e "$workload,$controller,$encr,$logging,$db,$n_clients,$elapsed_time,$avg_latency" >> ${test_outputs_folder}/${test_results_csv_file}
+  fi
 }
+
+# Set default encryption value
+encr="OFF"
+# Check if the script is called with a parameter
+if [ $# -gt 0 ]; then
+  # Check the parameter value
+  case "$1" in
+    --encr)
+      # Check if the next argument is provided
+      if [ $# -gt 1 ]; then
+        case "$2" in
+          ON)
+            encr="ON"
+            ;;
+          OFF)
+            encr="OFF"
+            ;;
+          *)
+            echo "Invalid value for --encr. Please use 'ON' or 'OFF'."
+            exit 1
+            ;;
+        esac
+      else
+          echo "Value for --encr is missing. Please provide 'ON' or 'OFF'."
+          exit 1
+      fi
+      ;;
+    *)
+      echo "Invalid option. Usage: $0 --encr [ON|OFF]"
+      exit 1
+      ;;
+  esac
+fi
 
 if [ ! -d "controller" ]; then
   echo "controller directory does not exist."
@@ -121,9 +165,10 @@ if [ ! -d "controller" ]; then
 fi
 
 # build controller
-echo "Building controller"
+echo "Building controller with encryption set to $encr"
 cd controller
-cmake -S . -B build; cmake --build build
+cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D ENCRYPTION_ENABLED=$encr;
+cmake --build build -j$(nproc)
 cd ..
 
 # create test_outputs folder to store the output txt files
@@ -132,28 +177,51 @@ mkdir -p ${test_outputs_folder}
 # create test outputs csv file
 if [ ! -f "${test_outputs_folder}/${test_results_csv_file}" ]; then
   touch ${test_outputs_folder}/${test_results_csv_file}
-  echo -e "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s)" >> ${test_outputs_folder}/${test_results_csv_file}
+  echo -e "workload,controller,encryption,logging,db,n_clients,elapsed_time (s),avg_latency (s)" >> ${test_outputs_folder}/${test_results_csv_file}
 fi
 
 # TESTS with combibations of
 #   {1,2,4,8,16,32} clients,
 #   {redis, rocksdb} dbs,
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
-# c 
-clients="1 2"
+clients="1 2 4 8 16 32"
 dbs="redis rocksdb"
-#workloads="workload_monitor_vanilla workload_monitor_0 workload_monitor_10 workload_monitor_20 workload_monitor_50 workload_monitor_100"
-workloads="workloada_test" # workloadb_test workloadc_test workloadd_test workloadf_test"
-controllers="native gdpr"
+workloads="workloada_test workloadb_test workloadc_test workloadd_test workloadf_test"
 
+# Native controller
+controller="native"
+logging_opts="OFF"
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
-      for controller in $controllers; do
-        echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload."
-        run_test $n_clients $workload $db $controller
+      echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload."
+      run_test $n_clients $workload $db $controller $logging
+      echo ""
+    done
+  done
+done
+
+# GDPR controller
+controller="gdpr"
+logging_opts="OFF ON"
+for n_clients in $clients; do
+  for db in $dbs; do
+    for workload in $workloads; do
+      for logging in $logging_opts; do
+        echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload with logging set to $logging."
+        run_test $n_clients $workload $db $controller $logging
         echo ""
       done
     done
   done
 done
+
+# Summary of the performed tests
+if [ -n "$failed_tests" ]; then
+  echo -e "\e[31mThe following tests failed:\e[0m"
+  for test in $failed_tests; do
+    echo -e "\e[31m$test\e[0m"
+  done
+else
+  echo -e "\e[32mAll tests were successful :)\e[0m"
+fi
