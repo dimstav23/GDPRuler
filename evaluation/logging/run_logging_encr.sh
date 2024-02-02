@@ -154,12 +154,8 @@ fi
 #   {1,2,4,8,16,32} clients,
 #   {redis, rocksdb} dbs,
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
-# clients="1 2 4 8 16 32"
-clients="1"
+clients="1 2 4 8 16 32"
 dbs="redis rocksdb"
-#workloads="workload_monitor_vanilla workload_monitor_0 workload_monitor_10 workload_monitor_20 workload_monitor_50 workload_monitor_100"
-# workloads="workloada_test workloadb_test workloadc_test workloadd_test workloadf_test"
-# workloads="workloada_test workloadb_test"
 workloads="workloada workloadb workloadc workloadd workloadf"
 controllers="native gdpr"
 
