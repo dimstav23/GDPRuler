@@ -118,6 +118,11 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
       break;
     }
   }
+  // Close the client socket
+  int result = close(socket);
+  if (result != 0) {
+    std::cerr << "Error closing client socket" << std::endl;
+  }
 }
 
 auto main(int argc, char* argv[]) -> int
@@ -175,6 +180,7 @@ auto main(int argc, char* argv[]) -> int
     }
 
     // Create a new thread and pass the client socket to it
+    // The client socket must be independently managed by the thread now
     std::thread connection_thread(handle_connection, client_socket, db_type, db_address);
     connection_thread.detach();  // Detach the thread and let it run independently
   }
