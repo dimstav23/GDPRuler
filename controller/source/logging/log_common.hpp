@@ -163,5 +163,30 @@ inline auto gdpr_metadata_fmt(const std::string &value_str) -> std::string {
 
   return res.str();
 }
+
+/*
+ * Get the maximum number of file descriptors allowed for the current process
+ */
+inline auto get_max_fds() -> size_t {
+  const char* ulimit_command = "ulimit -n";
+  FILE* pipe = popen(ulimit_command, "r");
+  if (!pipe) {
+    std::cerr << "Error executing ulimit command." << std::endl;
+    return 0;
+  }
+
+  size_t buf_size = 128;
+  char buffer[buf_size];
+  std::string result;
+  while (!feof(pipe)) {
+    if (fgets(buffer, buf_size, pipe) != nullptr) {
+      result += buffer;
+    }
+  }
+
+  pclose(pipe);
+
+  return std::stoi(result);
+}
   
 } // namespace controller

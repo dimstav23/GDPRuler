@@ -4,9 +4,11 @@
 #include <fstream>
 #include <mutex>
 #include <unordered_map>
+#include <list>
 #include <filesystem>
 #include <cstring>
 #include <vector>
+#include <cassert>
 
 #include "log_common.hpp"
 #include "../gdpr_filter.hpp"
@@ -68,7 +70,7 @@ public:
     // lock the mutex corresponding to the key
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
 
-    // Open or retrieve the file the file
+    // Open or retrieve the file
     auto log_file = get_or_open_log_stream(query_args.key());
 
     // Encode the timestamp as a fixed-width integer type
@@ -194,15 +196,19 @@ public:
 
 
 private:
-  logger() = default;
+  // logger() = default;
+  // Set the max open log files to 80% of the file descriptors
+  logger() : m_max_open_log_files(get_max_fds() * 0.8) {}
 
   std::string m_logs_dir = "./logs";
 
   const std::string log_file_extension = ".log";
 
   std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
-
   std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
+  size_t m_max_open_log_files;
+  std::mutex m_lru_mutex;
+  std::list<std::string> m_recently_used_keys;
 
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();
 
@@ -210,14 +216,43 @@ private:
     return m_logs_dir + '/' + key + log_file_extension;
   }
 
+  /*
+   * Open the key's log file output stream in append only mode if it is not already opened.
+   * Store it in the m_keys_to_log_files map for fast future retrieval.
+   * Enforce LRU policy depending on the number of available file descriptors.
+   */
   auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
-    // open the key's log file output stream in append only mode if it is not already opened.
-    //  store it in the m_keys_to_log_files map for fast future retrieval.
+    // lock the mutex corresponding to the key
+    std::lock_guard<std::mutex> lock(m_lru_mutex);
+
     if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
+      // If the map is at its maximum size, evict the least recently used entry
+      if (m_keys_to_log_files.size() >= m_max_open_log_files) {
+        evict_lru();
+      }
       m_keys_to_log_files[key] = std::make_shared<std::fstream>
                                 (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
     }
+
+    update_lru(key);
     return m_keys_to_log_files[key];
+  }
+
+  auto update_lru(const std::string& key) -> void {
+    // Move the key to the front of the list (recently used)
+    m_recently_used_keys.remove(key);
+    m_recently_used_keys.push_front(key);
+  }
+
+  auto evict_lru() -> void {
+    // Remove the least recently used key from the map and list
+    auto lru_key = m_recently_used_keys.back();
+
+    // Close the file stream associated with the key
+    m_keys_to_log_files[lru_key]->close();
+
+    m_recently_used_keys.pop_back();
+    m_keys_to_log_files.erase(lru_key);
   }
 
   auto extract_key_from_filename(const std::string& filename) -> std::string {
