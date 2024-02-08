@@ -67,7 +67,7 @@ public:
   void log_encoded_query(const query& query_args, const default_policy& def_policy, 
                          const bool& valid, const std::string& new_val = {}) 
   {  
-    // lock the mutex corresponding to the key
+    // Lock the mutex corresponding to the key for the whole function scope 
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
 
     // Open or retrieve the file
@@ -207,8 +207,8 @@ private:
   std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
   std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
   size_t m_max_open_log_files;
-  std::mutex m_lru_mutex;
-  std::list<std::string> m_recently_used_keys;
+  std::mutex m_fd_mgmt_mutex;
+  std::list<std::string> m_used_keys;
 
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();
 
@@ -219,40 +219,48 @@ private:
   /*
    * Open the key's log file output stream in append only mode if it is not already opened.
    * Store it in the m_keys_to_log_files map for fast future retrieval.
-   * Enforce LRU policy depending on the number of available file descriptors.
+   * Depending on the number of available file descriptors and if their limit (80%) is reached,
+   * close the files that were opened based on chronological order. This might not be optimal,
+   * but it's "cheaper" performance-wise than enforcing a sophisticated policy (e.g. LRU).
    */
   auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
-    // lock the mutex corresponding to the key
-    std::lock_guard<std::mutex> lock(m_lru_mutex);
+    // Lock the mutex for the whole function scope to perform the metadata management & eviction
+    std::lock_guard<std::mutex> lock(m_fd_mgmt_mutex);
 
     if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
-      // If the map is at its maximum size, evict the least recently used entry
+      // If the map is at its maximum size, evict the oldest FD
       if (m_keys_to_log_files.size() >= m_max_open_log_files) {
-        evict_lru();
+        close_older_fd();
       }
+      // Put the key in the list of the already used_keys
+      m_used_keys.push_back(key);
       m_keys_to_log_files[key] = std::make_shared<std::fstream>
                                 (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
     }
 
-    update_lru(key);
     return m_keys_to_log_files[key];
   }
 
-  auto update_lru(const std::string& key) -> void {
-    // Move the key to the front of the list (recently used)
-    m_recently_used_keys.remove(key);
-    m_recently_used_keys.push_front(key);
-  }
+  auto close_older_fd() -> void {
+    // Try to remove the least recently used key from the map and list
+    // If it doesn't succeed because the key is used (judging by its mutex)
+    // Then try the next one
+    for (auto it = m_used_keys.begin(); it != m_used_keys.end(); ++it) {
+      auto lru_key = *it;
+      // Try to lock the mutex corresponding to the key -- unique_lock for the try_to_lock option
+      std::unique_lock<std::mutex> lock(m_keys_to_mutexes[lru_key], std::try_to_lock);
+      if (lock.owns_lock()) {
+        // Close the file stream associated with the key
+        m_keys_to_log_files[lru_key]->close();
 
-  auto evict_lru() -> void {
-    // Remove the least recently used key from the map and list
-    auto lru_key = m_recently_used_keys.back();
+        m_used_keys.erase(it); // Remove the locked element
+        m_keys_to_log_files.erase(lru_key);
 
-    // Close the file stream associated with the key
-    m_keys_to_log_files[lru_key]->close();
-
-    m_recently_used_keys.pop_back();
-    m_keys_to_log_files.erase(lru_key);
+        // Exit the loop if a lock is acquired successfully
+        // The lock will be released when it goes out of scope
+        break;
+      }
+    }
   }
 
   auto extract_key_from_filename(const std::string& filename) -> std::string {
