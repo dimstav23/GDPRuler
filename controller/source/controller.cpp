@@ -280,10 +280,7 @@ auto handle_connection
     }
   }
   // Close the client socket
-  int result = close(socket);
-  if (result != 0) {
-    std::cerr << "Error closing client socket" << std::endl;
-  }
+  safe_close_socket(socket);
 }
 
 auto main(int argc, char* argv[]) -> int
@@ -347,14 +344,14 @@ auto main(int argc, char* argv[]) -> int
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   if (bind(listen_socket, reinterpret_cast<struct sockaddr*>(&server_address), sizeof(server_address)) == -1) {
     std::cerr << "Failed to bind socket to address" << std::endl;
-    close(listen_socket);
+    safe_close_socket(listen_socket);
     return 1;
   }
 
   // Start listening for incoming connections
   if (listen(listen_socket, SOMAXCONN) == -1) {
     std::cerr << "Failed to listen for connections" << std::endl;
-    close(listen_socket);
+    safe_close_socket(listen_socket);
     return 1;
   }
 

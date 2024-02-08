@@ -9,6 +9,7 @@
 #include <cstring>
 #include <vector>
 #include <cassert>
+#include <cmath>
 
 #include "log_common.hpp"
 #include "../gdpr_filter.hpp"
@@ -196,9 +197,8 @@ public:
 
 
 private:
-  // logger() = default;
-  // Set the max open log files to 80% of the file descriptors
-  logger() : m_max_open_log_files(get_max_fds() * 0.8) {}
+  // Set the max open log files to "fd_load_factor" of the file descriptors
+  logger() : m_max_open_log_files(static_cast<size_t>(std::ceil(get_max_fds() * fd_load_factor))) {}
 
   std::string m_logs_dir = "./logs";
 
@@ -246,15 +246,15 @@ private:
     // If it doesn't succeed because the key is used (judging by its mutex)
     // Then try the next one
     for (auto it = m_used_keys.begin(); it != m_used_keys.end(); ++it) {
-      auto lru_key = *it;
+      auto key_to_remove = *it;
       // Try to lock the mutex corresponding to the key -- unique_lock for the try_to_lock option
-      std::unique_lock<std::mutex> lock(m_keys_to_mutexes[lru_key], std::try_to_lock);
+      std::unique_lock<std::mutex> lock(m_keys_to_mutexes[key_to_remove], std::try_to_lock);
       if (lock.owns_lock()) {
         // Close the file stream associated with the key
-        m_keys_to_log_files[lru_key]->close();
+        m_keys_to_log_files[key_to_remove]->close();
 
         m_used_keys.erase(it); // Remove the locked element
-        m_keys_to_log_files.erase(lru_key);
+        m_keys_to_log_files.erase(key_to_remove);
 
         // Exit the loop if a lock is acquired successfully
         // The lock will be released when it goes out of scope
@@ -285,7 +285,7 @@ private:
   }
 
   // Read and decode log entries from the log file
-  auto read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
+  auto static read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
     -> std::vector<std::string>
   {
     std::vector<std::string> entries;
@@ -309,7 +309,7 @@ private:
   }
 
   // Read a single entry from the log file
-  auto read_log_entry(const std::shared_ptr<std::fstream>& log_file, size_t entry_size)
+  auto static read_log_entry(const std::shared_ptr<std::fstream>& log_file, size_t entry_size)
     -> std::vector<char>
   {
     std::vector<char> entry(entry_size);
@@ -324,7 +324,7 @@ private:
   }
 
   // Decode the given entry if its timestamp is less (earlier) than the threshold
-  auto decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
+  auto static decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
     -> std::string 
   {
     // initialize the variables with default values

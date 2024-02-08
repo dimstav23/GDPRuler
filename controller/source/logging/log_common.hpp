@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <cstring>
+#include <sys/resource.h>
 
 #include "../common.hpp"
 #include "../gdpr_metadata.hpp"
@@ -11,6 +12,8 @@ namespace controller {
 /* Delimiter for the logged values */
 const char log_delimiter = ',';
 const unsigned int operation_mask = 0x07U;
+// Set the max open log files to 80% of the file descriptors
+constexpr double fd_load_factor = 0.8;
 
 /**
  * Query operations enum.
@@ -167,26 +170,14 @@ inline auto gdpr_metadata_fmt(const std::string &value_str) -> std::string {
 /*
  * Get the maximum number of file descriptors allowed for the current process
  */
-inline auto get_max_fds() -> size_t {
-  const char* ulimit_command = "ulimit -n";
-  FILE* pipe = popen(ulimit_command, "r");
-  if (!pipe) {
-    std::cerr << "Error executing ulimit command." << std::endl;
-    return 0;
+inline auto get_max_fds() -> int {
+  struct rlimit limits{};
+  if (getrlimit(RLIMIT_NOFILE, &limits) == 0) {
+    return static_cast<int>(limits.rlim_cur);
   }
 
-  size_t buf_size = 128;
-  char buffer[buf_size];
-  std::string result;
-  while (!feof(pipe)) {
-    if (fgets(buffer, buf_size, pipe) != nullptr) {
-      result += buffer;
-    }
-  }
-
-  pclose(pipe);
-
-  return std::stoi(result);
+  std::cerr << "Error getting resource limits." << std::endl;
+  return 0;
 }
   
 } // namespace controller
