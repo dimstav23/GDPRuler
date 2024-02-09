@@ -146,6 +146,14 @@ auto main(int argc, char* argv[]) -> int
     return 1;
   }
 
+  // Enable SO_REUSEADDR option
+  int reuse = 1;
+  if (setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
+    std::cerr << "Failed to set SO_REUSEADDR option" << std::endl;
+    safe_close_socket(listen_socket);
+    return 1;
+  }
+
   // Setup the frontend server (controller) socket
   struct sockaddr_in server_address{};
   server_address.sin_family = AF_INET;
