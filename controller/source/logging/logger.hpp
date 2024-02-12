@@ -67,12 +67,17 @@ public:
    */
   void log_encoded_query(const query& query_args, const default_policy& def_policy, 
                          const bool& valid, const std::string& new_val = {}) 
-  {  
-    // Lock the mutex corresponding to the key for the whole function scope 
-    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
-
+  {
     // Open or retrieve the file
     auto log_file = get_or_open_log_stream(query_args.key());
+
+    // Lock the mutex corresponding to the key for the whole function scope
+    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
+
+    // To avoid potential race conditions
+    if (!log_file->is_open()) {
+      log_file = get_or_open_log_stream(query_args.key());
+    }
 
     // Encode the timestamp as a fixed-width integer type
     const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
@@ -226,6 +231,11 @@ private:
   auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
     // Lock the mutex for the whole function scope to perform the metadata management & eviction
     std::lock_guard<std::mutex> lock(m_fd_mgmt_mutex);
+
+    if (!m_keys_to_mutexes.contains(key)) {
+      // initialize the mutex associated with the key
+      m_keys_to_mutexes[key];
+    }
 
     if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
       // If the map is at its maximum size, evict the oldest FD
