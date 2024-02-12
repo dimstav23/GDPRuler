@@ -54,11 +54,11 @@ public:
 
     response_message response = execute(query);
     // std::cout << "PUT operation request Key: " << key << std::endl;
-    if (response.op_is_successful()) {
+    // if (response.op_is_successful()) {
       // std::cout << "PUT operation succeeded! Key: " << key << std::endl;
-    } else {
+    // } else {
       // std::cout << "PUT operation failed" << std::endl;
-    }
+    // }
     return response.op_is_successful();
   }
 
@@ -70,11 +70,11 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    if (response.op_is_successful()) {
+    // if (response.op_is_successful()) {
       // std::cout << "DELETE operation succeeded! Key: " << key << std::endl;
-    } else {
+    // } else {
       // std::cout << "DELETE operation failed" << std::endl;
-    }
+    // }
     return response.op_is_successful();
   }
 

@@ -4,9 +4,12 @@
 #include <fstream>
 #include <mutex>
 #include <unordered_map>
+#include <list>
 #include <filesystem>
 #include <cstring>
 #include <vector>
+#include <cassert>
+#include <cmath>
 
 #include "log_common.hpp"
 #include "../gdpr_filter.hpp"
@@ -64,12 +67,17 @@ public:
    */
   void log_encoded_query(const query& query_args, const default_policy& def_policy, 
                          const bool& valid, const std::string& new_val = {}) 
-  {  
-    // lock the mutex corresponding to the key
+  {
+    // Open or retrieve the file
+    auto log_file = get_or_open_log_stream(query_args.key());
+
+    // Lock the mutex corresponding to the key for the whole function scope
     std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
 
-    // Open or retrieve the file the file
-    auto log_file = get_or_open_log_stream(query_args.key());
+    // To avoid potential race conditions
+    if (!log_file->is_open()) {
+      log_file = get_or_open_log_stream(query_args.key());
+    }
 
     // Encode the timestamp as a fixed-width integer type
     const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
@@ -194,15 +202,18 @@ public:
 
 
 private:
-  logger() = default;
+  // Set the max open log files to "fd_load_factor" of the file descriptors
+  logger() : m_max_open_log_files(static_cast<size_t>(std::ceil(get_max_fds() * fd_load_factor))) {}
 
   std::string m_logs_dir = "./logs";
 
   const std::string log_file_extension = ".log";
 
   std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
-
   std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
+  size_t m_max_open_log_files;
+  std::mutex m_fd_mgmt_mutex;
+  std::list<std::string> m_used_keys;
 
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();
 
@@ -210,14 +221,56 @@ private:
     return m_logs_dir + '/' + key + log_file_extension;
   }
 
+  /*
+   * Open the key's log file output stream in append only mode if it is not already opened.
+   * Store it in the m_keys_to_log_files map for fast future retrieval.
+   * Depending on the number of available file descriptors and if their limit (80%) is reached,
+   * close the files that were opened based on chronological order. This might not be optimal,
+   * but it's "cheaper" performance-wise than enforcing a sophisticated policy (e.g. LRU).
+   */
   auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
-    // open the key's log file output stream in append only mode if it is not already opened.
-    //  store it in the m_keys_to_log_files map for fast future retrieval.
+    // Lock the mutex for the whole function scope to perform the metadata management & eviction
+    std::lock_guard<std::mutex> lock(m_fd_mgmt_mutex);
+
+    if (!m_keys_to_mutexes.contains(key)) {
+      // initialize the mutex associated with the key
+      m_keys_to_mutexes[key];
+    }
+
     if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
+      // If the map is at its maximum size, evict the oldest FD
+      if (m_keys_to_log_files.size() >= m_max_open_log_files) {
+        close_older_fd();
+      }
+      // Put the key in the list of the already used_keys
+      m_used_keys.push_back(key);
       m_keys_to_log_files[key] = std::make_shared<std::fstream>
                                 (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
     }
+
     return m_keys_to_log_files[key];
+  }
+
+  auto close_older_fd() -> void {
+    // Try to remove the least recently used key from the map and list
+    // If it doesn't succeed because the key is used (judging by its mutex)
+    // Then try the next one
+    for (auto it = m_used_keys.begin(); it != m_used_keys.end(); ++it) {
+      auto key_to_remove = *it;
+      // Try to lock the mutex corresponding to the key -- unique_lock for the try_to_lock option
+      std::unique_lock<std::mutex> lock(m_keys_to_mutexes[key_to_remove], std::try_to_lock);
+      if (lock.owns_lock()) {
+        // Close the file stream associated with the key
+        m_keys_to_log_files[key_to_remove]->close();
+
+        m_used_keys.erase(it); // Remove the locked element
+        m_keys_to_log_files.erase(key_to_remove);
+
+        // Exit the loop if a lock is acquired successfully
+        // The lock will be released when it goes out of scope
+        break;
+      }
+    }
   }
 
   auto extract_key_from_filename(const std::string& filename) -> std::string {
@@ -242,7 +295,7 @@ private:
   }
 
   // Read and decode log entries from the log file
-  auto read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
+  auto static read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
     -> std::vector<std::string>
   {
     std::vector<std::string> entries;
@@ -266,7 +319,7 @@ private:
   }
 
   // Read a single entry from the log file
-  auto read_log_entry(const std::shared_ptr<std::fstream>& log_file, size_t entry_size)
+  auto static read_log_entry(const std::shared_ptr<std::fstream>& log_file, size_t entry_size)
     -> std::vector<char>
   {
     std::vector<char> entry(entry_size);
@@ -281,7 +334,7 @@ private:
   }
 
   // Decode the given entry if its timestamp is less (earlier) than the threshold
-  auto decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
+  auto static decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
     -> std::string 
   {
     // initialize the variables with default values

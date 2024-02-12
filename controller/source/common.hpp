@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <span>
+#include <unistd.h>
 #include <sys/socket.h>
 
 constexpr int s2ns = 1000000000;
@@ -25,6 +26,14 @@ auto inline get_command_line_argument(const auto& args, const std::string& optio
     return args[option_index + 1];
   }
   return {};
+}
+
+// Function to safely close a socket
+auto inline safe_close_socket(int socket) -> void {
+  int result = close(socket);
+  if (result != 0) {
+    std::cerr << "Error closing client socket with fd:" << socket << std::endl;
+  }
 }
 
 // Function to safely receive a specified number of bytes from the socket

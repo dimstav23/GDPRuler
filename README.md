@@ -31,7 +31,8 @@ $ cmake --build build
 
 **Useful options:**
 - Enable/disable the encryption with `-D ENCRYPTION_ENABLED=ON/OFF` (defaults to `ON`)
-- Enable/disable AddressSanitizer with `-D SANITIZER_ENABLED=ON/OFF` (defaults to `OFF`)
+- Enable/disable AddressSanitizer with `-D ASAN_ENABLED=ON/OFF` (defaults to `OFF`)
+- Enable/disable ThreadSanitizer with `-D TSAN_ENABLED=ON/OFF` (defaults to `OFF`)
 
 ### 3. Compile `redis` (to build the `redis-server` binary):
 ```

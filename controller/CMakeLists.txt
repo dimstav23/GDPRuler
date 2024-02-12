@@ -24,12 +24,20 @@ else()
   message(STATUS "Encryption enabled: OFF")
 endif()
 
-if(SANITIZER_ENABLED)
+if(ASAN_ENABLED)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address  -fsanitize=leak -g")
   message(STATUS "ASan: ON")
 else()
   message(STATUS "ASan: OFF")
 endif()
+
+if(TSAN_ENABLED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -g")
+  message(STATUS "TSan: ON")
+else()
+  message(STATUS "TSan: OFF")
+endif()
+
 
 # ---- Declare library ----
 

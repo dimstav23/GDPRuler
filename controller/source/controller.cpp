@@ -279,6 +279,8 @@ auto handle_connection
       break;
     }
   }
+  // Close the client socket
+  safe_close_socket(socket);
 }
 
 auto main(int argc, char* argv[]) -> int
@@ -332,6 +334,14 @@ auto main(int argc, char* argv[]) -> int
     return 1;
   }
 
+  // Enable SO_REUSEADDR option
+  int reuse = 1;
+  if (setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
+    std::cerr << "Failed to set SO_REUSEADDR option" << std::endl;
+    safe_close_socket(listen_socket);
+    return 1;
+  }
+
   // Setup the frontend server (controller) socket
   struct sockaddr_in server_address{};
   server_address.sin_family = AF_INET;
@@ -342,14 +352,14 @@ auto main(int argc, char* argv[]) -> int
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   if (bind(listen_socket, reinterpret_cast<struct sockaddr*>(&server_address), sizeof(server_address)) == -1) {
     std::cerr << "Failed to bind socket to address" << std::endl;
-    close(listen_socket);
+    safe_close_socket(listen_socket);
     return 1;
   }
 
   // Start listening for incoming connections
   if (listen(listen_socket, SOMAXCONN) == -1) {
     std::cerr << "Failed to listen for connections" << std::endl;
-    close(listen_socket);
+    safe_close_socket(listen_socket);
     return 1;
   }
 
@@ -366,6 +376,7 @@ auto main(int argc, char* argv[]) -> int
     }
 
     // Create a new thread and pass the client socket to it
+    // The client socket must be independently managed by the thread now
     std::thread connection_thread(handle_connection, client_socket, db_type, db_address, def_policy);
     connection_thread.detach();  // Detach the thread and let it run independently
   }
