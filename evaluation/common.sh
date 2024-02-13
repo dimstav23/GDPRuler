@@ -60,32 +60,37 @@ function run_redis() {
   fi
   echo "Starting redis server"
   # run redis server
-  $redis_server_bin --dir $log_dir --protected-mode no > $output_file &
+  $redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file &
   # wait for the controller to be initialized and listen to connections
   wait_for_activation $port
 }
 
 # Function to run GDPR controller
 # Args:
-#   1: controller       (controller executable)
-#   2: controller_port  (port for the controller)
-#   3: db               (database type)
-#   4: config           (configuration file)
-#   5: log_path         (directory for logs)
-#   6: output_file      (temporary output file)
+#   1: controller         (controller executable)
+#   2: controller_address (address for the controller)
+#   3: controller_port    (port for the controller)
+#   4: db                 (database type)
+#   5: db_address         (database address and port)
+#   6: config             (configuration file)
+#   7: log_path           (directory for logs)
+#   8: output_file        (temporary output file)
 function run_gdpr_controller() {
   local controller="$1"
-  local controller_port="$2"
-  local db="$3"
-  local config="$4"
-  local log_path="$5"
-  local output_file="$6"
+  local controller_address="$2"
+  local controller_port="$3"
+  local db="$4"
+  local db_address="$5"
+  local config="$6"
+  local log_path="$7"
+  local output_file="$8"
 
   if [ ! -f $controller ]; then
     echo "Controller not found in $controller. Exiting..."
     exit
   fi
-  ctl="$controller --db $db --config $config --logpath $log_path"
+  ctl="$controller --db $db --config $config --logpath $log_path --db_address $db_address \
+  --controller_address $controller_address --controller_port $controller_port"
 
   echo "Starting the GDPR controller"
   python3 $ctl > $output_file &
@@ -94,27 +99,31 @@ function run_gdpr_controller() {
 
 # Function to run native controller
 # Args:
-#   1: controller       (controller executable)
-#   2: controller_port  (port for the controller)
-#   3: db               (database type)
-#   4: output_file      (temporary output file)
+#   1: controller         (controller executable)
+#   2: controller_address (address for the controller)
+#   3: controller_port    (port for the controller)
+#   4: db                 (database type)
+#   5: db_address         (database address and port)
+#   6: output_file        (temporary output file)
 function run_native_controller() {
   local controller="$1"
-  local controller_port="$2"
-  local db="$3"
-  local output_file="$4"
+  local controller_address="$2"
+  local controller_port="$3"
+  local db="$4"
+  local db_address="$5"
+  local output_file="$6"
 
   if [ ! -f $controller ]; then
     echo "Controller not found in $controller. Exiting..."
     exit
   fi
-  ctl="$controller --db $db"
+  ctl="$controller --db $db --db_address $db_address \
+  --controller_address $controller_address --controller_port $controller_port"
 
   echo "Starting the native controller"
   python3 $ctl > $output_file &
   wait_for_activation $controller_port
 }
-
 
 # Function to run client(s)
 # Args:
@@ -263,20 +272,26 @@ print_summary() {
 #   1: n_clients          (number of clients to run concurrently)
 #   2: workload           (workload file name)
 #   3: db                 (db to be used in controller. one of {rocksdb, redis})
-#   4: db_port            (port for the DB)
-#   5: controller         (controller type. one of {gdpr, native})
-#   6: controller_port    (port of the controller)
-#   7: config             (configuration file for the client)
-#   8: results_csv_file   (result file path -- must exist beforehand)
+#   4: db_address         (address for the DB)
+#   5: db_port            (port for the DB)
+#   6: controller         (controller type. one of {gdpr, native})
+#   7: controller_address (address of the controller)
+#   8: controller_port    (port of the controller)
+#   9: config             (configuration file for the client)
+#  10: results_csv_file   (result file path -- must exist beforehand)
 run_native_test() {
-  local n_clients=$1
-  local workload=$2
-  local db=$3
-  local db_port=$4
-  local controller=$5
-  local controller_port=$6
-  local config=$7
-  local results_csv_file=$8
+  local n_clients="$1"
+  local workload="$2"
+  local db="$3"
+  local db_address="$4"
+  local db_port="$5"
+  local controller="$6"
+  local controller_address="$7"
+  local controller_port="$8"
+  local config="$9"
+  local results_csv_file="${10}"
+
+  local db_address_formatted="${db_address}:${db_port}"
 
   prepare_experiment $results_csv_file  
 
@@ -290,10 +305,12 @@ run_native_test() {
   # Run the controller
   if [ $controller == gdpr ]; then
     controller_path="$project_root/GDPRuler.py"
-    run_gdpr_controller $controller_path $controller_port $db $config $db_dump_and_logs_dir ${tmp_dir}/controller.txt
+    run_gdpr_controller $controller_path $controller_address $controller_port \
+    $db $db_address_formatted $config $db_dump_and_logs_dir ${tmp_dir}/controller.txt
   elif [ $controller == native ]; then
     controller_path="$project_root/native_ctl.py"
-    run_native_controller $controller_path $controller_port $db ${tmp_dir}/controller.txt
+    run_native_controller $controller_path $controller_address $controller_port \
+    $db $db_address_formatted ${tmp_dir}/controller.txt
   fi
 
   # Run the client and gather the results

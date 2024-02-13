@@ -11,8 +11,11 @@ source $script_dir/evaluation/args_and_checks.sh
 parse_args_and_checks "$@"
 
 # Variables for the end-to-end test configuration
+redis_address="tcp://127.0.0.1"
 redis_port=6379
+rocksdb_address="127.0.0.1"
 rocksdb_port=15001
+controller_address="127.0.0.1"
 controller_port=1312
 test_cfg=${script_dir}/configs/test_user.json
 test_log_cfg=${script_dir}/configs/test_user_logging.json
@@ -33,11 +36,14 @@ for n_clients in $clients; do
     for workload in $workloads; do
       if [ $db == rocksdb ]; then
         db_port=$rocksdb_port
+        db_address=$rocksdb_address
       elif [ $db == redis ]; then
         db_port=$redis_port
+        db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload."
-      run_native_test $n_clients $workload $db $db_port $controller $controller_port "" $results_csv_file
+      run_native_test $n_clients $workload $db $db_address $db_port \
+      $controller $controller_address $controller_port "" $results_csv_file
       echo ""
     done
   done
@@ -51,11 +57,14 @@ for n_clients in $clients; do
     for workload in $workloads; do
       if [ $db == rocksdb ]; then
         db_port=$rocksdb_port
+        db_address=$rocksdb_address
       elif [ $db == redis ]; then
         db_port=$redis_port
+        db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload"
-      run_native_test $n_clients $workload $db $db_port $controller $controller_port $test_cfg $results_csv_file
+      run_native_test $n_clients $workload $db $db_address $db_port \
+      $controller $controller_address $controller_port $test_cfg $results_csv_file
       echo ""
     done
   done
@@ -69,11 +78,14 @@ for n_clients in $clients; do
     for workload in $workloads; do
       if [ $db == rocksdb ]; then
         db_port=$rocksdb_port
+        db_address=$rocksdb_address
       elif [ $db == redis ]; then
         db_port=$redis_port
+        db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload with logging enabled."
-      run_native_test $n_clients $workload $db $db_port $controller $controller_port $test_log_cfg $results_csv_file
+      run_native_test $n_clients $workload $db $db_address $db_port \
+      $controller $controller_address $controller_port $test_log_cfg $results_csv_file
       echo ""
     done
   done
