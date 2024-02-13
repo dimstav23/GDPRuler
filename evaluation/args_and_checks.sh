@@ -8,6 +8,7 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # Find the root directory of the repository
 project_root=$(git rev-parse --show-toplevel 2>/dev/null)
 
+# Function to parse command-line arguments and perform checks
 parse_args_and_checks() {
   # Set default encryption value
   encr="OFF"
