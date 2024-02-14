@@ -295,7 +295,7 @@ private:
   }
 
   // Read and decode log entries from the log file
-  auto static read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
+  auto read_and_decode_log_entries(const std::shared_ptr<std::fstream>& log_file, const int64_t timestamp_thres)
     -> std::vector<std::string>
   {
     std::vector<std::string> entries;
@@ -319,7 +319,7 @@ private:
   }
 
   // Read a single entry from the log file
-  auto static read_log_entry(const std::shared_ptr<std::fstream>& log_file, size_t entry_size)
+  auto read_log_entry(const std::shared_ptr<std::fstream>& log_file, size_t entry_size)
     -> std::vector<char>
   {
     std::vector<char> entry(entry_size);
@@ -334,7 +334,7 @@ private:
   }
 
   // Decode the given entry if its timestamp is less (earlier) than the threshold
-  auto static decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
+  auto decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
     -> std::string 
   {
     // initialize the variables with default values
