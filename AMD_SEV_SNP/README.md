@@ -115,6 +115,15 @@ Configuration examples are given in the [cloud_configs](./cloud_configs/) folder
 
 ### 7. Networking: 
 In step 5 above, we use the parameter `-bridge virbr0`, so that our VMs use the virtual network bridge `virbr0`. 
+Typically, this is set up if you are using `libvirt`.
+If it does not exist, you can create and configure it by using the `bridge-utils` package.
+An example is shown below:
+```
+sudo brctl addbr virbr0
+sudo brctl stp virbr0 on
+sudo ifconfig virbr0 up
+sudo ifconfig virbr0 192.168.122.1 netmask 255.255.255.0
+```
 Our script [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) checks the given virtual bridge and adjust the prefix of the IP declared in the network configuration file. Example configuration files are given in the [cloud_configs](./cloud_configs/) folder. They are used mainly to pre-determine the IPs of the VMs in the network.
 
 ### 8. Attestation (maybe outdated due to updated kernel):
