@@ -20,7 +20,7 @@ controller_port=1312
 test_cfg=${script_dir}/configs/test_user.json
 test_log_cfg=${script_dir}/configs/test_user_logging.json
 
-# Default tests with combibations of
+# Default tests with combinations of
 #   {1,2,4,8,16,32} clients,
 #   {redis, rocksdb} dbs,
 #   {workloada_test, workloadb_test, workloadc_test, workloadd_test, workloadf_test} workloads
@@ -34,10 +34,10 @@ controller="native"
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
-      if [ $db == rocksdb ]; then
+      if [[ $db == "rocksdb" ]]; then
         db_port=$rocksdb_port
         db_address=$rocksdb_address
-      elif [ $db == redis ]; then
+      elif [[ $db == "redis" ]]; then
         db_port=$redis_port
         db_address=$redis_address
       fi
@@ -55,10 +55,10 @@ controller="gdpr"
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
-      if [ $db == rocksdb ]; then
+      if [[ $db == "rocksdb" ]]; then
         db_port=$rocksdb_port
         db_address=$rocksdb_address
-      elif [ $db == redis ]; then
+      elif [[ $db == "redis" ]]; then
         db_port=$redis_port
         db_address=$redis_address
       fi
@@ -76,10 +76,10 @@ controller="gdpr"
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
-      if [ $db == rocksdb ]; then
+      if [[ $db == "rocksdb" ]]; then
         db_port=$rocksdb_port
         db_address=$rocksdb_address
-      elif [ $db == redis ]; then
+      elif [[ $db == "redis" ]]; then
         db_port=$redis_port
         db_address=$redis_address
       fi

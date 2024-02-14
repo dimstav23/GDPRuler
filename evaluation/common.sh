@@ -228,20 +228,20 @@ cleanup() {
   local db_port="$4"
 
   # stopping the controller process
-  if [ $controller == native ]; then
+  if [[ $controller == "native" ]]; then
     echo "Stopping Native Controller"
     kill $(pgrep -f native_controller)
-  elif [ $controller == gdpr ]; then
+  elif [[ $controller == "gdpr" ]]; then
     echo "Stopping GDPR Controller"
     kill $(pgrep -f gdpr_controller)
   fi
   wait_for_shutdown $controller_port
 
   # stopping the DB process
-  if [ $db == rocksdb ]; then
+  if [[ $db == "rocksdb" ]]; then
     echo "Stopping rocksdb server"
     kill $(pgrep -f rocksdb_server)
-  elif [ $db == redis ]; then
+  elif [[ $db == "redis" ]]; then
     echo "Stopping redis server"
     kill $(pgrep -f redis-server)
   fi
@@ -296,18 +296,18 @@ run_native_test() {
   prepare_experiment $results_csv_file  
 
   # Run the db server
-  if [ $db == rocksdb ]; then
+  if [[ $db == "rocksdb" ]]; then
     run_rocksdb $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
-  elif [ $db == redis ]; then
+  elif [[ $db == "redis" ]]; then
     run_redis $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
   fi
 
   # Run the controller
-  if [ $controller == gdpr ]; then
+  if [[ $controller == "gdpr" ]]; then
     controller_path="$project_root/GDPRuler.py"
     run_gdpr_controller $controller_path $controller_address $controller_port \
     $db $db_address_formatted $config $db_dump_and_logs_dir ${tmp_dir}/controller.txt
-  elif [ $controller == native ]; then
+  elif [[ $controller == "native" ]]; then
     controller_path="$project_root/native_ctl.py"
     run_native_controller $controller_path $controller_address $controller_port \
     $db $db_address_formatted ${tmp_dir}/controller.txt

@@ -8,44 +8,56 @@ configs_folder="$script_dir/configs"
 purposes=64
 clients=64
 user_id=0
+monitor="false"
 
 # Function to display usage instructions
 usage() {
-    echo "Usage: $0 [-pur <value>] [-clients <value>] [-user_id <value>]"
+    echo "Usage: $0 [-pur <value>] [-clients <value>] [-user_id <value>] [-monitor <true/false>]"
     echo "Options:"
     echo "  -pur          : Number of purposes (default: $purposes)"
     echo "  -clients      : Total number of clients (default: $clients)"
     echo "  -uid          : User ID (default: $user_id)"
+    echo "  -monitor      : Enable/disable monitoring (default: $monitor)"
     exit 1
 }
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
-    key="$1"
-    case $key in
-        -pur)
-            purposes="$2"
-            shift
-            shift
-            ;;
-        -clients)
-            clients="$2"
-            shift
-            shift
-            ;;
-        -uid)
-            user_id="$2"
-            shift
-            shift
-            ;;
-        -h|--help)
-            usage
-            ;;
-        *)
-            echo "Invalid option: $key"
-            usage
-            ;;
-    esac
+  key="$1"
+  case $key in
+    -pur)
+      purposes="$2"
+      shift
+      shift
+      ;;
+    -clients)
+      clients="$2"
+      shift
+      shift
+      ;;
+    -uid)
+      user_id="$2"
+      shift
+      shift
+      ;;
+    -monitor)
+      if [ $# -gt 1 ] && ( [ "$2" == "true" ] || [ "$2" == "false" ] ); then
+        monitor="$2"
+        shift
+        shift
+      else
+        echo "Invalid value for -monitor. Please use 'true' or 'false'."
+        exit 1
+      fi
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      echo "Invalid option: $key"
+      usage
+      ;;
+  esac
 done
 
 allowed_pur=$((purposes / 2))
@@ -104,7 +116,7 @@ $objection    ],
     "objShare": [
 $objShare    ],
     "monitor": [
-      "true"
+      "$monitor"
     ]
   }
 }
