@@ -10,7 +10,7 @@ project_root=$(git rev-parse --show-toplevel 2>/dev/null)
 
 # Server executables
 rocksdb_server_bin="$project_root/controller/build/rocksdb_server"
-redis_server_bin=$project_root/KVs/redis/src/redis-server
+redis_server_bin="$project_root/KVs/redis/src/redis-server"
 
 # Directory for storing temporary files for each experiment
 tmp_dir=/tmp
