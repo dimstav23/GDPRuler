@@ -19,6 +19,8 @@ in
 mkShell {
   buildInputs = libraries;
   nativeBuildInputs = [
+    expect
+    numactl
     gdb
     #for the kernel module build
     cpuid
