@@ -51,7 +51,7 @@ else
   cmake --build build -j$(nproc)
 
   # Optional -- workload generation
-  sudo apt-get install -y maven python2
-  cd /home/ubuntu/GDPRuler/ycsb_trace_generator
-  ./workload_generator.sh
+  # sudo apt-get install -y maven python2
+  # cd /home/ubuntu/GDPRuler/ycsb_trace_generator
+  # ./workload_generator.sh
 fi
