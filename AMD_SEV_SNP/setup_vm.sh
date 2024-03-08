@@ -26,8 +26,8 @@ else
   mkdir build
   cd build
   cmake -DREDIS_PLUS_PLUS_CXX_STANDARD=17 ..
-  make
-  sudo make install
+  make -j$(nproc)
+  sudo make install -j$(nproc)
 fi
 
 # Fetch GDPRuler
@@ -41,14 +41,14 @@ else
 
   # Compile redis to get the redis-server exec:
   cd /home/ubuntu/GDPRuler/KVs/redis/
-  make BUILD_TLS=yes MALLOC=libc
+  make BUILD_TLS=yes MALLOC=libc -j$(nproc)
   # Optional command to test the success of the installation
   # make test
 
   # Compile the controller (release version)
   cd /home/ubuntu/GDPRuler/controller
   cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
-  cmake --build build
+  cmake --build build -j$(nproc)
 
   # Optional -- workload generation
   sudo apt-get install -y maven python2
