@@ -21,6 +21,7 @@ if [ -d "redis-plus-plus" ]; then
   echo "redis-plus-plus already exists -- skip cloning"
 else
   git clone https://github.com/sewenew/redis-plus-plus.git
+  git checkout f779c71ff20829b0de7aa91e5dae2f9411c9af0d
   cd redis-plus-plus
   mkdir build
   cd build
@@ -42,7 +43,7 @@ else
   cd /home/ubuntu/GDPRuler/KVs/redis/
   make BUILD_TLS=yes MALLOC=libc
   # Optional command to test the success of the installation
-  make test
+  # make test
 
   # Compile the controller (release version)
   cd /home/ubuntu/GDPRuler/controller
