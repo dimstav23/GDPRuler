@@ -21,6 +21,9 @@ mkShell {
   nativeBuildInputs = [
     expect
     numactl
+    libguestfs
+    guestfs-tools
+
     gdb
     #for the kernel module build
     cpuid

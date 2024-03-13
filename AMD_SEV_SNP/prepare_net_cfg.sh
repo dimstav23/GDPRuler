@@ -37,5 +37,5 @@ fi
 
 # Replace the first part of the address and gateway in the config .yml file
 # Note that the last part of the address and gateway will remain the same as the one pre-defined
-sed -i -E "s/^(\s+)(address:\s+)[0-9]+\.[0-9]+\.[0-9]+\./\1\2${PREFIX}./" "${NETCFG}"
-sed -i -E "s/^(\s+)(gateway:\s+)[0-9]+\.[0-9]+\.[0-9]+\./\1\2${PREFIX}./" "${NETCFG}"
+sed -i -E "s/^(\s+)(addresses:\s\[+)[0-9]+\.[0-9]+\.[0-9]+\./\1\2${PREFIX}./" "${NETCFG}"
+sed -i -E "s/^(\s+)(gateway4:\s+)[0-9]+\.[0-9]+\.[0-9]+\./\1\2${PREFIX}./" "${NETCFG}"
