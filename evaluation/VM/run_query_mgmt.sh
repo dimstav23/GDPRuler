@@ -1,6 +1,7 @@
 #!/bin/sh
 
 script_dir=$(dirname "$(readlink -f "$0")")
+images_dir=/scratch/dimitrios/images
 
 # source the common.sh from the evaluation directory
 source $script_dir/../common.sh
@@ -30,11 +31,11 @@ function prepare_configs() {
 parse_args_and_checks "$@"
 
 # Variables for the end-to-end test configuration
-redis_address="tcp://127.0.0.1"
+redis_address="tcp://192.168.122.48"
 redis_port=6379
-rocksdb_address="127.0.0.1"
+rocksdb_address="192.168.122.48"
 rocksdb_port=15001
-controller_address="127.0.0.1"
+controller_address="192.168.122.23"
 controller_port=1312
 
 # Default combinations of
@@ -44,6 +45,10 @@ controller_port=1312
 clients="1 2 4 8 16 32"
 dbs="redis rocksdb"
 workloads="workloada workloadb workloadc workloadd workloadf"
+
+# compile the controller in the VM with the appropriate encryption option
+virt-customize --add ${images_dir}/controller.img --smp $(nproc) --memsize 16384 \
+  --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
 
 # Native controller
 results_csv_file=${script_dir}/results/native-query_mgmt-encryption_$encryption-logging_$logging.csv
@@ -59,7 +64,7 @@ for n_clients in $clients; do
         db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload."
-      run_native_test $n_clients $workload $db $db_address $db_port \
+      run_VM_test $n_clients $workload $db $db_address $db_port \
       $controller $controller_address $controller_port "" $results_csv_file
       echo ""
     done
@@ -72,8 +77,10 @@ controller="gdpr"
 for n_clients in $clients; do
   # prepare the client configs
   prepare_configs $n_clients
+  # copy the configs in the controller image
+  virt-customize --add ${images_dir}/controller.img --copy-in ${script_dir}/../configs:/root
   # set the client config file appropriately
-  client_cfg=$script_dir/../configs/client0_config.json
+  client_cfg=/root/configs/client0_config.json
   for db in $dbs; do
     for workload in $workloads; do
       if [[ $db == "rocksdb" ]]; then
@@ -84,7 +91,7 @@ for n_clients in $clients; do
         db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, $workload and logging set to $logging"
-      run_native_test $n_clients $workload $db $db_address $db_port \
+      run_VM_test $n_clients $workload $db $db_address $db_port \
       $controller $controller_address $controller_port $client_cfg $results_csv_file
       echo ""
     done
