@@ -1,6 +1,9 @@
 # Detailed information about the evaluation scripts
 
+---
+
 1. [args_and_checks.sh](./args_and_checks.sh)
+
 **Overview:**
 This script is designed to parse command-line arguments for enabling encryption and logging options and then building the controller with the specified encryption setting.
 
@@ -27,7 +30,10 @@ Example:
 - Ensure the script is run within the project directory to correctly identify the root of the repository.
 - Review and adjust the script according to your project's specific requirements.
 
+---
+
 2. [common.sh](./common.sh)
+
 **Overview:**
 This script is designed to facilitate the execution of experiments involving running server processes, controllers, and clients for workload testing. It supports both native execution and execution within a virtual machine (VM) environment.
 
@@ -47,7 +53,10 @@ This script is designed to facilitate the execution of experiments involving run
 - Adjust the script as per your specific experiment requirements and environment setup.
 - Review the script functions and comments for detailed functionality and usage information.
 
+---
+
 3. [default_policy_creator.sh](./default_policy_creator.sh)
+
 **Overview:**
 This script generates JSON configuration files for client default policies based on specified parameters such as the number of purposes, total clients, user ID, and monitoring status.
 
@@ -73,7 +82,10 @@ Example:
 - Adjust the script variables and JSON structure as per your specific requirements.
 - Review the script comments for detailed functionality and usage information.
 
+---
+
 4. [bare_metal/run_query_mgmt.sh](./bare_metal/run_query_mgmt.sh)
+
 **Overview:**
 This script conducts end-to-end tests for query management with encryption and logging enabled or disabled. It covers both native and GDPR controllers with various combinations of clients, databases, and workloads.
 
@@ -99,7 +111,10 @@ Example:
 - Ensure that all dependencies and configurations are properly set up before running the script.
 - Review the script comments for detailed functionality and usage information.
 
+---
+
 5. [VM/run_query_mgmt.sh](./VM/run_query_mgmt.sh)
+
 **Overview:**
 This script is designed to facilitate the end-to-end testing of a GDPR-compliant data management system. It automates the setup and execution of tests with varying parameters such as the number of clients, type of database, workload, encryption settings, and logging preferences.
 
@@ -127,7 +142,10 @@ This script is designed to facilitate the end-to-end testing of a GDPR-compliant
 - Verify network connectivity and accessibility of database servers before running tests.
 - Review and tailor the script according to specific use cases and requirements.
 
+---
+
 6. [VM/VM_controller.expect](./VM/VM_controller.expect) 
+
 **Overview:**
 This Expect script automates the deployment and execution of a controller virtual machine (VM) for a GDPR-compliant data management system. It launches the VM, configures the controller, and initiates the appropriate controller type (native or GDPR) based on user-defined parameters.
 
@@ -155,7 +173,10 @@ to deploy the VM and start the controller.
 - Review and customize the script according to your specific use case and environment.
 - Take necessary security precautions, especially when handling sensitive data or privileged operations.
 
+---
+
 7. [VM/VM_server.expect](./VM/VM_server.expect) 
+
 **Overview:**
 This Expect script automates the deployment and execution of a controller virtual machine (VM) for a GDPR-compliant data management system. It launches the VM, configures the controller, and starts either the native or GDPR controller based on user-defined parameters.
 
