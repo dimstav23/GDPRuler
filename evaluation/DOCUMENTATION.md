@@ -66,7 +66,7 @@ This script generates JSON configuration files for client default policies based
 - Configuration Folder: Configuration files are saved in a designated folder for easy access and management.
 
 **Usage:**
-- Setup: Ensure the script is executable (chmod +x script.sh) and run in a bash environment.
+- Setup: Ensure the script is executable (`chmod +x default_policy_creator.sh`) and run in a bash environment.
 - Command Line Arguments: Use command line options to specify parameters:
   - -pur: Number of purposes (default: 64)
   - -clients: Total number of clients (default: 64)
@@ -76,7 +76,7 @@ This script generates JSON configuration files for client default policies based
 
 Example:
 ```
-./script.sh -pur 32 -clients 32 -uid 1 -monitor true
+./default_policy_creator.sh -pur 32 -clients 32 -uid 1 -monitor true
 ```
 **Notes:**
 - Adjust the script variables and JSON structure as per your specific requirements.
