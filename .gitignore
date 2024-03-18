@@ -9,3 +9,4 @@ OVMF*
 *.rdb
 logs/
 workload_traces/
+.vscode

@@ -55,8 +55,7 @@ For SNP, this setup has been tested with
 
 
 ### 4. Prepare an AMD SEV-SNP guest.
-- You need to have cloud-config file and a network-config file for your VM, similar to those in the [cloud_configs](./cloud_configs/) folder.
-- If you wish to have ssh connection to your VMs, you can adapt the cloud-config files and include your ssh keys, so that cloud-init sets them up automatically in the VM. Example cloud-init configurations that include the placeholders for ssh keys can be found [here](./cloud_configs/).
+- You need to have a network-config file (`.yaml`) for your VM, similar to those in the [network_configs](./network_configs/) folder.
 - The [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) script takes as a parameter the virtual bridge where the VMs will be connected to and modifies the IP prefix in the network configuration (given as a secord parameter) appropriately.
 
 Follow the next set of commands from the `AMD_SEV_SNP` directory to launch an SEV-SNP guest (tested with ubuntu 22.04 cloud img).
@@ -65,23 +64,20 @@ $ wget https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64
 
 $ mkdir images
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./AMDSEV/usr/local/bin/qemu-img convert jammy-server-cloudimg-amd64.img ./images/sev-server.img
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./AMDSEV/usr/local/bin/qemu-img convert jammy-server-cloudimg-amd64.img ./images/controller.img
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH  ./AMDSEV/usr/local/bin/qemu-img resize ./images/sev-server.img +30G
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH  ./AMDSEV/usr/local/bin/qemu-img resize ./images/controller.img +30G
 
-$ bash prepare_net_cfg.sh -br virbr0 -cfg ./cloud_configs/network-config-server.yml
+$ bash prepare_net_cfg.sh -br virbr0 -cfg ./network_configs/netplan-controller.yml
 
-$ sudo cloud-localds -N ./cloud_configs/network-config-server.yml ./images/server-cloud-config.iso ./cloud_configs/cloud-config-server
+$ mkdir -p OVMF_files/controller
 
-$ mkdir -p OVMF_files/server
+$ cp ./AMDSEV/usr/local/share/qemu/OVMF_CODE.fd ./OVMF_files/controller/OVMF_CODE.fd
 
-$ cp ./AMDSEV/usr/local/share/qemu/OVMF_CODE.fd ./OVMF_files/server/OVMF_CODE.fd
-
-$ cp ./AMDSEV/usr/local/share/qemu/OVMF_VARS.fd ./OVMF_files/server/OVMF_VARS.fd
+$ cp ./AMDSEV/usr/local/share/qemu/OVMF_VARS.fd ./OVMF_files/controller/OVMF_VARS.fd
 ```
 
-For convenience, we wrap these operations in a single script ([GDPRuler_VMs_setup.sh](./GDPRuler_VMs_setup.sh))to setup both a server and a client image.
-Note that the actual setup will be performed on the first launch of the VM -- so, please be patient :)
+For convenience, we wrap these operations in a single script ([GDPRuler_VMs_setup.sh](./GDPRuler_VMs_setup.sh))to setup a controller, a server and a client image.
 
 **Important note:** 
 - Each VM requires a separate `.img` and `OVMF_*.fd` files.
@@ -90,11 +86,10 @@ Note that the actual setup will be performed on the first launch of the VM -- so
 ### 5. Launch an AMD SEV-SNP guest.
 ```
 $ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH bash AMDSEV/launch-qemu.sh \
--hda images/sev-server.img \
--cdrom images/server-cloud-config.iso \
+-hda images/controller.img \
 -sev-snp \
 -bridge virbr0 \
--bios OVMF_files/server
+-bios OVMF_files/controller
 ```
 
 **IMPORTANT:** 
@@ -104,18 +99,25 @@ host kernel to a version >=`6.7`.
 
 
 **Important notes:**
-- Be a bit patient, the network configuration above takes some seconds. If, in the meantime, you encounter a log-in prompt that does not accept your credentials, you can try Ctrl+C which will detach from the current `tty` and will allow the cloud-init to finish properly. Then you can log in normally.
-It is a known "issue". 
 - Follow the same process for the creation of a client vm (if you want/need to).
 You need a different `.img`, and to adapt the network configuration appropriately to reserve a different IP.
-Configuration examples are given in the [cloud_configs](./cloud_configs/) folder.
+Network configuration examples are given in the [network_configs](./network_configs/) folder.
 
 ### 6. Inside the guest VM, verify that AMD SEV-SNP is enabled:
 `sudo dmesg | grep snp -i` should indicate `Memory Encryption Features active: AMD SEV SEV-ES SEV-SNP`
 
 ### 7. Networking: 
 In step 5 above, we use the parameter `-bridge virbr0`, so that our VMs use the virtual network bridge `virbr0`. 
-Our script [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) checks the given virtual bridge and adjust the prefix of the IP declared in the network configuration file. Example configuration files are given in the [cloud_configs](./cloud_configs/) folder. They are used mainly to pre-determine the IPs of the VMs in the network.
+Typically, this is set up if you are using `libvirt`.
+If it does not exist, you can create and configure it by using the `bridge-utils` package.
+An example is shown below:
+```
+sudo brctl addbr virbr0
+sudo brctl stp virbr0 on
+sudo ifconfig virbr0 up
+sudo ifconfig virbr0 192.168.122.1 netmask 255.255.255.0
+```
+Our script [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) checks the given virtual bridge and adjusts the prefix of the IP declared in the network configuration file. Example configuration files are given in the [network_configs](./network_configs/) folder. They are used mainly to pre-determine the IPs of the VMs in the network.
 
 ### 8. Attestation (maybe outdated due to updated kernel):
 For more information about the attestation process, please consult our [dedicated documentation](./ATTESTATION.md).
@@ -125,8 +127,6 @@ Sample attestation process is also presented in our [sev-snp-attestation](./sev-
 - After you make sure that networking works fine and you can reach the VM guest from the host, you can log-in the VM using ssh (after placing your ssh keys in the `~/.ssh/autorhized_keys` file of the guest VM).
 
 ### Useful links
-- Sample cloud-config and network-config for cloud-init can be found [here](https://gist.github.com/itzg/2577205f2036f787a2bd876ae458e18e).
-- Additional options of the cloud-config, such as running a specific command during initialization, can be found [here](https://www.digitalocean.com/community/tutorials/how-to-use-cloud-config-for-your-initial-server-setup)
 - AMD [host kernels](https://github.com/AMDESE/linux) -- check branch names for each feature (e.g., SEV, ES, SNP)
 - [QEMU](https://github.com/AMDESE/qemu) provided by AMD / or the [private fork](https://github.com/dimstav23/amd-qemu) that is used
 - [OVMF](https://github.com/AMDESE/ovmf) provided by AMD / or the [private fork](https://github.com/dimstav23/amd-ovmf) that is used

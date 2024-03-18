@@ -1,0 +1,68 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+
+set curr_dir [file normalize [file dirname $argv0]]
+
+# first argument indicates the db backend type: redis or rocksdb
+set db_type [lindex $argv 0];
+# second argument indicates number of cores
+set cores [lindex $argv 1];
+# third argument indicates MB of memory for the VM
+set memory [lindex $argv 2];
+# fourth argument indicates the port of the server
+set port [lindex $argv 3];
+# fifth argument indicates the directory of the logs
+set log_dir [lindex $argv 4];
+# sixth argument indicates the output file path
+set output_file [lindex $argv 5];
+
+# Set the server executables for the server VM environment
+set rocksdb_server_bin /root/GDPRuler/controller/build/rocksdb_server
+set redis_server_bin /root/GDPRuler/KVs/redis/src/redis-server
+
+# Launch the server VM
+spawn sudo LD_LIBRARY_PATH=$::env(LD_LIBRARY_PATH) numactl --cpunodebind=0 --membind=0   \
+bash ${curr_dir}/../../AMD_SEV_SNP/AMDSEV/launch-qemu.sh \
+-hda /scratch/dimitrios/images/server.img \
+-sev-es \
+-bridge virbr0 \
+-bios /scratch/dimitrios/OVMF_files/server \
+-smp $cores \
+-mem $memory \
+-log ${curr_dir}/server.out
+
+# Enter username
+expect -- "login: "
+send -- "root\r"
+
+# Enter Password
+expect -- "Password: "
+send -- "123456\r"
+
+# Expect the login to be done
+expect -- "# "
+
+# Go to the controller directory
+send -- "cd /root/GDPRuler/controller\r"
+expect -- "# "
+
+# Delete and recreate the folder for the db files and logs
+send -- "rm -rf $log_dir\r"
+expect -- "# "
+send -- "mkdir -p $log_dir\r"
+expect -- "# "
+
+# Run the approrpiate DB server
+if { $db_type == "rocksdb" } {
+  # Run rocksdb server
+  send -- "$rocksdb_server_bin $port $log_dir > $output_file\r"
+  expect -- "# "
+} elseif { $db_type == "redis" } {
+  # Run redis server
+  send -- "$redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file\r"
+  expect -- "# "
+} else {
+  # invalid DB backend
+  shutdown
+}
