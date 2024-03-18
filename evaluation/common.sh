@@ -386,7 +386,7 @@ cleanup_VM() {
   local db_address="$5"
   local db_port="$6"
 
-  echo "Stopping QEMU instances"
+  echo "Terminating QEMU processes"
   sudo kill -SIGINT $(pgrep -f qemu)
   echo "Checking that conroller and server are shutdown"
   wait_for_shutdown $controller_address $controller_port
@@ -398,6 +398,23 @@ cleanup_VM() {
 
   # Remove the clients temp file
   rm ${tmp_dir}/clients.txt
+
+  # Give a small buffer time for QEMU to cleanup
+  sleep 5
+
+  # Check if any QEMU processes are still running and forcefully kill them if they are
+  if pgrep -f qemu > /dev/null; then
+    echo "Forcefully terminating remaining QEMU processes..."
+    sudo kill -SIGKILL $(pgrep -f qemu)
+  fi
+
+  # Final check to ensure all processes are terminated
+  if pgrep -f qemu > /dev/null; then
+    echo "There are still running QEMU processes."
+    exit 1
+  else
+    echo "All QEMU processes have been terminated."
+  fi
 }
 
 # Function to print summary of test results

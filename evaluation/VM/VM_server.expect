@@ -29,7 +29,8 @@ bash ${curr_dir}/../../AMD_SEV_SNP/AMDSEV/launch-qemu.sh \
 -bridge virbr0 \
 -bios /scratch/dimitrios/OVMF_files/server \
 -smp $cores \
--mem $memory
+-mem $memory \
+-log ${curr_dir}/server.out
 
 # Enter username
 expect -- "login: "

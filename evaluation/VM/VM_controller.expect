@@ -33,7 +33,8 @@ bash ${curr_dir}/../../AMD_SEV_SNP/AMDSEV/launch-qemu.sh \
 -bridge virbr0 \
 -bios /scratch/dimitrios/OVMF_files/controller \
 -smp $cores \
--mem $memory
+-mem $memory \
+-log ${curr_dir}/controller.out
 
 # Enter username
 expect -- "login: "
@@ -64,7 +65,7 @@ if { $controller_type == "native" } {
   send -- "mkdir -p $gdpr_log_path\r"
   expect -- "# "
   # Run GDPR controller
-  send -- "python3 GDPRuler.py --db $db_type --config $gdpr_config --logpath $gdpr_log_path --db_address $db_address --controller_address $controller_address --controller_port $controller_port\r"
+  send -- "python3 GDPRuler.py --db $db_type --config $gdpr_config --logpath $gdpr_log_path --db_address $db_address --controller_address $controller_address --controller_port $controller_port > $output_file\r"
   expect -- "# "
 } else {
   # invalid controller type
