@@ -1,0 +1,88 @@
+diff --git a/src/workloads/workloada b/src/workloads/workloada
+index 0e1a193..77d6488 100644
+--- a/src/workloads/workloada
++++ b/src/workloads/workloada
+@@ -22,7 +22,7 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000000
++recordcount=100000
+ operationcount=1000000
+ workload=com.yahoo.ycsb.workloads.CoreWorkload
+ 
+diff --git a/src/workloads/workloadb b/src/workloads/workloadb
+index 408a6bf..d4f6b70 100644
+--- a/src/workloads/workloadb
++++ b/src/workloads/workloadb
+@@ -21,8 +21,8 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=com.yahoo.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/src/workloads/workloadc b/src/workloads/workloadc
+index 1afe62c..5985ba1 100644
+--- a/src/workloads/workloadc
++++ b/src/workloads/workloadc
+@@ -21,8 +21,8 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=com.yahoo.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/src/workloads/workloadd b/src/workloads/workloadd
+index 3b911f3..607cc63 100644
+--- a/src/workloads/workloadd
++++ b/src/workloads/workloadd
+@@ -26,8 +26,8 @@
+ # which orders items purely by time, and demands the latest, is very different than 
+ # workload here (which we believe is more typical of how people build systems.)
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=com.yahoo.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/src/workloads/workloade b/src/workloads/workloade
+index 64304d2..2855b6e 100644
+--- a/src/workloads/workloade
++++ b/src/workloads/workloade
+@@ -26,8 +26,8 @@
+ # instead interspersed with posts from lots of other threads. The way the YCSB client works is that it will pick a start
+ # key, and then request a number of records; this works fine even for hashed insertion.
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=com.yahoo.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/src/workloads/workloadf b/src/workloads/workloadf
+index 6c7455d..61958ec 100644
+--- a/src/workloads/workloadf
++++ b/src/workloads/workloadf
+@@ -21,8 +21,8 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=com.yahoo.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
