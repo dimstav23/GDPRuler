@@ -1,27 +1,43 @@
-## Description of [`redis_runner.sh`](./redis_runner.sh)
+# Baseline benchmarks
 
-This script measures the performance of three different versions of a Redis server:
+## General Information
+This directory contains the scripts for the automated execution of our baselines.
 
-Vanilla Native Version: A standard Redis server without any privacy controls
-GDPRuler Native Version: A Redis server with privacy controls, using the GDPRuler tool
-SEV GDPRuler Version: A secure version of the GDPRuler Native Version.
-The script measures the performance of each version of the Redis server by running a set of five workload traces and measuring the "Controller Time" and "System Time". The results of each measurement are then averaged and stored in a CSV file.
+- In the [current directory](./), we provide 3 python scripts that are used to execute the YCSB workloads using the `redis` and `rocksdb` KV backends.
+- In the [YCSB_baselines](./YCSB_baselines/) directory, we provide scripts that automate the execution of YCSB workloads using the `redis` KV backend through the YCSB Java Framework and `GDPRbench`. For more information, please see [here](./YCSB_baselines/README.md).
 
-Here is a high-level description of the steps taken by the script:
+## Documentation
 
-The script sets a number of variables, including the path to the Redis server and the workload traces, the number of repeats (5), and the names of the workload traces ("workloada", "workloadb", "workloadc", "workloadd", and "workloadf").
-The script creates a directory to store the results, if it doesn't already exist.
-The script runs a loop to measure the performance of the Vanilla Native Version. In each iteration of the loop:
-The Redis server is started and its process ID is stored
-The workload trace is run using the python3 ../native_ctl.py command, which runs the "native_ctl.py" script with the specified workload. The output of the command is redirected to a file with the name "./results/native_${workload}_${rep}"
-The script extracts the "Controller Time" and "System Time" from the output file and adds them to the running total of times.
-The Redis server is killed and its data file is removed.
-The script calculates the average "Controller Time" and "System Time" for the Vanilla Native Version and writes the results to the "./results/native_average.csv" file.
-The script repeats steps 3 and 4 for the GDPRuler Native Version, with the difference being that the python3 ../GDPRuler.py command is used to run the "GDPRuler.py" script with the specified configuration file and workload. The results are stored in the "./results/gdpr_average.csv" file.
-The script repeats steps 3 and 4 for the SEV GDPRuler Version, with the same process as the GDPRuler Native Version. The results are stored in the "./results/sec_gdpr_average.csv" file.
-This script uses a number of Linux shell commands and utilities, including mkdir to create the results directory, seq to generate a sequence of numbers, grep to extract information from the output files, awk to extract values from the output of grep, bc to perform floating-point arithmetic, and kill to kill the Redis server process.
+To run the benchmarks:
+```
+python3 baseline_runner.py
+```
+For more information about the execution configurations, see the [script](./baseline_runner.py) itself.
 
-## Description of [`plot.py`](./plot.py)
-This script uses the parse_file function to parse the contents of each result file and store the data in a dictionary. The keys of the dictionary are the workloads, and the values are dictionaries with two keys: controller_time and system_time.
+---
 
-The plot_overhead function takes the combined data from all the result files and calculates the overhead percentage for both the native GDPR and secure GDPR versions. It then plots a stacked bar graph to show the overhead, with the vanilla version as the baseline. The x-axis shows the different workloads, and the y-axis shows the overhead in percentage.
+To plot the results:
+```
+python3 baseline_plot.py
+```
+
+---
+
+Following we provide a breakdown with documentation about the scripts of the current directory:
+
+- [`baseliner_runner.py`](./baseline_runner.py):
+Contains the configuration and orchestrates the execution of the experiments.
+  - The benchmark configuration is located in the first lines of the script.
+  - The workloads are taken from the [workload_traces](../workload_traces/`) directory.
+  - The number of repeats can be adapted directly in the script.
+  - The `redis-server` is located in the [KVs/redis/src](../KVs/redis/src/) directory of the submodule.
+  - The `rocksdb_server` is located in the [controller](../controller/) build directory that is created after building the controller.
+  - The `localhost` is used for the communication.
+  - The `ports` used for the servers are hardcoded in the script. Feel free to modify them according to your needs.
+  - The results are placed in the `results` directory of the current directory (created, if it does not exist)
+
+- [`aggregate_results.py`](./aggregate_results.py):
+Contains helper functions to aggregate the results in files based on the amount of the repeats of each configuration.
+
+- [`baseline_plot.py`](./baseline_plot.py):
+Plots the aggregated results. 
