@@ -4,6 +4,7 @@ let
       ps.pandas
       ps.pexpect
       ps.matplotlib
+      ps.seaborn
     ]);
   fenix = callPackage
     (fetchFromGitHub {

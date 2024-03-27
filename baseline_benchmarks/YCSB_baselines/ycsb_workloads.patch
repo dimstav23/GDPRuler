@@ -1,0 +1,90 @@
+diff --git a/workloads/workloada b/workloads/workloada
+index ed46bb71..a9deb03e 100644
+--- a/workloads/workloada
++++ b/workloads/workloada
+@@ -22,8 +22,8 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=site.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/workloads/workloadb b/workloads/workloadb
+index 47f2d026..3af5ca05 100644
+--- a/workloads/workloadb
++++ b/workloads/workloadb
+@@ -21,8 +21,8 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=site.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/workloads/workloadc b/workloads/workloadc
+index 03d1efbe..010279e9 100644
+--- a/workloads/workloadc
++++ b/workloads/workloadc
+@@ -21,8 +21,8 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=site.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/workloads/workloadd b/workloads/workloadd
+index de0415e0..a3a62f71 100644
+--- a/workloads/workloadd
++++ b/workloads/workloadd
+@@ -26,8 +26,8 @@
+ # which orders items purely by time, and demands the latest, is very different than 
+ # workload here (which we believe is more typical of how people build systems.)
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=site.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/workloads/workloade b/workloads/workloade
+index b904aa17..aa289669 100644
+--- a/workloads/workloade
++++ b/workloads/workloade
+@@ -26,8 +26,8 @@
+ # instead interspersed with posts from lots of other threads. The way the YCSB client works is that it will pick a start
+ # key, and then request a number of records; this works fine even for hashed insertion.
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=site.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true
+diff --git a/workloads/workloadf b/workloads/workloadf
+index 6fe0e7a7..d8bd26cf 100644
+--- a/workloads/workloadf
++++ b/workloads/workloadf
+@@ -21,8 +21,8 @@
+ #   Default data size: 1 KB records (10 fields, 100 bytes each, plus key)
+ #   Request distribution: zipfian
+ 
+-recordcount=1000
+-operationcount=1000
++recordcount=100000
++operationcount=1000000
+ workload=site.ycsb.workloads.CoreWorkload
+ 
+ readallfields=true

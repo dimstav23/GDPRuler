@@ -102,15 +102,15 @@ target_compile_features(native_controller_exe PRIVATE cxx_std_20)
 target_link_libraries(native_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
 
 # redis interface
-add_executable(redis_interface_exe source/redis_interface.cpp)
-add_executable(redis_interface::exe ALIAS redis_interface_exe)
+add_executable(test_kv_client_driver_exe source/test_kv_client_driver.cpp)
+add_executable(test_kv_client_driver::exe ALIAS test_kv_client_driver_exe)
 
-set_property(TARGET redis_interface_exe PROPERTY OUTPUT_NAME redis_interface)
+set_property(TARGET test_kv_client_driver_exe PROPERTY OUTPUT_NAME test_kv_client_driver)
 
-target_compile_features(redis_interface_exe PRIVATE cxx_std_20)
+target_compile_features(test_kv_client_driver_exe PRIVATE cxx_std_20)
 
-target_link_libraries(redis_interface_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} OpenSSL::Crypto)
-target_include_directories(redis_interface_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
+target_link_libraries(test_kv_client_driver_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} OpenSSL::Crypto)
+target_include_directories(test_kv_client_driver_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
 
 # rocksdb server
 add_executable(rocksdb_server_exe source/rocksdb_server/server.cpp)
