@@ -38,7 +38,8 @@ def plot_latency_by_workload(data):
     plt.title(f'Latency by Workload ({database})')
     plt.xticks(np.arange(len(num_clients_all)), num_clients_all)
     plt.legend()
-    plt.savefig(f'plots/latency_by_workload_{database}.png')
+    plt.savefig(f'plots/latency_by_workload_{database}.png', format='png')
+    plt.savefig(f'plots/latency_by_workload_{database}.pdf', format='pdf', dpi=300)
     plt.close()
 
 # Function to plot bar plot with throughput for each workload and number of clients
@@ -65,7 +66,8 @@ def plot_throughput_by_workload(data):
     plt.title(f'Throughput by Workload ({database})')
     plt.xticks(np.arange(len(num_clients_all)), num_clients_all)
     plt.legend()
-    plt.savefig(f'plots/throughput_by_workload_{database}.png')
+    plt.savefig(f'plots/throughput_by_workload_{database}.png', format='png')
+    plt.savefig(f'plots/throughput_by_workload_{database}.pdf', format='pdf', dpi=300)
     plt.close()
 
 # Function to plot bar plot with latency for all databases and workloads
@@ -95,7 +97,8 @@ def plot_combined_latency(data):
   plt.xticks(np.arange(len(num_clients_all)) + 0.4, num_clients_all)
   plt.legend()
   plt.tight_layout()
-  plt.savefig('plots/combined_latency.png')
+  plt.savefig('plots/combined_latency.png', format='png')
+  plt.savefig('plots/combined_latency.pdf', format='pdf', dpi=300)
   plt.close()
 
 # Function to plot bar plot with throughput for all databases and workloads
@@ -125,7 +128,8 @@ def plot_combined_throughput(data):
   plt.xticks(np.arange(len(num_clients_all)) + 0.4, num_clients_all)
   plt.legend()
   plt.tight_layout()
-  plt.savefig('plots/combined_throughput.png')
+  plt.savefig('plots/combined_throughput.png', format='png')
+  plt.savefig('plots/combined_throughput.pdf', format='pdf', dpi=300)
   plt.close()
 
 # Main function to execute all plotting functions
