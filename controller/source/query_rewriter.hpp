@@ -15,11 +15,16 @@ class query_rewriter
 {
 public:
 	query_rewriter();
+  /* Constructor for the PUT operation in case of the first INSERTION of a KV pair */
   explicit query_rewriter(const query &query_args, 
                           const default_policy &def_policy, 
                           const std::string &new_query_value);
+  /* Constructor for the PUT operation in case of an UPDATE of a value */
   explicit query_rewriter(const std::string &res,
                           const std::string &new_query_value);
+  /* Constructor for the PUTM operation */
+  explicit query_rewriter(const std::string &res,
+                          const query  &query_args);
   // ~query_rewriter();
 
 	[[nodiscard]] auto name() const -> std::string;

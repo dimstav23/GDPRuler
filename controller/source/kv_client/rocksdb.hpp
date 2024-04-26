@@ -78,6 +78,34 @@ public:
     return response.op_is_successful();
   }
 
+  auto getm(const std::string& key) -> std::optional<std::string> override
+  {
+    query_message query;
+    query.set_command("getm");
+    query.set_key(key);
+    query.set_is_valid(/*is_valid*/true);
+
+    response_message response = execute(query);
+    if (response.op_is_successful()) {
+      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
+      return response.get_data();
+    }
+    // std::cout << "GET operation failed" << std::endl;
+    return std::nullopt;
+  }
+
+  auto putm(const std::string& key, const std::string& value) -> bool override
+  {
+    query_message query;
+    query.set_command("putm");
+    query.set_key(key);
+    query.set_value(value);
+    query.set_is_valid(/*is_valid*/true);
+
+    response_message response = execute(query);
+    return response.op_is_successful();
+  }
+
 private:
   boost::asio::io_context m_io_context;
   boost::asio::ip::tcp::socket m_socket;

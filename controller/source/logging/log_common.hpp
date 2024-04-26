@@ -25,8 +25,7 @@ enum operation : uint8_t {
   del = 3U,
   getm = 4U,
   putm = 5U,
-  delm = 6U,
-  get_logs = 7U
+  get_logs = 6U
 };
 
 /**
@@ -47,9 +46,6 @@ inline auto convert_operation_to_enum(const std::string& oper) -> operation {
   }
   if (oper == "putm") {
     return operation::putm;
-  }
-  if (oper == "delm") {
-    return operation::delm;
   }
   if (oper == "getLogs") {
     return operation::get_logs;
@@ -76,9 +72,6 @@ inline auto convert_enum_to_operation(const operation oper) -> std::string  {
   }
   if (oper == operation::putm) {
     return "putm";
-  }
-  if (oper == operation::delm) {
-    return "delm";
   }
   if (oper == operation::get_logs) {
     return "getLogs";

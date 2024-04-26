@@ -130,9 +130,25 @@ auto inline remove_gdpr_metadata(std::string &value) -> std::string {
   {
     // Erase the metadata and return the actual value
     value.erase(0, last_delimiter_idx + 1);
-  }  
+  } 
   return value;
 }
 
+/**
+ * Preserves only the GDPR metadata from the given string containing GDPR metadata.
+ * The input string is modified in-place.
+ *
+ * @param value The string containing the GDPR metadata and the value.
+ * @return The GDPR metadata.
+ */
+auto inline preserve_only_gdpr_metadata(std::string &value) -> std::string {
+  size_t last_delimiter_idx = value.find_last_of('|');
+  if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
+  {
+    // Erase the value and return only the GDPR metadata
+    value.erase(last_delimiter_idx + 1, value.length());
+  }  
+  return value;
+}
 
 } // namespace controller

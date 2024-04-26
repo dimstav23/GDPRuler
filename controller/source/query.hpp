@@ -51,7 +51,6 @@ const std::vector<std::string> query_types = {
   "delete",
   "putm",
   "getm",
-  "delm",
   "getlogs"
 };
 // NOLINTEND(cert-err58-cpp)

@@ -58,4 +58,38 @@ public:
     }
     return res;
   }
+
+  auto getm(const std::string& key) -> std::optional<std::string> override
+  {
+    // auto cursor = 0LL;
+    // auto pattern = "*pattern*";
+    // auto count = 5;
+    // std::unordered_set<std::string> keys;
+    // while (true) {
+    //   cursor = redis.scan(cursor, pattern, count, std::inserter(keys, keys.begin()));
+    //   // Default pattern is "*", and default count is 10
+    //   // cursor = redis.scan(cursor, std::inserter(keys, keys.begin()));
+
+    //   if (cursor == 0) {
+    //     break;
+    //   }
+    // }
+    auto result = m_redis.get(key);
+    return result;
+  }
+
+  auto putm(const std::string& key, const std::string& value) -> bool override
+  {
+    bool res = true;
+    auto result = m_redis.set(key, value);
+    if (result) {
+      // std::cout << "PUTM operation done with key: " << key
+      //           << " and value: " << value << std::endl;
+    } else {
+      // std::cout << "PUTM operation failed" << std::endl;
+      res = false;
+    }
+    return res;
+  }
+
 };
