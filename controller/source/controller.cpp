@@ -333,6 +333,7 @@ auto handle_connection
 auto main(int argc, char* argv[]) -> int
 { 
   // read the default policy line
+  // std::string def_policy_line = "user_policy -sessionKey user0 -encryption true -purpose purpose0,purpose1,purpose2 -objection purpose3 -origin src0 -expTime 0 -objShare user1,user2,user3 -monitor false";
   std::string def_policy_line;
   std::getline(std::cin, def_policy_line);
   default_policy def_policy;
