@@ -57,7 +57,23 @@ public:
   }
 
   auto gdpr_getm(const std::string& key) -> std::optional<std::string> {
-    return getm(key);
+    #ifndef ENCRYPTION_ENABLED
+      // get the value directly w/o decryption
+      return getm(key);
+    #else
+      // get the value after decryption
+      auto encrypted_value = getm(key);
+      if (!encrypted_value.has_value()) {
+        return std::nullopt;
+      }
+
+      auto decrypt_result = m_cipher->decrypt(encrypted_value.value(), cipher_key_type::db_key);
+      if (decrypt_result.m_success) {
+        return decrypt_result.m_plaintext;
+      }
+      std::cerr << "Error in get: Decryption failed for value: " << encrypted_value.value() << std::endl;
+      return std::nullopt;
+    #endif
   }
 
   auto gdpr_putm(const std::string& key, const std::string& value) -> bool {
