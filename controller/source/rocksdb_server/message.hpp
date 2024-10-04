@@ -38,7 +38,7 @@ public:
   static auto deserialize(const std::string& raw_query) -> query_message
   {
     static query_message invalid_query;
-    static std::unordered_set<std::string> valid_query_types {"get", "put", "del"};
+    static std::unordered_set<std::string> valid_query_types {"get", "put", "del", "getm", "putm"};
 
     std::vector<std::string> splits;
     boost::split(splits, raw_query, boost::is_any_of(" "));

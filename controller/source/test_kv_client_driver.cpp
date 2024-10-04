@@ -90,8 +90,6 @@ auto main(int argc, char* argv[]) -> int
       
     // } else if (command == "putm") {
       
-    // } else if (command == "deletem") {
-      
     // } else if (command == "getLogs") {
       
     // }

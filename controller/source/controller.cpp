@@ -125,6 +125,63 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
   return "DELETE_FAILED: Invalid key or does not comply with GDPR rules";
 }
 
+auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
+                const query &query_args,
+                const default_policy &def_policy) -> std::string
+{
+  auto res = client->gdpr_getm(query_args.key());
+  auto filter = std::make_shared<gdpr_filter>(res);
+
+  // Check if the retrieved key requires logging
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+  bool is_valid = filter->validate(query_args, def_policy);
+  // Perform the logging of the (in)valid operation -- if needed
+  monitor.monitor_query(is_valid);
+  if (is_valid) {
+    // if the key exists and complies with the gdpr rules
+    // then return the GDPR metadata of the key
+    return controller::preserve_only_gdpr_metadata(res.value());
+  }
+
+  return "GETM_FAILED: Invalid key or does not comply with GDPR rules";
+}
+
+auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
+                const query &query_args,
+                const default_policy &def_policy) -> std::string
+{
+  auto res = client->gdpr_get(query_args.key());
+  auto filter = std::make_shared<gdpr_filter>(res);
+
+  bool is_valid = true;
+  // if the key does not exist, return the error
+  if (!res) {
+    return "PUTM_FAILED: The specified key does not exist";
+  }
+  // if the key exists and complies with the gdpr rules, perform the GDPR metadata update
+  if ((is_valid = filter->validate(query_args, def_policy))) {
+    // Check if the retrieved value requires logging
+    // the query args do not need to be checked since they cannot update the
+    // gpdr metadata of the value -- only putm operations can
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    // update the current value with the new one without modifying any metadata
+    query_rewriter rewriter(res.value(), query_args);
+    // Perform the logging of the valid operation -- if needed
+    monitor.monitor_query(is_valid, rewriter.new_value());
+    auto ret_val = client->gdpr_putm(query_args.key(), rewriter.new_value());
+    if (ret_val) {
+      return "PUTM_SUCCESS";
+    }
+    return "PUTM_FAILED: Failed to put value";
+  }
+
+  // Perform the logging of the invalid operation -- if needed
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+  monitor.monitor_query(is_valid);
+
+  return "PUTM_FAILED: Invalid key or does not comply with GDPR rules";
+}
+
 auto handle_get_logs(const query &query_args,
                      const default_policy &def_policy) -> std::string 
 {
@@ -139,37 +196,30 @@ auto handle_get_logs(const query &query_args,
   std::stringstream response;
 
   if (query_args.log_key() == "read_all") {
-    // std::cout << "Reading all the log files..." << std::endl;
     response << "Reading all the log files:" << std::endl;
     std::vector<std::string> log_files = regulator.retrieve_logs();
     // TODO: redirect this output to the regulator secure channel
     for (const auto& log : log_files) {
-      // std::cout << "Log file: " << log << std::endl;
       response << "Log file: " << log << std::endl;
       std::vector<std::string> log_entries = regulator.read_log(log);
       for (const auto& entry : log_entries) {
-        // std::cout << entry << std::endl;
         response << entry << std::endl;
       }
     }
   }
   else if (query_args.log_key() == "dir") {
-    // std::cout << "Available log files:" << std::endl;
     response << "Available log files:" << std::endl;
     std::vector<std::string> log_files = regulator.retrieve_logs();
     // TODO: redirect this output to the regulator secure channel
     for (const auto& log : log_files) {
-      // std::cout << log << std::endl;
       response << log << std::endl;
     }
   }
   else {
-    // std::cout << "Reading the log file of key " << query_args.log_key() << ":" << std::endl;
     response << "Reading the log file of key " << query_args.log_key() << ":" << std::endl;
     std::vector<std::string> log_entries = regulator.read_key_log(query_args.log_key());
     // TODO: redirect this output to the regulator secure channel
     for (const auto& entry : log_entries) {
-      // std::cout << entry << std::endl;
       response << entry << std::endl;
     }
   }
@@ -239,13 +289,10 @@ auto handle_connection
         response = handle_delete(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "putm") { /* ignore for now */
-        continue;
+        response = handle_put_metadata(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "getm") { /* ignore for now */
-        continue;
-      }
-      else if (query_args.cmd() == "delm") { /* ignore for now */
-        continue;
+        response = handle_get_metadata(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "getlogs") {
         // current client resembles the regulator
@@ -286,6 +333,7 @@ auto handle_connection
 auto main(int argc, char* argv[]) -> int
 { 
   // read the default policy line
+  // std::string def_policy_line = "user_policy -sessionKey user0 -encryption true -purpose purpose0,purpose1,purpose2 -objection purpose3 -origin src0 -expTime 0 -objShare user1,user2,user3 -monitor false";
   std::string def_policy_line;
   std::getline(std::cin, def_policy_line);
   default_policy def_policy;
