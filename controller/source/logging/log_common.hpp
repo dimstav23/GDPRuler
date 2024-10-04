@@ -38,7 +38,7 @@ inline auto convert_operation_to_enum(const std::string& oper) -> operation {
   if (oper == "put") {
     return operation::put;
   }
-  if (oper == "del") {
+  if (oper == "delete") {
     return operation::del;
   }
   if (oper == "getm") {
@@ -65,7 +65,7 @@ inline auto convert_enum_to_operation(const operation oper) -> std::string  {
     return "put";
   }
   if (oper == operation::del) {
-    return "del";
+    return "delete";
   }
   if (oper == operation::getm) {
     return "getm";
