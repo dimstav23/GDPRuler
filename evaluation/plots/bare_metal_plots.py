@@ -64,15 +64,25 @@ def plot_and_save(data, output_dir):
         ax = axes[0]
         for i, (workload, workload_data) in enumerate(group_data.groupby('workload')):
             for j, (controller, controller_data) in enumerate(workload_data.groupby('controller')):
-                offset = (-(num_of_bars/2) + j - (len(workload_data['controller'].unique()) - 1) / 2) * bar_width + (i * (bar_width + 0.1)) + bar_width/2
-                ax.bar(controller_data['x_idx'] + offset,
-                       controller_data['avg_latency (s)'], width=bar_width, 
-                       label=f"{controller} - {workload}", alpha=0.7)
+                offset = (-(num_of_bars / 2) + j - (len(workload_data['controller'].unique()) - 1) / 2) * bar_width + (i * (bar_width + 0.1)) + bar_width / 2
+                
+                # Convert latency from seconds to nanoseconds
+                latencies_us = controller_data['avg_latency (s)'] * 1_000_000
+                
+                bars = ax.bar(controller_data['x_idx'] + offset,
+                              latencies_us, width=bar_width, 
+                              label=f"{controller} - {workload}", alpha=0.7)
+
+                # Annotate each bar with its height (4 decimal points, vertical text)
+                for bar in bars:
+                    yval = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2, yval, f'{yval:.2f}', 
+                            ha='center', va='bottom', fontsize=10, rotation=90)
 
         ax.set_xticks(range(len(n_clients)))
         ax.set_xticklabels(n_clients)
         ax.set_xlabel('Number of Clients')
-        ax.set_ylabel('Average Latency (s)')
+        ax.set_ylabel('Average Latency (us)')  # Change label to ns
         ax.set_title(f'Latency - DB: {db}, Encryption: {encryption}, Logging: {logging} (Lower is Better)')
         ax.legend()
 
@@ -80,15 +90,25 @@ def plot_and_save(data, output_dir):
         ax = axes[1]
         for i, (workload, workload_data) in enumerate(group_data.groupby('workload')):
             for j, (controller, controller_data) in enumerate(workload_data.groupby('controller')):
-                offset = (-(num_of_bars/2) + j - (len(workload_data['controller'].unique()) - 1) / 2) * bar_width + (i * (bar_width + 0.1)) + bar_width/2
-                ax.bar(controller_data['x_idx'] + offset,
-                       controller_data['throughput'], width=bar_width, 
-                       label=f"{controller} - {workload}", alpha=0.7)
+                offset = (-(num_of_bars / 2) + j - (len(workload_data['controller'].unique()) - 1) / 2) * bar_width + (i * (bar_width + 0.1)) + bar_width / 2
+                
+                # Convert throughput from ops/sec to kops
+                throughputs_kops = controller_data['throughput'] / 1000  # Convert to kilops
+
+                bars = ax.bar(controller_data['x_idx'] + offset,
+                              throughputs_kops, width=bar_width, 
+                              label=f"{controller} - {workload}", alpha=0.7)
+
+                # Annotate each bar with its height (2 decimal points, vertical text)
+                for bar in bars:
+                    yval = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2, yval, f'{yval:.2f}', 
+                            ha='center', va='bottom', fontsize=10, rotation=90)
 
         ax.set_xticks(range(len(n_clients)))
         ax.set_xticklabels(n_clients)
         ax.set_xlabel('Number of Clients')
-        ax.set_ylabel('Throughput (ops/sec)')
+        ax.set_ylabel('Throughput (kops)')  # Change label to kops
         ax.set_title(f'Throughput - DB: {db}, Encryption: {encryption}, Logging: {logging} (Higher is Better)')
         ax.legend()
         
