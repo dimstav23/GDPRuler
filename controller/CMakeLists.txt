@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.30)
 
 include(cmake/prelude.cmake)
 
@@ -74,7 +74,7 @@ find_library(REDIS_PLUS_PLUS_LIB redis++)
 find_library(ROCKSDB_LIB rocksdb)
 
 # ---- Add boost dependency ----
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost CONFIG REQUIRED COMPONENTS system)
 
 # ---- Add OpenSSL dependency ----
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
