@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <optional>
 #include <sstream>
 #include <unordered_map>
@@ -60,66 +61,62 @@ class query
 {
 public:
 	query();
-  explicit query(const std::string &input);
+  explicit query(std::string_view input);
   // overloaded constructor only for the performance test
-  explicit query(std::string user_key, std::string key, std::string cmd);
+  explicit query(std::string_view user_key, std::string_view key, std::string_view cmd);
   // ~query();
 
-	[[nodiscard]] auto name() const -> std::string;
-
   /* private members getters */
-  [[nodiscard]] auto cmd() const -> std::string;
-  [[nodiscard]] auto key() const -> std::string;
-  [[nodiscard]] auto value() const -> std::string;
-  [[nodiscard]] auto user_key() const -> std::optional<std::string>;
+  [[nodiscard]] auto cmd() const -> std::string_view;
+  [[nodiscard]] auto key() const -> std::string_view;
+  [[nodiscard]] auto value() const -> std::string_view;
+  [[nodiscard]] auto user_key() const -> std::optional<std::string_view>;
   [[nodiscard]] auto purpose() const -> std::optional<std::bitset<num_purposes>>;
   [[nodiscard]] auto objection() const -> std::optional<std::bitset<num_purposes>>;
-  [[nodiscard]] auto origin() const -> std::optional<std::string>;
+  [[nodiscard]] auto origin() const -> std::optional<std::string_view>;
   [[nodiscard]] auto expiration() const -> std::optional<int64_t>;
-  [[nodiscard]] auto share() const -> std::optional<std::string>;
+  [[nodiscard]] auto share() const -> std::optional<std::string_view>;
   [[nodiscard]] auto monitor() const -> std::optional<bool>;
   [[nodiscard]] auto cond_purpose() const -> std::bitset<num_purposes>;
   [[nodiscard]] auto cond_objection() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto cond_origin() const -> std::string;
+  [[nodiscard]] auto cond_origin() const -> std::string_view;
   [[nodiscard]] auto cond_expiration() const -> int64_t;
-  [[nodiscard]] auto cond_share() const -> std::string;
+  [[nodiscard]] auto cond_share() const -> std::string_view;
   [[nodiscard]] auto cond_monitor() const -> bool;
-  [[nodiscard]] auto log_key() const -> std::string;
+  [[nodiscard]] auto log_key() const -> std::string_view;
 
   auto print() -> void;
 
 private:
   
-  auto process_predicate(const std::string &predicate) -> void;
-  auto parse_query(const std::string& reg_query_args) -> void;
-  auto parse_option(const std::string& option, const std::string& value) -> void;
-
-  std::string m_name;
+  auto process_predicate(std::string_view predicate) -> void;
+  auto parse_query(std::string_view reg_query_args) -> void;
+  auto parse_option(std::string_view option, std::string_view value) -> void;
 
   // query data
-  std::string m_cmd;
-  std::string m_key;
-  std::string m_value;
+  std::string_view m_cmd;
+  std::string_view m_key;
+  std::string_view m_value;
 
   // metadata to set
-  std::optional<std::string> m_user_key;
+  std::optional<std::string_view> m_user_key;
   std::optional<std::bitset<num_purposes>> m_purpose;
   std::optional<std::bitset<num_purposes>> m_objection;
   std::optional<std::string> m_origin;
   std::optional<int64_t> m_expiration;
-  std::optional<std::string> m_share;
+  std::optional<std::string_view> m_share;
   std::optional<bool> m_monitor;
 
   // conditional metadata
   std::bitset<num_purposes> m_cond_purpose;
   std::bitset<num_purposes> m_cond_objection;
-  std::string m_cond_origin;
+  std::string_view m_cond_origin;
   int64_t m_cond_expiration;
-  std::string m_cond_share;
+  std::string_view m_cond_share;
   bool m_cond_monitor;
 
   // log metadata
-  std::string m_log_key;
+  std::string_view m_log_key;
 };
 
 } // namespace controller

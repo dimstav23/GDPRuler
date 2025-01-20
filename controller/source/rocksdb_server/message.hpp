@@ -76,27 +76,27 @@ public:
     return request;
   }
 
-  auto get_command() -> std::string {
+  auto get_command() -> std::string_view {
     return m_command;
   }
 
-  void set_command(const std::string& command) {
+  void set_command(std::string_view command) {
     m_command = command;
   }
 
-  auto get_key() -> std::string {
+  auto get_key() -> std::string_view {
     return m_key;
   }
 
-  void set_key(const std::string& key) {
+  void set_key(std::string_view key) {
     m_key = key;
   }
 
-  auto get_value() -> std::string {
+  auto get_value() -> std::string_view {
     return m_value;
   }
 
-  void set_value(const std::string& value) {
+  void set_value(std::string_view value) {
     m_value = value;
   }
 
@@ -109,9 +109,9 @@ public:
   }
   
 private:
-  std::string m_command;
-  std::string m_key;
-  std::string m_value;
+  std::string_view m_command;
+  std::string_view m_key;
+  std::string_view m_value;
   bool m_is_valid {false};
 };
 

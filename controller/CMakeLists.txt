@@ -45,9 +45,9 @@ add_library(
     gdpr_controller_lib SHARED
     source/default_policy.cpp
     source/query.cpp
-    source/query_rewriter.cpp
-    source/gdpr_filter.cpp
-    source/gdpr_regulator.cpp
+    # source/query_rewriter.cpp
+    # source/gdpr_filter.cpp
+    # source/gdpr_regulator.cpp
 )
 
 target_include_directories(
@@ -70,7 +70,7 @@ find_path(REDIS_PLUS_PLUS_HEADER sw)
 find_library(REDIS_PLUS_PLUS_LIB redis++)
 
 # ---- Add rocksdb dependency ----
-# find_path(ROCKSDB_HEADER rocksdb)
+find_path(ROCKSDB_HEADER rocksdb)
 find_library(ROCKSDB_LIB rocksdb)
 
 # ---- Add boost dependency ----
@@ -82,14 +82,14 @@ find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 # ---- Declare executables ----
 
 # main
-add_executable(gdpr_controller_exe source/controller.cpp)
-add_executable(gdpr_controller::exe ALIAS gdpr_controller_exe)
+# add_executable(gdpr_controller_exe source/controller.cpp)
+# add_executable(gdpr_controller::exe ALIAS gdpr_controller_exe)
 
-set_property(TARGET gdpr_controller_exe PROPERTY OUTPUT_NAME gdpr_controller)
+# set_property(TARGET gdpr_controller_exe PROPERTY OUTPUT_NAME gdpr_controller)
 
-target_compile_features(gdpr_controller_exe PRIVATE cxx_std_20)
+# target_compile_features(gdpr_controller_exe PRIVATE cxx_std_20)
 
-target_link_libraries(gdpr_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
+# target_link_libraries(gdpr_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
 
 # native controller
 add_executable(native_controller_exe source/native_controller.cpp)

@@ -26,7 +26,7 @@ public:
     boost::asio::connect(m_socket, endpoints);
   }
 
-  auto get(const std::string& key) -> std::optional<std::string> override
+  auto get(std::string_view key) -> std::optional<std::string> override
   {
     query_message query;
     query.set_command("get");
@@ -44,7 +44,7 @@ public:
 
   // To suppress bugprone-easily-swappable-parameters warning from clang-tidy
   // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-  auto put(const std::string& key, const std::string& value) -> bool override
+  auto put(std::string_view key, std::string_view value) -> bool override
   {
     query_message query;
     query.set_command("put");
@@ -62,7 +62,7 @@ public:
     return response.op_is_successful();
   }
 
-  auto del(const std::string& key) -> bool override
+  auto del(std::string_view key) -> bool override
   {
     query_message query;
     query.set_command("del");
@@ -78,7 +78,7 @@ public:
     return response.op_is_successful();
   }
 
-  auto getm(const std::string& key) -> std::optional<std::string> override
+  auto getm(std::string_view key) -> std::optional<std::string> override
   {
     query_message query;
     query.set_command("getm");
@@ -94,7 +94,7 @@ public:
     return std::nullopt;
   }
 
-  auto putm(const std::string& key, const std::string& value) -> bool override
+  auto putm(std::string_view key, std::string_view value) -> bool override
   {
     query_message query;
     query.set_command("putm");

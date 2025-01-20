@@ -79,39 +79,46 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     buffer[static_cast<size_t>(bytes_read) + header_size] = '\0';
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    const query query_args(buffer.data() + header_size);
-    std::string response;
+    std::string_view query_str(buffer.data() + header_size, bytes_read);
+    const query query_args(query_str);
+
+    char* response_ptr = buffer.data() + header_size;
+    int response_length = 0;
 
     if (query_args.cmd() == "get") {
-      response = handle_get(query_args, client);
+      auto result = handle_get(query_args, client);
+      response_length = snprintf(response_ptr, buffer.size() - header_size, "%s", result.c_str());
     } else if (query_args.cmd() == "put") {
-      response = handle_put(query_args, client);
+      auto result = handle_put(query_args, client);
+      response_length = snprintf(response_ptr, buffer.size() - header_size, "%s", result.c_str());
     } else if (query_args.cmd() == "delete") {
-      response = handle_delete(query_args, client);
+      auto result  = handle_delete(query_args, client);
+      response_length = snprintf(response_ptr, buffer.size() - header_size, "%s", result.c_str());
     } else if (query_args.cmd() == "exit") {
       std::cout << "Client exiting..." << std::endl;
       break;
     } else {
       // std::cout << "Invalid command" << std::endl;
-      response = "Invalid command";
+      // response = "Invalid command";
+      response_length = snprintf(response_ptr, buffer.size() - header_size, "Invalid command");
     }
 
     // Resize the buffer (if needed) to accommodate the response
-    if (header_size + response.length() > buffer.size()) {
-      buffer.resize(header_size + response.length());
-    }
+    // if (header_size + response.length() > buffer.size()) {
+    //   buffer.resize(header_size + response.length());
+    // }
 
     // Prepare the response size header
-    auto response_size = static_cast<uint32_t>(response.length());
+    auto response_size = static_cast<uint32_t>(response_length);
     response_size = htonl(response_size);
     std::memcpy(buffer.data(), &response_size, header_size);
 
     // Copy the response data to the buffer
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    std::memcpy(buffer.data() + header_size, response.c_str(), response.length());
+    // std::memcpy(buffer.data() + header_size, response.c_str(), response.length());
 
     // Send the response to the client
-    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response.length());
+    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response_length);
     if (bytes_sent <= 0) {
       // Failed to send the response or connection closed
       std::cerr << "Failed to send the response to the client or the connection is closed." << std::endl;
