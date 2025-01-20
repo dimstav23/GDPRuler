@@ -17,6 +17,12 @@
 
 ## Build instructions
 
+### 0. Dev environment
+To enter the development environment with all the required dependencies, use:
+```
+$ nix develop
+``` 
+
 ### 1. Make sure you have fetched all the submodules:
 ```
 $ git submodule update --init --recursive
