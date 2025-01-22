@@ -34,8 +34,8 @@ default_policy::default_policy(const std::string &input)
   this->m_origin = option_map["-origin"];
   this->m_share = option_map["-objShare"];
   this->m_expiration = stoll(option_map["-expTime"]);
-  this->m_encryption = str_to_bool(option_map["-encryption"]);
-  this->m_monitor = str_to_bool(option_map["-monitor"]);
+  this->m_encryption = str_to_bool(std::string_view(option_map["-encryption"]));
+  this->m_monitor = str_to_bool(std::string_view(option_map["-monitor"]));
   set_bitmap(this->m_purpose, split_comma_string(std::string_view(option_map["-purpose"])));
   set_bitmap(this->m_objection, split_comma_string(std::string_view(option_map["-objection"])));
 }

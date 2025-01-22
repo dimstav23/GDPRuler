@@ -79,38 +79,30 @@ auto inline get_purposes_string(std::bitset<N> &bits) -> std::string {
 }
 
 auto inline split_comma_string(std::string_view str) -> std::vector<std::string> {
-    std::vector<std::string> result;
-    size_t start = 0;
-    size_t end = str.find(',');
+  std::vector<std::string> result;
+  size_t start = 0;
+  size_t end = str.find(',');
 
-    while (end != std::string_view::npos) {
-      result.emplace_back(str.substr(start, end - start));
-      start = end + 1;
-      end = str.find(',', start);
-    }
-
-    // Add the last token (or the only token if there are no commas)
-    result.emplace_back(str.substr(start));
-
-    return result;
-}
-
-/* convert "true" -> true, "false" -> false */
-auto inline str_to_bool(const std::string& str) -> bool {
-  if (str.length() != strlen("true") && str.length() != strlen("false")) {
-    throw std::runtime_error("Invalid string value: " + str);
+  while (end != std::string_view::npos) {
+    result.emplace_back(str.substr(start, end - start));
+    start = end + 1;
+    end = str.find(',', start);
   }
 
-  auto equals_ignore_case = [](const std::string& s, const char* target) -> bool {
-    if (s.length() != strlen(target)) {
+  // Add the last token (or the only token if there are no commas)
+  result.emplace_back(str.substr(start));
+
+  return result;
+}
+
+/* convert "true" -> true, "false" -> false without a copy */
+auto inline str_to_bool(std::string_view str) -> bool {
+  auto equals_ignore_case = [](std::string_view lhs, std::string_view rhs) -> bool {
+    if (lhs.size() != rhs.size()) {
       return false;
     }
-    for (size_t i = 0; i < s.length(); ++i) {
-      if (std::tolower(static_cast<unsigned char>(s[i])) != target[i]) {
-        return false;
-      }
-    }
-    return true;
+    return std::equal(lhs.begin(), lhs.end(), rhs.begin(),
+                      [](char a, char b) { return std::tolower(a) == std::tolower(b); });
   };
 
   if (equals_ignore_case(str, "true")) {
@@ -119,26 +111,7 @@ auto inline str_to_bool(const std::string& str) -> bool {
   if (equals_ignore_case(str, "false")) {
     return false;
   }
-  throw std::runtime_error("Invalid string value");
-}
-
-/* convert "true" -> true, "false" -> false wihtout a copy */
-auto inline str_to_bool(std::string_view str) -> bool {
-    auto equals_ignore_case = [](std::string_view lhs, std::string_view rhs) -> bool {
-      if (lhs.size() != rhs.size()) {
-        return false;
-      }
-      return std::equal(lhs.begin(), lhs.end(), rhs.begin(),
-                        [](char a, char b) { return std::tolower(a) == std::tolower(b); });
-    };
-
-    if (equals_ignore_case(str, "true")) {
-      return true;
-    }
-    if (equals_ignore_case(str, "false")) {
-      return false;
-    }
-    throw std::runtime_error("Invalid string value: " + std::string(str));
+  throw std::runtime_error("Invalid string value: " + std::string(str));
 }
 
 /* convert true -> "true", false -> "false" */
