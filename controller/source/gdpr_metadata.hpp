@@ -31,13 +31,13 @@ enum metadata_fields {
 
 // NOLINTBEGIN(cert-err58-cpp)
 static const std::unordered_map<std::string, std::size_t> pur_index = []() {
-    std::unordered_map<std::string, std::size_t> temp;
-    for (std::size_t i = 0; i < num_purposes; i++) {
-      std::string value = "purpose" + std::to_string(i);
-      temp[value] = i;
-    }
-    return temp;
-  }();
+  std::unordered_map<std::string, std::size_t> temp;
+  for (std::size_t i = 0; i < num_purposes; i++) {
+    std::string value = "purpose" + std::to_string(i);
+    temp[value] = i;
+  }
+  return temp;
+}();
 // NOLINTEND(cert-err58-cpp)
 
 /* return the mapping between purposes and indexes in bitmap*/
@@ -78,27 +78,15 @@ auto inline get_purposes_string(std::bitset<N> &bits) -> std::string {
   return res.str();
 }
 
-auto inline split_comma_string(const std::string &str) -> std::vector<std::string> {
-  std::vector<std::string> result;
-  std::istringstream sstream(str);
-  std::string token;
-
-  while (std::getline(sstream, token, ',')) {
-    result.push_back(token);
-  }
-
-  return result;
-}
-
 auto inline split_comma_string(std::string_view str) -> std::vector<std::string> {
     std::vector<std::string> result;
     size_t start = 0;
     size_t end = str.find(',');
 
     while (end != std::string_view::npos) {
-        result.emplace_back(str.substr(start, end - start));
-        start = end + 1;
-        end = str.find(',', start);
+      result.emplace_back(str.substr(start, end - start));
+      start = end + 1;
+      end = str.find(',', start);
     }
 
     // Add the last token (or the only token if there are no commas)
