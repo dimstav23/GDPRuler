@@ -4,8 +4,7 @@
 namespace controller {
 
 default_policy::default_policy()
-    : m_name {"gdpr_controller_default_policy"},
-      m_encryption{false},
+    : m_encryption{false},
       m_purpose{0},
       m_objection{0},
       m_expiration{0},
@@ -14,8 +13,7 @@ default_policy::default_policy()
 }
 
 default_policy::default_policy(const std::string &input)
-    : m_name {"gdpr_controller_default_policy"},
-      m_encryption{false},
+    : m_encryption{false},
       m_purpose{0},
       m_objection{0},
       m_expiration{0},
@@ -35,7 +33,7 @@ default_policy::default_policy(const std::string &input)
   this->m_user_key = option_map["-sessionKey"];
   this->m_origin = option_map["-origin"];
   this->m_share = option_map["-objShare"];
-  this->m_expiration = stoi(option_map["-expTime"]);
+  this->m_expiration = stoll(option_map["-expTime"]);
   this->m_encryption = str_to_bool(option_map["-encryption"]);
   this->m_monitor = str_to_bool(option_map["-monitor"]);
   set_bitmap(this->m_purpose, split_comma_string(option_map["-purpose"]));
@@ -56,11 +54,6 @@ auto default_policy::check_policy(const std::unordered_map<std::string, std::str
       throw std::invalid_argument(error_message);
     }
   }
-}
-
-auto default_policy::name() const -> std::string
-{
-  return this->m_name;
 }
 
 auto default_policy::user_key() const -> std::string

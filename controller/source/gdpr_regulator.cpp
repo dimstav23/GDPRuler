@@ -1,10 +1,10 @@
 #include "gdpr_regulator.hpp"
+#include <chrono>
 
 namespace controller {
 
 gdpr_regulator::gdpr_regulator()
-    : m_name {"gdpr_controller_gdpr_regulator"},
-      m_history_logger{logger::get_instance()},
+    : m_history_logger{logger::get_instance()},
       m_timestamp_thres{std::chrono::system_clock::now().time_since_epoch().count()}
 {
 
@@ -21,7 +21,7 @@ gdpr_regulator::gdpr_regulator()
 auto gdpr_regulator::validate_reg_key(const controller::query &query_args, 
                                       const controller::default_policy &def_policy) -> bool
 {
-  std::string user_key = query_args.user_key().value_or(def_policy.user_key());
+  std::string_view user_key = query_args.user_key().value_or(def_policy.user_key());
   return (user_key == regulator_key);
 }
 
@@ -36,24 +36,24 @@ auto gdpr_regulator::retrieve_logs() -> std::vector<std::string> {
 /*
  * return the log entries of a specific key in human-readable form
  */
-auto gdpr_regulator::read_key_log(const std::string &key) -> std::vector<std::string> {
+auto gdpr_regulator::read_key_log(std::string_view key) -> std::vector<std::string> {
   // construct the filename for the given key
-  std::string log_name = this->m_history_logger->get_logs_dir() + "/" +
-                         key + this->m_history_logger->get_logs_extension();
+  std::string log_name = std::string(this->m_history_logger->get_logs_dir()) + "/" +
+                         std::string(key) + std::string(this->m_history_logger->get_logs_extension());
   return read_log(log_name);
 }
 
 /*
  * return the log entries of a log in human-readable form
  */
-auto gdpr_regulator::read_log(const std::string &log_name) const -> std::vector<std::string> {
+auto gdpr_regulator::read_log(std::string_view log_name) const -> std::vector<std::string> {
   return this->m_history_logger->log_decode(log_name, this->m_timestamp_thres);
 }
 
 /*
  * Helper: return the filenames of a specific directory
  */
-auto gdpr_regulator::get_filenames(const std::string &dir) -> std::vector<std::string> {
+auto gdpr_regulator::get_filenames(std::string_view dir) -> std::vector<std::string> {
   std::vector<std::string> filenames;
   std::filesystem::path logs_dir(dir);
 
@@ -63,11 +63,6 @@ auto gdpr_regulator::get_filenames(const std::string &dir) -> std::vector<std::s
     }
   }
   return filenames;
-}
-
-auto gdpr_regulator::name() const -> std::string
-{
-  return this->m_name;
 }
 
 auto gdpr_regulator::timestamp_thres() const -> int64_t 

@@ -54,7 +54,6 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
                 const default_policy &def_policy) -> std::string 
 {
   auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
 
   bool is_valid = true;
   // if the key does not exist, perform the put
@@ -75,6 +74,7 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
   }
 
   // if the key exists and complies with the gdpr rules, perform the put
+  auto filter = std::make_shared<gdpr_filter>(res);
   if ((is_valid = filter->validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the 
@@ -151,7 +151,6 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
                 const default_policy &def_policy) -> std::string
 {
   auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
 
   bool is_valid = true;
   // if the key does not exist, return the error
@@ -159,6 +158,7 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
     return "PUTM_FAILED: The specified key does not exist";
   }
   // if the key exists and complies with the gdpr rules, perform the GDPR metadata update
+  auto filter = std::make_shared<gdpr_filter>(res);
   if ((is_valid = filter->validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the

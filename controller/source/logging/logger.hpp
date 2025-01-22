@@ -10,6 +10,7 @@
 #include <vector>
 #include <cassert>
 #include <cmath>
+#include <string_view>
 
 #include "log_common.hpp"
 #include "../gdpr_filter.hpp"
@@ -43,12 +44,13 @@ public:
   }
 
   /*
-   * Logs the raw query -- preserved for performance testing
+   * Logs the raw query
+   * UNUSED: preserved for performance testing
    */
-  void log_raw_query(const query& query_args, const default_policy& def_policy, const bool& result, const std::string& new_val = {}) {
+  void log_raw_query(const query& query_args, const default_policy& def_policy, const bool& result, std::string_view new_val = {}) {
     
     // lock the mutex corresponding to the key
-    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
+    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[std::string(query_args.key())]);
 
     auto log_file = get_or_open_log_stream(query_args.key());
   
@@ -56,23 +58,23 @@ public:
     // format is the following:
     // timestamp,user_key,operation,operation_result,new_value(if applicable)
     *log_file << std::chrono::system_clock::now().time_since_epoch().count() << ","
-              << (query_args.user_key().has_value() ? query_args.user_key().value() : def_policy.user_key()) << ","
+              << query_args.user_key().value_or(def_policy.user_key()) << ","
               << convert_operation_to_enum(query_args.cmd()) << ","
               << result << ","
-              << (new_val.empty() ? "" : new_val) << std::endl;
+              << new_val << std::endl;
   }
 
   /*
    * Logs the encoded query
    */
   void log_encoded_query(const query& query_args, const default_policy& def_policy, 
-                         const bool& valid, const std::string& new_val = {}) 
+                         const bool& valid, std::string_view new_val = {})
   {
     // Open or retrieve the file
     auto log_file = get_or_open_log_stream(query_args.key());
 
     // Lock the mutex corresponding to the key for the whole function scope
-    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[query_args.key()]);
+    std::lock_guard<std::mutex> lock(m_keys_to_mutexes[std::string(query_args.key())]);
 
     // To avoid potential race conditions
     if (!log_file->is_open()) {
@@ -82,7 +84,7 @@ public:
     // Encode the timestamp as a fixed-width integer type
     const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
     // Encode the user key as a string
-    const std::string& user_key = query_args.user_key().value_or(def_policy.user_key());
+    std::string_view user_key = query_args.user_key().value_or(def_policy.user_key());
     // Encode the operation type (3bits) and the operation result (1 bit) as a single byte
     const uint8_t operation = static_cast<uint8_t>((convert_operation_to_enum(query_args.cmd()) & operation_mask) << 1U);
     const uint8_t valid_bit = (valid ? 0x01U : 0x00U);
@@ -109,7 +111,7 @@ public:
     buffer[offset] = log_delimiter;
     offset += sizeof(log_delimiter);
     // Encode the second entry
-    memcpy(&buffer[offset], user_key.c_str(), user_key.length());
+    memcpy(&buffer[offset], user_key.data(), user_key.length());
     offset += user_key.length();
     // Encode the delimiter
     buffer[offset] = log_delimiter;
@@ -122,7 +124,7 @@ public:
     offset += sizeof(log_delimiter);
     // Encode the new value string, if it's not empty
     if (!new_val.empty()) {
-      memcpy(&buffer[offset], new_val.c_str(), new_val.length());
+      memcpy(&buffer[offset], new_val.data(), new_val.length());
     }
 
     #ifndef ENCRYPTION_ENABLED
@@ -134,14 +136,14 @@ public:
     #else
     // important: pass buffer.begin() and buffer.end() as encrypt will look for 
     // null termination character otherwise
-    auto encrypt_result = m_cipher->encrypt(std::string(buffer.begin(), buffer.end()), 
+    auto encrypt_result = m_cipher->encrypt(std::string_view(buffer.data(), buffer.size()),
                                             cipher_key_type::log_key);
     if (encrypt_result.m_success) {
       // Write the encrypted entry size to the log file
       entry_size = encrypt_result.m_ciphertext.size();
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       log_file->write(reinterpret_cast<const char*>(&entry_size), sizeof(entry_size));
-      log_file->write(encrypt_result.m_ciphertext.c_str(), 
+      log_file->write(encrypt_result.m_ciphertext.data(),
                       static_cast<std::streamsize>(encrypt_result.m_ciphertext.size()));
     }
     else {
@@ -150,7 +152,7 @@ public:
     #endif
   }
 
-  auto log_decode(const std::string &log_name, const int64_t timestamp_thres) 
+  auto log_decode(std::string_view log_name, const int64_t timestamp_thres)
     -> std::vector<std::string> 
   {
     std::vector<std::string> entries;
@@ -192,11 +194,11 @@ public:
     return entries;
   }
 
-  auto get_logs_dir() -> std::string {
-    return this->m_logs_dir;
+  auto get_logs_dir() -> std::string_view {
+    return std::string_view(this->m_logs_dir);
   }
 
-  auto get_logs_extension() -> std::string {
+  auto get_logs_extension() -> std::string_view {
     return this->log_file_extension;
   } 
 
@@ -207,7 +209,7 @@ private:
 
   std::string m_logs_dir = "./logs";
 
-  const std::string log_file_extension = ".log";
+  const std::string_view log_file_extension = ".log";
 
   std::unordered_map<std::string, std::mutex> m_keys_to_mutexes;
   std::unordered_map<std::string, std::shared_ptr<std::fstream>> m_keys_to_log_files;
@@ -217,8 +219,8 @@ private:
 
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();
 
-  auto log_file_path(const std::string& key) -> std::string {
-    return m_logs_dir + '/' + key + log_file_extension;
+  auto log_file_path(std::string_view key) -> std::string {
+    return m_logs_dir + '/' + std::string(key) + std::string(log_file_extension);
   }
 
   /*
@@ -228,27 +230,29 @@ private:
    * close the files that were opened based on chronological order. This might not be optimal,
    * but it's "cheaper" performance-wise than enforcing a sophisticated policy (e.g. LRU).
    */
-  auto get_or_open_log_stream(const std::string& key) -> std::shared_ptr<std::fstream> {
+  auto get_or_open_log_stream(std::string_view key) -> std::shared_ptr<std::fstream> {
     // Lock the mutex for the whole function scope to perform the metadata management & eviction
     std::lock_guard<std::mutex> lock(m_fd_mgmt_mutex);
 
-    if (!m_keys_to_mutexes.contains(key)) {
+    std::string key_str = std::string(key);
+
+    if (!m_keys_to_mutexes.contains(key_str)) {
       // initialize the mutex associated with the key
-      m_keys_to_mutexes[key];
+      m_keys_to_mutexes[key_str];
     }
 
-    if (!m_keys_to_log_files.contains(key) || !m_keys_to_log_files[key]->is_open()) {
+    if (!m_keys_to_log_files.contains(key_str) || !m_keys_to_log_files[key_str]->is_open()) {
       // If the map is at its maximum size, evict the oldest FD
       if (m_keys_to_log_files.size() >= m_max_open_log_files) {
         close_older_fd();
       }
       // Put the key in the list of the already used_keys
-      m_used_keys.push_back(key);
-      m_keys_to_log_files[key] = std::make_shared<std::fstream>
+      m_used_keys.push_back(key_str);
+      m_keys_to_log_files[key_str] = std::make_shared<std::fstream>
                                 (log_file_path(key), std::ios::in | std::ios::out | std::ios::app);
     }
 
-    return m_keys_to_log_files[key];
+    return m_keys_to_log_files[key_str];
   }
 
   auto close_older_fd() -> void {
@@ -273,10 +277,10 @@ private:
     }
   }
 
-  auto extract_key_from_filename(const std::string& filename) -> std::string {
+  auto extract_key_from_filename(std::string_view filename) -> std::string {
     // Find the last occurrence of '/' to get the start position of the key
     size_t start_pos = filename.find_last_of('/');
-    if (start_pos == std::string::npos) [[unlikely]] {
+    if (start_pos == std::string_view::npos) [[unlikely]] {
       start_pos = 0; // If '/' is not found, start from the beginning of the filename
     } else {
       start_pos += 1; // Move the start position after '/'
@@ -286,12 +290,12 @@ private:
     size_t end_pos = filename.find(log_file_extension, start_pos);
 
     // Extract the key from the substring
-    if (end_pos != std::string::npos) {
-      return filename.substr(start_pos, end_pos - start_pos);
+    if (end_pos != std::string_view::npos) {
+      return std::string(filename.substr(start_pos, end_pos - start_pos));
     }
 
     // If '.' is not found, return the remaining substring
-    return filename.substr(start_pos);
+    return std::string(filename.substr(start_pos));
   }
 
   // Read and decode log entries from the log file
@@ -305,9 +309,9 @@ private:
       std::vector<char> entry = read_log_entry(log_file, entry_size);
       if (entry.size() == entry_size) {
         #ifndef ENCRYPTION_ENABLED
-        entries.push_back(decode_log_entry(std::string(entry.begin(), entry.end()), timestamp_thres));
+        entries.push_back(decode_log_entry(std::string_view(entry.data(), entry.size()), timestamp_thres));
         #else
-        std::string decrypted_entry = decrypt_log_entry(std::string(entry.begin(), entry.end()));
+        std::string decrypted_entry = decrypt_log_entry(std::string_view(entry.data(), entry.size()));
         entries.push_back(decode_log_entry(decrypted_entry, timestamp_thres));
         #endif        
       } else {
@@ -334,17 +338,13 @@ private:
   }
 
   // Decode the given entry if its timestamp is less (earlier) than the threshold
-  auto decode_log_entry(const std::string &entry, const int64_t timestamp_thres)
+  auto decode_log_entry(std::string_view entry, const int64_t timestamp_thres)
     -> std::string 
   {
     // initialize the variables with default values
     int64_t timestamp = 0;
-    std::string user_key;
-    uint8_t operation_result = 0;
-    std::string new_value;
-    
     // extract the timestamp field as an int64_t
-    std::memcpy(&timestamp, entry.c_str(), sizeof(timestamp));
+    std::memcpy(&timestamp, entry.data(), sizeof(timestamp));
     // only decode entries with timestamp before the getLogs() query
     if (timestamp > timestamp_thres) {
       return "";
@@ -356,25 +356,26 @@ private:
     auto end_pos = std::find(start_pos, entry.end(), log_delimiter);
 
     // extract the user key field as a std::string
-    user_key = std::string(start_pos, end_pos);
+    std::string_view user_key(start_pos, end_pos - start_pos);
     
     // move the start and end positions past the delimiter
     start_pos = end_pos + 1;
     end_pos = std::find(start_pos, entry.end(), log_delimiter);
 
     // extract the operation and result field as a uint8_t
-    operation_result = static_cast<uint8_t>(*start_pos);
+    uint8_t operation_result = static_cast<uint8_t>(*start_pos);
     uint8_t result_bit = operation_result & 0x01U;
-    std::string valid = (result_bit != 0U) ? "valid" : "invalid";
+    std::string_view valid = (result_bit != 0U) ? "valid" : "invalid";
     uint8_t operation_bits = static_cast<uint8_t>(operation_result >> 1U) & operation_mask;
-    std::string oper = convert_enum_to_operation(static_cast<operation>(operation_bits));
+    std::string_view oper = convert_enum_to_operation(static_cast<operation>(operation_bits));
     
     // move the start position past the delimiter
     start_pos = end_pos + 1;
 
     // extract the new value field (if present) as a std::string
+    std::string_view new_value;
     if (start_pos != entry.end()) {
-        new_value = std::string(start_pos, entry.end());
+      new_value = std::string_view(&*start_pos, entry.end() - start_pos);
     }
 
     // create a stringstream to format the output string
@@ -391,7 +392,7 @@ private:
     return formatted_entry.str();
   }
 
-  auto decrypt_log_entry(const std::string &entry) -> std::string {
+  auto decrypt_log_entry(std::string_view entry) -> std::string {
     // Decrypt the entry
     auto decrypt_result = m_cipher->decrypt(entry, cipher_key_type::log_key);
     if (!decrypt_result.m_success) {

@@ -31,7 +31,7 @@ enum operation : uint8_t {
 /**
  * Converts operation string to respective enum.
 */
-inline auto convert_operation_to_enum(const std::string& oper) -> operation {
+inline auto convert_operation_to_enum(std::string_view oper) -> operation {
   if (oper == "get") {
     return operation::get;
   }
@@ -100,64 +100,67 @@ inline auto timestamp_to_datetime(int64_t timestamp) -> std::string {
 /*
  * Convert encoded gdpr metadata to human readable string for regulator output
  */
-inline auto gdpr_metadata_fmt(const std::string &value_str) -> std::string {
-  /* Value has already been checked not to be empty */
-  std::istringstream iss(value_str);
-  std::string token;
-  std::stringstream res;
+inline auto gdpr_metadata_fmt(std::string_view value_str) -> std::string {
+  std::string res;
+  res.reserve(value_str.length());  // Reserve space to avoid reallocations
+
+  size_t start = 0;
+  size_t end = 0;
   int count = 0;
-  // retrieve the metadata fields and place them in a string
-  while (count < max_gdpr_field_guard && std::getline(iss, token, '|')) {
+
+  while (count < max_gdpr_field_guard && (end = value_str.find('|', start)) != std::string_view::npos) {
+    std::string_view token = value_str.substr(start, end - start);
+
     switch (count) {
       case usr: 
-        res << "User/Owner: " << token << ", ";
+        res.append("User/Owner: ").append(token).append(", ");
         break;
       case encr:
-        res << "Encryption enabled: " << bool_to_str(token == "1") << ", ";
+        res.append("Encryption enabled: ").append(token == "1" ? "true" : "false").append(", ");
         break;
       case pur:
         {
-          auto purposes = std::bitset<num_purposes>(std::stoull(token));
-          // ending comma is included in get_purposes_string()
-          res << "Purposes: " << get_purposes_string(purposes) << " ";
+          auto purposes = std::bitset<num_purposes>(std::stoull(std::string(token)));
+          res.append("Purposes: ").append(get_purposes_string(purposes));
           break;
         }
       case obj:
         {
-          auto objections = std::bitset<num_purposes>(std::stoull(token));
-          // ending comma is included in get_purposes_string()
-          res << "Objections: " << get_purposes_string(objections) << " ";
+          auto objections = std::bitset<num_purposes>(std::stoull(std::string(token)));
+          res.append("Objections: ").append(get_purposes_string(objections));
           break;
         }
       case org:
-        res << "Data origin: " << token << ", ";
+        res.append("Data origin: ").append(token).append(", ");
         break;
       case exp:
         {
-          std::string expire_time = token == "0" ? 
-                                    "none" : timestamp_to_datetime(std::stoi(token));
-          res << "Expiration time: " << expire_time << ", ";
+          std::string_view expire_time = (token == "0") ?
+              "none" : timestamp_to_datetime(std::stoi(std::string(token)));
+          res.append("Expiration time: ").append(expire_time).append(", ");
           break;
         }
       case shr:
-        res << "Shared with: " << token << ", ";
+        res.append("Shared with: ").append(token).append(", ");
         break;
       case log:
-        res << "Log enabled: " << bool_to_str(token == "1") << ", ";
+        res.append("Log enabled: ").append(token == "1" ? "true" : "false").append(", ");
         break;
-      case val: // it's the last field, don't add a comma
-        res << "Value: " << token;
+      case val:
+        res.append("Value: ").append(token);
         break;
       default:
         break;
     }
+    start = end + 1;
     count++;
   }
+
   if (count != max_gdpr_field_guard) {
     throw std::invalid_argument("Invalid GDPR metadata format in the logs");
   }
 
-  return res.str();
+  return std::move(res);
 }
 
 /*
