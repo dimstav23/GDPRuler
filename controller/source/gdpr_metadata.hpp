@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <sstream>
 #include <bitset>
+#include <cstring>
 
 namespace controller {
 
@@ -108,48 +109,47 @@ auto inline split_comma_string(std::string_view str) -> std::vector<std::string>
 
 /* convert "true" -> true, "false" -> false */
 auto inline str_to_bool(const std::string& str) -> bool {
-  std::string mod_str = str;
-  std::transform(mod_str.begin(), mod_str.end(), mod_str.begin(), ::tolower);
-  if (mod_str == "true") {
+  if (str.length() != strlen("true") && str.length() != strlen("false")) {
+    throw std::runtime_error("Invalid string value: " + str);
+  }
+
+  auto equals_ignore_case = [](const std::string& s, const char* target) -> bool {
+    if (s.length() != strlen(target)) {
+      return false;
+    }
+    for (size_t i = 0; i < s.length(); ++i) {
+      if (std::tolower(static_cast<unsigned char>(s[i])) != target[i]) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  if (equals_ignore_case(str, "true")) {
     return true;
   }
-  if (mod_str == "false") {
+  if (equals_ignore_case(str, "false")) {
     return false;
   }
   throw std::runtime_error("Invalid string value");
 }
 
-/* convert "true" -> true, "false" -> false */
+/* convert "true" -> true, "false" -> false wihtout a copy */
 auto inline str_to_bool(std::string_view str) -> bool {
-  std::string mod_str(str);
-  std::transform(mod_str.begin(), mod_str.end(), mod_str.begin(), ::tolower);
-  if (mod_str == "true") {
-    return true;
-  }
-  if (mod_str == "false") {
-    return false;
-  }
-  throw std::runtime_error("Invalid string value");
-}
-
-/* without copy */
-auto inline strview_to_bool(std::string_view str) -> bool {
-    // Convert string_view to lowercase directly during comparison
     auto equals_ignore_case = [](std::string_view lhs, std::string_view rhs) -> bool {
-        if (lhs.size() != rhs.size()) return false;
-        for (size_t i = 0; i < lhs.size(); ++i) {
-            if (std::tolower(lhs[i]) != std::tolower(rhs[i])) return false;
-        }
-        return true;
+      if (lhs.size() != rhs.size()) {
+        return false;
+      }
+      return std::equal(lhs.begin(), lhs.end(), rhs.begin(),
+                        [](char a, char b) { return std::tolower(a) == std::tolower(b); });
     };
 
     if (equals_ignore_case(str, "true")) {
-        return true;
+      return true;
     }
     if (equals_ignore_case(str, "false")) {
-        return false;
+      return false;
     }
-
     throw std::runtime_error("Invalid string value: " + std::string(str));
 }
 

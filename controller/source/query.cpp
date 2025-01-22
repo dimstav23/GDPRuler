@@ -70,7 +70,7 @@ auto query::process_predicate(std::string_view predicate) -> void
   if (pred_attr == "query") {
     // extract command
     std::size_t query_cmd_end = pred_val.find('(');
-    this->m_cmd = std::string(pred_val.substr(0, query_cmd_end));
+    this->m_cmd = pred_val.substr(0, query_cmd_end);
     std::string m_cmd = std::string(this->m_cmd);
     // Convert this->m_cmd to lowercase
     std::transform(m_cmd.begin(), m_cmd.end(), m_cmd.begin(), [](unsigned char cmd_char) {
@@ -151,7 +151,6 @@ auto query::parse_option(std::string_view option, std::string_view value) -> voi
     set_bitmap(this->m_objection.value(), split_comma_string(value));
   } 
   else if (option == "monitor") {
-    // this->m_monitor = str_to_bool(value);
     this->m_monitor = str_to_bool(value);
   } 
   else if (option == "objOrigIs") {
@@ -170,7 +169,6 @@ auto query::parse_option(std::string_view option, std::string_view value) -> voi
     set_bitmap(this->m_cond_objection, split_comma_string(value));
   } 
   else if (option == "monitorIs") {
-    // this->m_cond_monitor = str_to_bool(value);
     this->m_cond_monitor = str_to_bool(value);
   } 
   else {
