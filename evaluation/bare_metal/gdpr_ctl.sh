@@ -2,6 +2,8 @@
 
 script_dir=$(dirname "$(readlink -f "$0")")
 
+# source the config.sh from the current directory to get the configuration
+source $script_dir/config.sh
 # source the common.sh from the evaluation directory
 source $script_dir/../common.sh
 # source the args_and_checks.sh from the evaluation directory
@@ -29,45 +31,8 @@ function prepare_configs() {
 # Call the parse_args function with your command-line arguments
 parse_args_and_checks "$@"
 
-# Variables for the end-to-end test configuration
-redis_address="tcp://127.0.0.1"
-redis_port=6379
-rocksdb_address="127.0.0.1"
-rocksdb_port=15001
-controller_address="127.0.0.1"
-controller_port=1312
-
-# Default combinations of
-#   {1,2,4,8,16,32} clients,
-#   {redis, rocksdb} dbs,
-#   {workloada workloadb workloadc workloadd workloadf} workloads
-clients="1 2 4 8 16 32"
-dbs="redis rocksdb"
-workloads="workloada workloadb workloadc workloadd workloadf"
-
-# Native controller
-results_csv_file=${script_dir}/results/native-query_mgmt-encryption_$encryption-logging_$logging.csv
-controller="native"
-for n_clients in $clients; do
-  for db in $dbs; do
-    for workload in $workloads; do
-      if [[ $db == "rocksdb" ]]; then
-        db_port=$rocksdb_port
-        db_address=$rocksdb_address
-      elif [[ $db == "redis" ]]; then
-        db_port=$redis_port
-        db_address=$redis_address
-      fi
-      echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload."
-      run_native_test $n_clients $workload $db $db_address $db_port \
-      $controller $controller_address $controller_port "" $results_csv_file
-      echo ""
-    done
-  done
-done
-
 # GDPR controller
-results_csv_file=${script_dir}/results/gdpr-query_mgmt-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/gdpr_ctl-query_mgmt-encryption_$encryption-logging_$logging.csv
 controller="gdpr"
 for n_clients in $clients; do
   # prepare the client configs
@@ -83,8 +48,8 @@ for n_clients in $clients; do
         db_port=$redis_port
         db_address=$redis_address
       fi
-      echo "Starting a test with $n_clients clients, $db store, $controller controller, $workload and logging set to $logging"
-      run_native_test $n_clients $workload $db $db_address $db_port \
+      echo "Starting a run with $n_clients clients, $db store, $controller controller, $workload and logging set to $logging"
+      run_native_ctl_experiment $n_clients $workload $db $db_address $db_port \
       $controller $controller_address $controller_port $client_cfg $results_csv_file
       echo ""
     done

@@ -16,7 +16,7 @@ def main():
   args = parser.parse_args()
 
   # Open the controller process
-  process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), './controller/build/native_controller')]
+  process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../controller/build/native_controller')]
   process_args += ['--db', args.db]
   if args.db_address:
     process_args += ['--db_address', args.db_address]

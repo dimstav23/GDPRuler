@@ -225,7 +225,40 @@ function run_native_controller_VM() {
   wait_for_activation $controller_address $controller_port
 }
 
-# Function to run client(s)
+# Function to run client(s) directly connected to the server
+# Args:
+#   1: client             (client executable)
+#   2: db                 (database type)
+#   3: db_address         (database address and port)
+#   4: workload           (workload file)
+#   5: n_clients          (number of clients)
+#   6: output_file        (temporary output file)
+function run_direct_client() {
+  local client="$1"
+  local db="$2"
+  local db_address="$3"
+  local workload="$4"
+  local n_clients="$5"
+  local output_file="$6"
+
+  if [ ! -f $client ]; then
+    echo "Client not found in $client. Exiting..."
+    exit
+  fi
+
+  if [ ! -f $workload ]; then
+    echo "$workload not found. Exiting..."
+    exit
+  fi
+
+  client="$client_path --db $db --db_address $db_address --workload $workload --clients $n_clients"
+  echo "Starting the client(s): $client"
+  python3 ${client} > $output_file
+  status=$?
+  return $status
+}
+
+# Function to run client(s) connected to the controller
 # Args:
 #   1: client             (client executable)
 #   2: workload           (workload file)
@@ -361,9 +394,9 @@ cleanup() {
   fi
 
   # Remove the temp file and the generated db and logs files
-  rm ${tmp_dir}/server.txt
-  rm ${tmp_dir}/controller.txt
-  rm ${tmp_dir}/clients.txt
+  rm -f ${tmp_dir}/server.txt
+  rm -f ${tmp_dir}/controller.txt
+  rm -f ${tmp_dir}/clients.txt
   rm -rf ${db_dump_and_logs_dir}
 }
 
@@ -430,6 +463,63 @@ print_summary() {
   fi
 }
 
+# Start a test by running the server and the clients natively
+# Args:
+#   1: n_clients          (number of clients to run concurrently)
+#   2: workload           (workload file name)
+#   3: db                 (db to be used in controller. one of {rocksdb, redis})
+#   4: db_address         (address for the DB)
+#   5: db_port            (port for the DB)
+#   6: results_csv_file   (result file path -- must exist beforehand)
+run_native_direct_experiment() {
+  local n_clients="$1"
+  local workload="$2"
+  local db="$3"
+  local db_address="$4"
+  local db_port="$5"
+  local results_csv_file="${6}"
+
+  local db_address_formatted="${db_address}:${db_port}"
+
+  local controller="direct"
+
+  prepare_experiment $results_csv_file
+
+  # Run the db server
+  if [[ $db == "rocksdb" ]]; then
+    run_rocksdb $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
+  elif [[ $db == "redis" ]]; then
+    run_redis $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
+  fi
+
+  # Run the client and gather the results
+  client_path="$project_root/scripts/direct_client.py"
+  workload_path=${project_root}/workload_traces/${workload}
+  run_direct_client $client_path $db $db_address_formatted $workload_path $n_clients ${tmp_dir}/clients.txt
+  status=$?
+  if [ $status -ne 0 ]; then
+    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
+    exit 1
+  else
+    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" finished successfully. Output:"
+    # Direct client output to stdout for better observability
+    cat ${tmp_dir}/clients.txt
+    # Retrieve the client results from the temp files
+    elapsed_time=$(grep "Elapsed time: " ${tmp_dir}/clients.txt | awk '{print $3}')
+    avg_latency=$(grep "Average Latency: " ${tmp_dir}/clients.txt | awk '{print $3}')
+  fi
+
+  cleanup $controller $controller_address $controller_port $db $db_address $db_port
+
+  if [ -z $avg_latency ]; then
+    # Case of a failed test
+    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
+  else
+    # Write the total elapsed time for all the threads and the average latency
+    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
+  fi
+}
+
 # Start a test by running the server, the controller and the clients natively
 # Args:
 #   1: n_clients          (number of clients to run concurrently)
@@ -442,7 +532,7 @@ print_summary() {
 #   8: controller_port    (port of the controller)
 #   9: config             (configuration file for the client)
 #  10: results_csv_file   (result file path -- must exist beforehand)
-run_native_test() {
+run_native_ctl_experiment() {
   local n_clients="$1"
   local workload="$2"
   local db="$3"
@@ -456,7 +546,7 @@ run_native_test() {
 
   local db_address_formatted="${db_address}:${db_port}"
 
-  prepare_experiment $results_csv_file 
+  prepare_experiment $results_csv_file
 
   # Run the db server
   if [[ $db == "rocksdb" ]]; then
@@ -467,17 +557,17 @@ run_native_test() {
 
   # Run the controller
   if [[ $controller == "gdpr" ]]; then
-    controller_path="$project_root/GDPRuler.py"
+    controller_path="$project_root/scripts/GDPRuler.py"
     run_gdpr_controller $controller_path $controller_address $controller_port \
     $db $db_address_formatted $config $db_dump_and_logs_dir ${tmp_dir}/controller.txt
   elif [[ $controller == "native" ]]; then
-    controller_path="$project_root/native_ctl.py"
+    controller_path="$project_root/scripts/native_ctl.py"
     run_native_controller $controller_path $controller_address $controller_port \
     $db $db_address_formatted ${tmp_dir}/controller.txt
   fi
 
   # Run the client and gather the results
-  client_path="$project_root/client.py"
+  client_path="$project_root/scripts/client.py"
   workload_path=${project_root}/workload_traces/${workload}
   run_client $client_path $workload_path $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
   status=$?
@@ -517,7 +607,7 @@ run_native_test() {
 #   9: config             (configuration file for the client)
 #  10: results_csv_file   (result file path -- must exist beforehand)
 #  11: encyrption         (option for encryption ON/OFF)
-run_VM_test() {
+run_VM_ctl_experiment() {
   local n_clients="$1"
   local workload="$2"
   local db="$3"
@@ -542,17 +632,17 @@ run_VM_test() {
 
   # Run the controller
   if [[ $controller == "gdpr" ]]; then
-    controller_path="/home/ubuntu/GDPRuler/GDPRuler.py"
+    controller_path="/home/ubuntu/GDPRuler/scripts/GDPRuler.py"
     run_gdpr_controller_VM $controller_path $controller_address $controller_port \
     $db $db_address_formatted ${tmp_dir}/controller.txt $config $db_dump_and_logs_dir
   elif [[ $controller == "native" ]]; then
-    controller_path="/home/ubuntu/GDPRuler/native_ctl.py"
+    controller_path="/home/ubuntu/GDPRuler/scripts/native_ctl.py"
     run_native_controller_VM $controller_path $controller_address $controller_port \
     $db $db_address_formatted ${tmp_dir}/controller.txt
   fi
 
   # Run the client and gather the results
-  client_path="$project_root/client.py"
+  client_path="$project_root/scripts/client.py"
   workload_path=${project_root}/workload_traces/${workload}
   run_client $client_path $workload_path $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
   status=$?

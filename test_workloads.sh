@@ -42,7 +42,7 @@ for n_clients in $clients; do
         db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload."
-      run_native_test $n_clients $workload $db $db_address $db_port \
+      run_native_ctl_experiment $n_clients $workload $db $db_address $db_port \
       $controller $controller_address $controller_port "" $results_csv_file
       echo ""
     done
@@ -63,7 +63,7 @@ for n_clients in $clients; do
         db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload"
-      run_native_test $n_clients $workload $db $db_address $db_port \
+      run_native_ctl_experiment $n_clients $workload $db $db_address $db_port \
       $controller $controller_address $controller_port $test_cfg $results_csv_file
       echo ""
     done
@@ -84,7 +84,7 @@ for n_clients in $clients; do
         db_address=$redis_address
       fi
       echo "Starting a test with $n_clients clients, $db store, $controller controller, and $workload with logging enabled."
-      run_native_test $n_clients $workload $db $db_address $db_port \
+      run_native_ctl_experiment $n_clients $workload $db $db_address $db_port \
       $controller $controller_address $controller_port $test_log_cfg $results_csv_file
       echo ""
     done

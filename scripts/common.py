@@ -1,7 +1,12 @@
 import time
+import os
+import sys
 
 from enum import Enum
 
+curr_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(curr_dir)
+sys.path.insert(0, parent_dir) 
 from policy_compiler.helper import safe_open
 from policy_compiler.query_analyser import analyze_query
 
