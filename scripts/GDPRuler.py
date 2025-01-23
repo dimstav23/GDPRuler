@@ -11,8 +11,6 @@ sys.path.insert(0, parent_dir)
 from policy_compiler.helper import safe_open
 from policy_compiler.policy_config import parse_user_policy
 
-# NOTE: we use send(str+"\n") to communicate with the process because the sendline() hangs with 0 delaybeforesend
-
 # Define a custom validation function for the --db_encryptionkey argument
 def validate_encryption_key(key):
   if len(key) != 16:

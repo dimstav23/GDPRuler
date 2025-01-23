@@ -45,7 +45,7 @@ def send_queries(server_address, server_port, workload_file, latency_results):
       for line in file:
         if line.startswith("#"):
           continue  # Skip queries starting with '#'
-        
+
         start_time = time.perf_counter()  # Start the timer
 
         # Send each line to the server with message size header

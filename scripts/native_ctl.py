@@ -4,9 +4,6 @@ import os
 
 from common import DbType
 
-
-# NOTE: we use send(str+"\n") to communicate with the process because the sendline() hangs with 0 delaybeforesend
-
 def main():
   parser = argparse.ArgumentParser(description='Start Native controller instance.')
   parser.add_argument('--db', help='db to use, one of {rocksdb,redis}', default=DbType.ROCKSDB, required=False, type=DbType)
