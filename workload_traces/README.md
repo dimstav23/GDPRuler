@@ -11,7 +11,7 @@ To run the workload:
 
 2. At the root directory of the project, execute the following:
 ```
-python3 GDPRuler.py --config ./configs/test_user.json --workload ./workload_traces/filter_test_trace --db redis`
+python3 scripts/GDPRuler.py --config ./configs/test_user.json --workload ./workload_traces/filter_test_trace --db redis`
 ```
 
 Expected query output of first run:
