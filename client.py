@@ -6,7 +6,6 @@ from policy_compiler.helper import safe_open
 
 exit_query="query(exit)\n"
 msg_header_size=4
-default_msg_buffer_size=8192
 
 def safe_receive(socket, size):
     """
