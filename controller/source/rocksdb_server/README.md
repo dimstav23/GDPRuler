@@ -22,4 +22,4 @@ Example execution: **./rocksdb_server 15001 ./db**
     3. Type queries and see responses. (Example: "put 5 15", "get 5", "del 5", ...)
 2. Using Python scripts and workloads:
     1. Start rocksdb_server using above command.
-    2. Execute: **python GDPRuler.py --config ./configs/owner_policy.json --workload ./workload_traces/workloadf_test --db rocksdb --address 127.0.0.1:15001**
+    2. Execute: **python scripts/GDPRuler.py --config ./configs/owner_policy.json --workload ./workload_traces/workloadf_test --db rocksdb --address 127.0.0.1:15001**

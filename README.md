@@ -11,9 +11,11 @@
 
 [KVs](./KVs): Folder containing the KVs submodules.
 
-[sev-tool](./sev-tool/): submodule providing AMD SEV functionalities
+[scripts](./scripts): Folder containing python wrapper scripts for all considered bare-metal execution variants.
 
-[ycsb_trace_generator](./ycsb_trace_generator/): submodule containing a modified version of GDPRBench (YCSB-based) to produce workload traces
+[sev-tool](./sev-tool/): Submodule providing AMD SEV functionalities
+
+[ycsb_trace_generator](./ycsb_trace_generator/): Submodule containing a modified version of GDPRBench (YCSB-based) to produce workload traces
 
 ## Build instructions
 
@@ -72,21 +74,21 @@ $ ./rocksdb_server [port] [db_file_location]
 ### 3. Run the controller.
 For the native passthrough controller:
 ```
-$ python3 native_ctl.py --db [redis/rocksdb]
+$ python3 scripts/native_ctl.py --db [redis/rocksdb]
 ```
 For the native GDPR controller:
 ```
-$ python3 GDPRuler.py --config [user_config] --db [redis/rocksdb]
+$ python3 scripts/GDPRuler.py --config [user_config] --db [redis/rocksdb]
 ```
 
-For more command line options, please consult [`native_ctl.py`](./native_ctl.py) and [`GDPRuler.py`](./GDPRuler.py).
+For more command line options, please consult [`scripts/native_ctl.py`](scripts/native_ctl.py) and [`scripts/GDPRuler.py`](scripts/GDPRuler.py).
 
 ### 4. Run the client(s) with a desired workload:
 ```
-$ python3 client.py --workload [workload_trace_file] --clients [num_of_clients]
+$ python3 scripts/client.py --workload [workload_trace_file] --clients [num_of_clients]
 ```
 
-For more command line options, please consult [`client.py`](./client.py).
+For more command line options, please consult [`scripts/client.py`](scripts/client.py).
 
 ## VM Setup instructions
 For instructions on how to set up the client and server SEV VMs, 

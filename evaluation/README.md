@@ -5,22 +5,21 @@
 ### Native (bare-metal) execution
 For the plain YCSB workloads (workload A-F) that enforce the default (generated) client policies 
 (see [the policy generator script](./default_policy_creator.sh)),
-you can run the following, depending on the desired encryption and logging settings:
+you can run the following to run all the variants with and without encryption and logging enabled:
 ```
 $ cd bare-metal
-$ ./run_query_mgmt.sh --encryption OFF --logging OFF
-$ ./run_query_mgmt.sh --encryption OFF --logging ON
-$ ./run_query_mgmt.sh --encryption ON --logging OFF
-$ ./run_query_mgmt.sh --encryption ON --logging ON
+$ ./automated_runner.sh
 ```
+The configuration parameters are taken from [`bare_metal/config.sh`](./bare_metal/config.sh).
 
-Overall, the [`run_query_mgmt.sh`](./bare_metal/run_query_mgmt.sh) script performs the following actions with the help of the [`common.sh`](./common.sh) and [`args_and_checks.sh`](./args_and_checks.sh) scripts:
+Overall, the [`automated_runner.sh`](./bare_metal/automated_runner.sh) 
+The underlying scripts (`native_direct.sh`, `native_ctl.sh`, `gdpr_ctl.sh`) perform the following actions with the help of the [`common.sh`](./common.sh) and [`args_and_checks.sh`](./args_and_checks.sh) scripts:
 - Parses the `--encryption` argument (default set to `OFF`) and compiles the controller
 - Parses the `--logging` argument (default set to `OFF`) and generates the client configuration files with the value of the `monitor` field set to `true` or `false` depending on the chosen option.
 - Sets the appropriate parameters for the controller and db address and ports
 - Creates a `results` directory, if it does not exist
 - Performs loops that run over the configured set of parameters and perform the experiments
-- For each controller type (`native`, `gdpr`), it stores the results in .csv files in the `results` directory with the name
+- For each controller type (`direct` aka no proxy controller,`native`, `gdpr`), it stores the results in .csv files in the `results` directory with the name
 convetion of:
 
 `[controller_type]-query_mgmt-encryption_[ON/OFF]-logging_[ON/OFF].csv`

@@ -84,11 +84,11 @@ Example:
 
 ---
 
-4. [bare_metal/run_query_mgmt.sh](./bare_metal/run_query_mgmt.sh)
+4. [bare_metal/automated_runner.sh](./bare_metal/automated_runner.sh)
 
 **Overview:**
-This script conducts end-to-end tests for query management with encryption and logging enabled or disabled. It covers both native and GDPR controllers with various combinations of clients, databases, and workloads.
-
+This script conducts end-to-end tests for query management with encryption and logging enabled or disabled. It covers both the native direct execution, the native and GDPR (running bare-metal) controllers with various combinations of clients, databases, and workloads.
+The config for the experiments are taken from [`bare_metal/config.sh`](./bare_metal/config.sh)
 **Features:**
 - End-to-End Testing: Conducts comprehensive end-to-end tests for query management with different configurations.
 - Controller Support: Supports both native and GDPR controllers for evaluation.
@@ -96,7 +96,7 @@ This script conducts end-to-end tests for query management with encryption and l
 - Results Tracking: Tracks test results in CSV files for analysis and comparison.
 
 **Usage:**
-- Setup: Ensure the script is executable (`chmod +x run_query_mgmt.sh`) and run in a bash environment.
+- Setup: Ensure the script is executable (`chmod +x automated_runner.sh`) and run in a bash environment.
 - Configuration: Customize the script variables to match your test environment and requirements.
 - Command Line Arguments: Use command line options to set encryption and logging options.
 - Run: Execute the script and monitor the test progress.
@@ -104,7 +104,7 @@ This script conducts end-to-end tests for query management with encryption and l
 
 Example:
 ```
-./run_query_mgmt.sh --encryption ON --logging OFF
+./automated_runner.sh
 ```
 
 **Notes:**
