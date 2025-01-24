@@ -118,10 +118,9 @@
           ];
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libraries;
-          # shellHook = ''
-          #   export KDIR=${pkgs.linuxPackages_latest.kernel.dev}/lib/modules/${pkgs.linuxPackages_latest.kernel.dev.modDirVersion}/build
-          #   export PATH=${pythonEnv}/bin:$PATH
-          # '';
+          shellHook = ''
+            export PATH=${pythonEnv}/bin:$PATH
+          '';
 
           RUST_BACKTRACE = 1;
         };
