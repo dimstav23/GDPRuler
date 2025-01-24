@@ -57,7 +57,7 @@ def send_queries(server_address, server_port, workload_file, latency_results):
         response_size_data = safe_receive(client_socket, msg_header_size)
         response_size = int.from_bytes(response_size_data, 'big')
         response = safe_receive(client_socket, response_size).decode().strip()
-        # print(response)
+        # print(response, flush=True)
         end_time = time.perf_counter()  # End the timer
 
         # Calculate and accumulate the latency

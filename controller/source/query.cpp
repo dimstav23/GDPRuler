@@ -70,10 +70,9 @@ auto query::process_predicate(std::string_view predicate) -> void
   if (pred_attr == "query") {
     // extract command
     std::size_t query_cmd_end = pred_val.find('(');
-    this->m_cmd = pred_val.substr(0, query_cmd_end);
-    std::string m_cmd = std::string(this->m_cmd);
+    this->m_cmd = std::string(pred_val.substr(0, query_cmd_end));
     // Convert this->m_cmd to lowercase
-    std::transform(m_cmd.begin(), m_cmd.end(), m_cmd.begin(), [](unsigned char cmd_char) {
+    std::transform(this->m_cmd.begin(), this->m_cmd.end(), this->m_cmd.begin(), [](unsigned char cmd_char) {
       return std::tolower(cmd_char);
     });
 
@@ -187,7 +186,7 @@ auto query::print() -> void
   std::cout << this->m_cmd << " " << this->m_key << " " << this->m_value << "\n";
 }
 
-auto query::cmd() const -> std::string_view
+auto query::cmd() const -> std::string
 {
   return this->m_cmd;
 }

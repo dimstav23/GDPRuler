@@ -284,7 +284,7 @@ function run_client() {
     exit
   fi
   
-  client="$client_path --workload $workload --clients $n_clients --address $controller_address --port $controller_port"
+  client="$client --workload $workload --clients $n_clients --address $controller_address --port $controller_port"
   echo "Starting the client(s): $client"
   python3 ${client} > $output_file
   status=$?

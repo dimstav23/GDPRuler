@@ -67,7 +67,7 @@ public:
   // ~query();
 
   /* private members getters */
-  [[nodiscard]] auto cmd() const -> std::string_view;
+  [[nodiscard]] auto cmd() const -> std::string;
   [[nodiscard]] auto key() const -> std::string_view;
   [[nodiscard]] auto value() const -> std::string_view;
   [[nodiscard]] auto user_key() const -> std::optional<std::string_view>;
@@ -94,7 +94,7 @@ private:
   auto parse_option(std::string_view option, std::string_view value) -> void;
 
   // query data
-  std::string_view m_cmd;
+  std::string m_cmd;
   std::string_view m_key;
   std::string_view m_value;
 

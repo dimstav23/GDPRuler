@@ -46,7 +46,7 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
     return controller::remove_gdpr_metadata(res.value());
   }
   
-  return "GET_FAILED: Invalid key or does not comply with GDPR rules";
+  return "GET_FAILED: Non existing key or does not comply with GDPR rules";
 }
 
 auto handle_put(const std::unique_ptr<kv_client> &client, 

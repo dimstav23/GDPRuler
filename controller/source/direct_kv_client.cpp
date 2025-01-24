@@ -13,7 +13,7 @@ auto handle_get(const query &query_args, std::unique_ptr<kv_client> &client) -> 
   if (ret_val) {
     return ret_val.value();
   } 
-  return "GET_FAILED: Invalid key";
+  return "GET_FAILED: Non existing key";
 }
 
 auto handle_put(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
@@ -52,7 +52,7 @@ auto main(int argc, char* argv[]) -> int
     // std::cout << "Enter command (get/put/delete/exit): ";
     std::getline(std::cin, input);
 
-    query query_args(input);
+    const query query_args(input);
 
     if (query_args.cmd() == "get") {
       auto result = handle_get(query_args, client);

@@ -19,7 +19,7 @@ auto handle_get(const query &query_args, std::unique_ptr<kv_client> &client) -> 
   if (ret_val) {
     return ret_val.value();
   } 
-  return "GET_FAILED: Invalid key";
+  return "GET_FAILED: Non existing key";
 }
 
 auto handle_put(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
@@ -98,7 +98,7 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
       std::cout << "Client exiting..." << std::endl;
       break;
     } else {
-      // std::cout << "Invalid command" << std::endl;
+      std::cout << query_args.cmd() << std::endl;
       // response = "Invalid command";
       response_length = snprintf(response_ptr, buffer.size() - header_size, "Invalid command");
     }
