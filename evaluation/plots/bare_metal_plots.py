@@ -6,7 +6,7 @@ import argparse
 
 # Define the function to read files and extract information based on filenames
 def load_data_from_directory(input_dir):
-    pattern = r"(?P<controller>\w+)-(?P<workload_type>.*?_\d+M)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)"
+    pattern = r"(?P<controller>\w+(?:_\w+)?)-(?P<workload_type>[\w_]+)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)\.csv"
     data = []
     
     for filename in os.listdir(input_dir):

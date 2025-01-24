@@ -31,7 +31,7 @@ The script expects a directory containing CSV files that adhere to the following
 
 **Example:**
 - `gdpr-query_mgmt_1M-encryption_OFF-logging_ON.csv`
-- `native-query_mgmt-encryption_ON-logging_ON.csv`
+- `native-query_mgmt_1M-encryption_ON-logging_ON.csv`
 
 Each CSV file should have the following columns:
 - `elapsed_time (s)`: The time taken to complete the operations.

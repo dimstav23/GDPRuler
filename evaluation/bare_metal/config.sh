@@ -12,4 +12,6 @@ controller_port=1312
 #   {workloada workloadb workloadc workloadd workloadf} workloads
 clients="1 2 4 8 16"
 dbs="redis rocksdb"
-workloads="workloada workloadb workloadc workloadd workloadf"
+# workloads="workloada workloadb workloadc workloadd workloadf"
+workloads="workloada_1M workloadb_1M workloadc_1M workloadd_1M workloadf_1M"
+number_of_queries="1M" # currently only accepting Million granularities

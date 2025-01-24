@@ -13,7 +13,7 @@ source $script_dir/../args_and_checks.sh
 parse_args_and_checks "$@"
 
 # Direct client-server communication natively
-results_csv_file=${script_dir}/results/direct-query_mgmt-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/direct-query_mgmt_$number_of_queries-encryption_$encryption-logging_$logging.csv
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
