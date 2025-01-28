@@ -254,7 +254,7 @@ echo "Generating trace for TEST workload A in ${TRACE_FOLDER}/workloada_small"
 # remove trace file, if it exists
 rm -f ${TRACE_FOLDER}/workloada_small
 # set the trace path in the workload config: workloada_small for load, workloada_small for run
-sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloada_small_load_run|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_small
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloada_small_load|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_small
 python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_small
 sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workloada_small_run|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_small
 python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workloada_small
