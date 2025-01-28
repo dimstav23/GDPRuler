@@ -11,6 +11,10 @@
 #include "query.hpp"
 #include "common.hpp"
 
+constexpr int value_size = 1024;
+// NOLINTNEXTLINE(cert-err58-cpp)
+const std::string dummy_value(value_size, 'x');
+
 struct OperationMetrics {
   std::vector<long double> latencies;
   void add_latency(long double latency) { latencies.push_back(latency); }
@@ -79,7 +83,7 @@ auto main(int argc, char* argv[]) -> int
       std::cin >> key;
       std::cin >> value;
       auto op_start = std::chrono::high_resolution_clock::now();
-      client->gdpr_put(key, controller::get_value());
+      client->gdpr_put(key, std::string_view(dummy_value));
       record_operation_latency(op_metrics[command], op_start);
     } else if (command == "del") {
       std::cin >> key;

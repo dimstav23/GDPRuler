@@ -10,17 +10,6 @@
 
 namespace controller {
 
-constexpr int value_size = 1024;
-
-// NOLINTNEXTLINE(cert-err58-cpp)
-static const std::string value(value_size, 'x');
-
-/* return the dummy value */
-auto inline get_value() -> std::string
-{
-  return value;
-}
-
 // Consts for query parsing
 // NOLINTBEGIN(cert-err58-cpp)
 const std::vector<std::string> policy_predicates = {

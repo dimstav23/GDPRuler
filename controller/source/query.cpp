@@ -119,10 +119,6 @@ auto query::parse_query(std::string_view reg_query_args) -> void
   }
   // else set the operation key and the value (if needed)
   this->m_key = std::string(extract_key(reg_query_args));
-  if (this->m_cmd == "put") {
-    // Set the value from our dummy expression (xxxxx)
-    this->m_value = get_value();
-  }
 }
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
