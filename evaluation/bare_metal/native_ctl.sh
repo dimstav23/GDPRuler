@@ -13,7 +13,7 @@ source $script_dir/../args_and_checks.sh
 parse_args_and_checks "$@"
 
 # Native controller
-results_csv_file=${script_dir}/results/native_ctl-query_mgmt_$number_of_queries-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/native_ctl-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging.csv
 controller="native"
 for n_clients in $clients; do
   for db in $dbs; do

@@ -32,7 +32,7 @@ function prepare_configs() {
 parse_args_and_checks "$@"
 
 # GDPR controller
-results_csv_file=${script_dir}/results/gdpr_ctl-query_mgmt_$number_of_queries-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/gdpr_ctl-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging.csv
 controller="gdpr"
 for n_clients in $clients; do
   # prepare the client configs

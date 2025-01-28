@@ -4,13 +4,38 @@ import multiprocessing
 import time
 import os
 import sys
+import glob
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
 sys.path.insert(0, parent_dir) 
 from policy_compiler.helper import safe_open
 
-def send_queries(db_type, db_address, workload_file, latency_results):
+workload_trace_dir = os.path.join(curr_dir, '..', 'workload_traces')
+
+def get_workload_options():
+  workload_files = glob.glob(os.path.join(workload_trace_dir, '*_run'))
+  return [os.path.basename(f).replace('_run', '') for f in workload_files]
+
+def load_workload(db_type, db_address, workload_name):
+  load_file = os.path.join(workload_trace_dir, f"{workload_name}_load")
+  process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../controller/build/direct_kv_client')]
+  process_args += ['--db', db_type]
+  process_args += ['--db_address', db_address]
+
+  client_process = subprocess.Popen(process_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+  with safe_open(load_file, 'r') as file:
+    for line in file:
+      if not line.startswith("#"):
+        client_process.stdin.write(line.encode())
+        client_process.stdin.flush()
+        client_process.stdout.readline()  # Read the response
+
+  client_process.terminate()
+  client_process.wait()
+
+def send_queries(db_type, db_address, queries, latency_results):
   # Open the client process
   process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../controller/build/direct_kv_client')]
   process_args += ['--db', db_type]
@@ -21,26 +46,22 @@ def send_queries(db_type, db_address, workload_file, latency_results):
   total_latency = 0
   request_count = 0
 
-  with safe_open(workload_file, 'r') as file:
-    for line in file:
-      if line.startswith("#"):
-        continue  # Skip queries starting with '#'
+  for query in queries:
+    start_time = time.perf_counter()  # Start the timer
 
-      start_time = time.perf_counter()  # Start the timer
+    # Send the query to the client process
+    client_process.stdin.write(query.encode())
+    client_process.stdin.flush()
 
-      # Send the query to the client process
-      client_process.stdin.write(line.encode())
-      client_process.stdin.flush()
+    # Read the response from the client process
+    response = client_process.stdout.readline().strip()
 
-      # Read the response from the client process
-      response = client_process.stdout.readline().strip()
+    end_time = time.perf_counter()  # End the timer
 
-      end_time = time.perf_counter()  # End the timer
-
-      # Calculate and accumulate the latency
-      latency = end_time - start_time
-      total_latency += latency
-      request_count += 1
+    # Calculate and accumulate the latency
+    latency = end_time - start_time
+    total_latency += latency
+    request_count += 1
 
   # Close the client process
   client_process.terminate()
@@ -51,18 +72,30 @@ def send_queries(db_type, db_address, workload_file, latency_results):
     average_latency = total_latency / request_count
     latency_results.append(average_latency)
 
-def create_client_process(db_type, db_address, workload_file, latency_results):
-  process = multiprocessing.Process(target=send_queries, args=(db_type, db_address, workload_file, latency_results))
+def create_client_process(db_type, db_address, queries, latency_results):
+  process = multiprocessing.Process(target=send_queries, args=(db_type, db_address, queries, latency_results))
   process.start()
   return process
 
 def main():
+  get_workload_options()
   parser = argparse.ArgumentParser(description='Start a client.')
-  parser.add_argument('--workload', help='Path to the workload trace file', required=True, type=str)
-  parser.add_argument('--db', help='Database type (redis or rocksdb)', required=True, type=str)
+  parser.add_argument('--workload', help='Name of the workload trace', required=True, type=str, choices=get_workload_options())
+  parser.add_argument('--db', help='Database type (redis or rocksdb)', required=True, type=str, choices=["redis", "rocksdb"])
   parser.add_argument('--db_address', help='Address of the database server', required=True, type=str)
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
   args = parser.parse_args()
+
+  # Perform the load phase of the workload
+  load_workload(args.db, args.db_address, args.workload)
+
+  # Read the run phase of the workload
+  run_file = os.path.join(workload_trace_dir, f"{args.workload}_run")
+  with safe_open(run_file, 'r') as file:
+    queries = [line for line in file if not line.startswith("#")]
+
+  # Split queries among clients
+  queries_per_client = [queries[i::args.clients] for i in range(args.clients)]
 
   # Start the time measurement before sending the workload
   start_time = time.perf_counter()
@@ -70,8 +103,8 @@ def main():
   manager = multiprocessing.Manager()
   latency_results = manager.list()
   processes = []
-  for _ in range(args.clients):
-    process = create_client_process(args.db, args.db_address, args.workload, latency_results)
+  for client_queries in queries_per_client:
+    process = create_client_process(args.db, args.db_address, client_queries, latency_results)
     processes.append(process)
 
   # Wait for all client processes to finish

@@ -4,14 +4,39 @@ import multiprocessing
 import time
 import os
 import sys
+import glob
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
 sys.path.insert(0, parent_dir) 
 from policy_compiler.helper import safe_open
 
+workload_trace_dir = os.path.join(curr_dir, '..', 'workload_traces')
 exit_query="query(exit)\n"
 msg_header_size=4
+
+def get_workload_options():
+  workload_files = glob.glob(os.path.join(workload_trace_dir, '*_run'))
+  return [os.path.basename(f).replace('_run', '') for f in workload_files]
+
+def load_workload(server_address, server_port, workload_name):
+  load_file = os.path.join(workload_trace_dir, f"{workload_name}_load")
+  client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  client_socket.connect((server_address, server_port))
+
+  with safe_open(load_file, 'r') as file:
+    for line in file:
+      if not line.startswith("#"):
+        query = line.encode()
+        msg_size = len(query).to_bytes(msg_header_size, 'big')
+        client_socket.sendall(msg_size + query)
+        response_size_data = safe_receive(client_socket, msg_header_size)
+        response_size = int.from_bytes(response_size_data, 'big')
+        safe_receive(client_socket, response_size)
+
+  exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
+  client_socket.sendall(exit_msg_size + exit_query.encode())
+  client_socket.close()
 
 def safe_receive(socket, size):
     """
@@ -33,7 +58,7 @@ def safe_receive(socket, size):
       total_bytes_received += len(chunk)
     return data
 
-def send_queries(server_address, server_port, workload_file, latency_results):
+def send_queries(server_address, server_port, queries, latency_results):
     # Open a connection to the server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((server_address, server_port))
@@ -41,29 +66,25 @@ def send_queries(server_address, server_port, workload_file, latency_results):
     # Read the contents of the workload file line by line
     total_latency = 0
     request_count = 0
-    with safe_open(workload_file, 'r') as file:
-      for line in file:
-        if line.startswith("#"):
-          continue  # Skip queries starting with '#'
 
-        start_time = time.perf_counter()  # Start the timer
+    for query in queries:
+      start_time = time.perf_counter()  # Start the timer
+      # Send each line to the server with message size header
+      query_encoded = query.encode()
+      msg_size = len(query_encoded).to_bytes(msg_header_size, 'big')
+      client_socket.sendall(msg_size + query_encoded)
 
-        # Send each line to the server with message size header
-        query = line.encode()
-        msg_size = len(query).to_bytes(msg_header_size, 'big')
-        client_socket.sendall(msg_size + query)
+      # Receive the server's response with message size header
+      response_size_data = safe_receive(client_socket, msg_header_size)
+      response_size = int.from_bytes(response_size_data, 'big')
+      response = safe_receive(client_socket, response_size).decode().strip()
+      # print(response, flush=True)
+      end_time = time.perf_counter()  # End the timer
 
-        # Receive the server's response with message size header
-        response_size_data = safe_receive(client_socket, msg_header_size)
-        response_size = int.from_bytes(response_size_data, 'big')
-        response = safe_receive(client_socket, response_size).decode().strip()
-        # print(response, flush=True)
-        end_time = time.perf_counter()  # End the timer
-
-        # Calculate and accumulate the latency
-        latency = end_time - start_time
-        total_latency += latency
-        request_count += 1
+      # Calculate and accumulate the latency
+      latency = end_time - start_time
+      total_latency += latency
+      request_count += 1
 
     # Send exit query to the server
     exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
@@ -77,18 +98,29 @@ def send_queries(server_address, server_port, workload_file, latency_results):
       average_latency = total_latency / request_count
       latency_results.append(average_latency)
 
-def create_client_process(server_address, server_port, workload_file, latency_results):
-  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, workload_file, latency_results))
+def create_client_process(server_address, server_port, queries, latency_results):
+  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, queries, latency_results))
   process.start()
   return process
 
 def main():
   parser = argparse.ArgumentParser(description='Start a client.')
-  parser.add_argument('--workload', help='Path to the workload trace file', default=None, required=True, type=str)
+  parser.add_argument('--workload', help='Name of the workload trace', required=True, type=str, choices=get_workload_options())
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
   args = parser.parse_args()
+
+  # Perform the load phase of the workload
+  load_workload(args.address, args.port, args.workload)
+
+  # Read the run phase of the workload
+  run_file = os.path.join(workload_trace_dir, f"{args.workload}_run")
+  with safe_open(run_file, 'r') as file:
+    queries = [line for line in file if not line.startswith("#")]
+
+  # Split queries among clients
+  queries_per_client = [queries[i::args.clients] for i in range(args.clients)]
 
   # Start the time measurement before sending the workload
   start_time = time.perf_counter()
@@ -96,8 +128,8 @@ def main():
   manager = multiprocessing.Manager()
   latency_results = manager.list()
   processes = []
-  for _ in range(args.clients):
-    process = create_client_process(args.address, args.port, args.workload, latency_results)
+  for client_queries in queries_per_client:
+    process = create_client_process(args.address, args.port, client_queries, latency_results)
     processes.append(process)
 
   # Wait for all client processes to finish

@@ -246,11 +246,6 @@ function run_direct_client() {
     exit
   fi
 
-  if [ ! -f $workload ]; then
-    echo "$workload not found. Exiting..."
-    exit
-  fi
-
   client="$client_path --db $db --db_address $db_address --workload $workload --clients $n_clients"
   echo "Starting the client(s): $client"
   python3 ${client} > $output_file
@@ -279,11 +274,6 @@ function run_client() {
     exit
   fi
 
-  if [ ! -f $workload ]; then
-    echo "$workload not found. Exiting..."
-    exit
-  fi
-  
   client="$client --workload $workload --clients $n_clients --address $controller_address --port $controller_port"
   echo "Starting the client(s): $client"
   python3 ${client} > $output_file
@@ -494,8 +484,8 @@ run_native_direct_experiment() {
 
   # Run the client and gather the results
   client_path="$project_root/scripts/direct_client.py"
-  workload_path=${project_root}/workload_traces/${workload}
-  run_direct_client $client_path $db $db_address_formatted $workload_path $n_clients ${tmp_dir}/clients.txt
+  # workload_path=${project_root}/workload_traces/${workload}
+  run_direct_client $client_path $db $db_address_formatted $workload $n_clients ${tmp_dir}/clients.txt
   status=$?
   if [ $status -ne 0 ]; then
     echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
@@ -568,8 +558,8 @@ run_native_ctl_experiment() {
 
   # Run the client and gather the results
   client_path="$project_root/scripts/client.py"
-  workload_path=${project_root}/workload_traces/${workload}
-  run_client $client_path $workload_path $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
+  # workload_path=${project_root}/workload_traces/${workload}
+  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
   status=$?
   if [ $status -ne 0 ]; then
     echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
@@ -643,8 +633,8 @@ run_VM_ctl_experiment() {
 
   # Run the client and gather the results
   client_path="$project_root/scripts/client.py"
-  workload_path=${project_root}/workload_traces/${workload}
-  run_client $client_path $workload_path $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
+  # workload_path=${project_root}/workload_traces/${workload}
+  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
   status=$?
   if [ $status -ne 0 ]; then
     echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2

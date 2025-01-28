@@ -85,7 +85,7 @@ For more command line options, please consult [`scripts/native_ctl.py`](scripts/
 
 ### 4. Run the client(s) with a desired workload:
 ```
-$ python3 scripts/client.py --workload [workload_trace_file] --clients [num_of_clients]
+$ python3 scripts/client.py --workload [workload_trace_name] --clients [num_of_clients]
 ```
 
 For more command line options, please consult [`scripts/client.py`](scripts/client.py).
