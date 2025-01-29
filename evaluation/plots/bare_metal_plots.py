@@ -4,6 +4,12 @@ import os
 import re
 import argparse
 
+workload_size = {
+  "small"   : 1_000, # small has 1K queries
+  "medium"  : 1_000_000, # medium has 1M queries
+  "large"   : 10_000_000 # large has 10M queries
+}
+
 # Define the function to read files and extract information based on filenames
 def load_data_from_directory(input_dir):
     pattern = r"(?P<controller>\w+(?:_\w+)?)-(?P<workload_type>[\w_]+)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)\.csv"
@@ -22,8 +28,8 @@ def load_data_from_directory(input_dir):
                 df = pd.read_csv(os.path.join(input_dir, filename))
                 
                 # Extract operation count from workload name
-                operation_count = int(workload_type.split("_")[-1].replace("M", "000000"))
-                
+                operation_count = workload_size[workload_type.split("_")[-1]]
+
                 # Calculate throughput
                 df['throughput'] = operation_count / df['elapsed_time (s)']
                 
