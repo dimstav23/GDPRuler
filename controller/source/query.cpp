@@ -110,15 +110,45 @@ static auto extract_key(std::string_view query) -> std::string_view
   return query.substr(open_quote + 1, close_quote - open_quote - 1);
 }
 
+/**
+ * Extracts the value from a query string in the format "(command("key","value"))".
+ * 
+ * @param query The query string containing the command and key.
+ * @return The extracted value from the query.
+ *
+ * @note The function assumes that the query string is properly formatted and follows the expected pattern.
+ *       If the query string is not in the expected format, the function will print an error message and exit.
+ */
+static auto extract_value(std::string_view query) -> std::string_view
+{
+  std::size_t first_quote = query.find('"');
+  std::size_t second_quote = query.find('"', first_quote + 1);
+  std::size_t third_quote = query.find('"', second_quote + 1);
+  std::size_t fourth_quote = query.find('"', third_quote + 1);
+  
+  if (first_quote == std::string_view::npos || second_quote == std::string_view::npos || 
+      third_quote == std::string_view::npos || fourth_quote == std::string_view::npos || 
+      fourth_quote <= third_quote) {
+    std::cout << "Invalid query format: " << query << std::endl;
+    return "";
+  }
+  
+  return query.substr(third_quote + 1, fourth_quote - third_quote - 1);
+}
+
 auto query::parse_query(std::string_view reg_query_args) -> void
 {
   // if the query is getLogs, just set the log key
   if (this->m_cmd == "getlogs") {
-    this->m_log_key = std::string(extract_key(reg_query_args));
+    this->m_log_key = extract_key(reg_query_args);
     return;
   }
-  // else set the operation key and the value (if needed)
-  this->m_key = std::string(extract_key(reg_query_args));
+  // if the query is put, extract the value
+  else if (this->m_cmd == "put") {
+    this->m_value = extract_value(reg_query_args);
+  }
+  // in the end set the operation key 
+  this->m_key = extract_key(reg_query_args);  
 }
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)

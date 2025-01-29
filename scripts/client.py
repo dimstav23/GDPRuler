@@ -15,24 +15,40 @@ workload_trace_dir = os.path.join(curr_dir, '..', 'workload_traces')
 exit_query="query(exit)\n"
 msg_header_size=4
 
+def generate_value(size):
+    """Generate a string of the specified size in bytes."""
+    return 'x' * size
+
+def process_query(query, value):
+  """Replace 'VAL' with the dummy value in the query."""
+  return query.replace('VAL', value)
+
+def preprocess_queries(queries, value_size):
+  """Preprocess all queries, replacing 'VAL' with a dummy value."""
+  value = generate_value(value_size)
+  return [process_query(query, value) for query in queries]
+
 def get_workload_options():
   workload_files = glob.glob(os.path.join(workload_trace_dir, '*_run'))
   return [os.path.basename(f).replace('_run', '') for f in workload_files]
 
-def load_workload(server_address, server_port, workload_name):
+def load_workload(server_address, server_port, workload_name, value_size):
   load_file = os.path.join(workload_trace_dir, f"{workload_name}_load")
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect((server_address, server_port))
 
+  value = generate_value(value_size)
+
   with safe_open(load_file, 'r') as file:
     for line in file:
       if not line.startswith("#"):
-        query = line.encode()
+        processed_query = process_query(line, value)
+        query = processed_query.encode()
         msg_size = len(query).to_bytes(msg_header_size, 'big')
         client_socket.sendall(msg_size + query)
         response_size_data = safe_receive(client_socket, msg_header_size)
         response_size = int.from_bytes(response_size_data, 'big')
-        safe_receive(client_socket, response_size)
+        response = safe_receive(client_socket, response_size)
 
   exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
   client_socket.sendall(exit_msg_size + exit_query.encode())
@@ -77,8 +93,8 @@ def send_queries(server_address, server_port, queries, latency_results):
       # Receive the server's response with message size header
       response_size_data = safe_receive(client_socket, msg_header_size)
       response_size = int.from_bytes(response_size_data, 'big')
-      response = safe_receive(client_socket, response_size).decode().strip()
-      # print(response, flush=True)
+      response = safe_receive(client_socket, response_size)
+
       end_time = time.perf_counter()  # End the timer
 
       # Calculate and accumulate the latency
@@ -109,18 +125,22 @@ def main():
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
+  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=1024, type=int)
   args = parser.parse_args()
 
   # Perform the load phase of the workload
-  load_workload(args.address, args.port, args.workload)
+  load_workload(args.address, args.port, args.workload, args.value_size)
 
   # Read the run phase of the workload
   run_file = os.path.join(workload_trace_dir, f"{args.workload}_run")
   with safe_open(run_file, 'r') as file:
     queries = [line for line in file if not line.startswith("#")]
 
+  # Preprocess all queries to expand the dummy value field
+  preprocessed_queries = preprocess_queries(queries, args.value_size)
+
   # Split queries among clients
-  queries_per_client = [queries[i::args.clients] for i in range(args.clients)]
+  queries_per_client = [preprocessed_queries[i::args.clients] for i in range(args.clients)]
 
   # Start the time measurement before sending the workload
   start_time = time.perf_counter()
