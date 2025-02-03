@@ -42,7 +42,6 @@ This module sets the appropriate kernel version and parameters, and adds the man
 Compile the custom OVMF and QEMU provided by AMD:
 ```
 $ cd AMDSEV
-$ git apply ../AMDSEV.patch
 $ bash build.sh qemu
 $ bash build.sh ovmf
 ```
@@ -50,8 +49,8 @@ $ bash build.sh ovmf
 **Note:** 
 
 For SNP, this setup has been tested with 
-- `qemu`: snp-latest branch provided by AMD ([link to our fork](https://github.com/dimstav23/amd-qemu/tree/snp-latest)) -- the latest tested commit is [here](https://github.com/dimstav23/amd-qemu/commit/b6ee1218e6c9b98a556841615dd10d094e648393)
-- `ovmf`: snp-latest branch provided by AMD ([link to our fork](https://github.com/dimstav23/amd-ovmf/tree/snp-latest)) -- the latest tested commit is [here](https://github.com/dimstav23/amd-ovmf/commit/09fbe92dc545779671d7fd89a5bd4f1b14f7e69b)
+- `qemu`: snp-latest branch provided by AMD ([link to our fork](https://github.com/dimstav23/amd-qemu/tree/snp-latest)) -- the latest tested commit is [here](https://github.com/dimstav23/amd-qemu/commit/24503e2fb30209a4f0646f01d8877832843bb241)
+- `ovmf`: snp-latest branch provided by AMD ([link to our fork](https://github.com/dimstav23/amd-ovmf/tree/ovmf_fix_snapshot_31_01_2025)) -- the latest tested commit is [here](https://github.com/dimstav23/amd-ovmf/commit/27bd7da5ca29dd2cdc3186489e95354716fad71e)
 
 
 ### 4. Prepare an AMD SEV-SNP guest.

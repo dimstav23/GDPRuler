@@ -62,15 +62,15 @@
             # autoconf
             # automake
             #for sev guest
-            # ninja
-            # nasm
-            # acpica-tools
-            # flex
-            # bison
-            # elfutils
-            # smatch
-            # rpm
-            # libslirp
+            ninja
+            nasm
+            acpica-tools
+            flex
+            bison
+            elfutils
+            #smatch
+            rpm
+            libslirp
             #general
             bc
             bashInteractive
