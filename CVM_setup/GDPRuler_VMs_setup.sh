@@ -34,14 +34,16 @@ fi
 # check for ovmf
 OVMF_DIR=${THIS_DIR}/AMDSEV/ovmf
 OVMF=${THIS_DIR}/AMDSEV/usr/local/share/qemu/OVMF.fd
+OVMF_CODE=${THIS_DIR}/AMDSEV/usr/local/share/qemu/OVMF_CODE.fd
+OVMF_VARS=${THIS_DIR}/AMDSEV/usr/local/share/qemu/OVMF_VARS.fd
 OVMF_FILES_DIR=${THIS_DIR}/firmware
 
 if [[ ! -d ${OVMF_DIR} ]] ; then
   echo "${OVMF_DIR} does not exist. Please build it by running \"bash ./build.sh ovmf\" in the AMDSEV directory"
   exit 1
 fi
-if [[ ! -f ${OVMF} ]] ; then
-  echo "${OVMF} does not exist. Please build it by running \"bash ./build.sh ovmf\" in the AMDSEV directory"
+if [[ ! -f ${OVMF} ]] || [[ ! -f "${OVMF_CODE}" ]] || [[ ! -f "${OVMF_VARS}" ]] ; then
+  echo "OVMF files do not exist. Please generate them by running \"bash ./build.sh ovmf\" in the AMDSEV directory"
   exit 1
 fi
 
@@ -94,6 +96,8 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH ${QEMU_IMG_BIN} convert ${THIS_DIR}/${CLOUD_IMG
 LD_LIBRARY_PATH=$LD_LIBRARY_PATH ${QEMU_IMG_BIN} resize ${IMAGES_DIR}/controller.img +20G
 mkdir -p ${OVMF_FILES_DIR}/controller
 cp ${OVMF} ${OVMF_FILES_DIR}/controller/OVMF.fd
+cp ${OVMF_CODE} ${OVMF_FILES_DIR}/controller/OVMF_CODE.fd
+cp ${OVMF_VARS} ${OVMF_FILES_DIR}/controller/OVMF_VARS.fd
 echo "[2/7] Installing software in the controller VM image -- to be used as a base"
 virt-customize --add ${IMAGES_DIR}/controller.img \
   --root-password password:123456 \
@@ -112,12 +116,16 @@ virt-customize --add ${IMAGES_DIR}/controller.img \
 echo "[3/7] Setting up the server VM files"
 mkdir -p ${OVMF_FILES_DIR}/server
 cp ${OVMF} ${OVMF_FILES_DIR}/server/OVMF.fd
+cp ${OVMF_CODE} ${OVMF_FILES_DIR}/server/OVMF_CODE.fd
+cp ${OVMF_VARS} ${OVMF_FILES_DIR}/server/OVMF_VARS.fd
 cp ${IMAGES_DIR}/controller.img ${IMAGES_DIR}/server.img
 
 # Set-up the client VM
 echo "[4/7] Setting up the client VM files"
 mkdir -p ${OVMF_FILES_DIR}/client
 cp ${OVMF} ${OVMF_FILES_DIR}/client/OVMF.fd
+cp ${OVMF_CODE} ${OVMF_FILES_DIR}/client/OVMF_CODE.fd
+cp ${OVMF_VARS} ${OVMF_FILES_DIR}/client/OVMF_VARS.fd
 cp ${IMAGES_DIR}/controller.img ${IMAGES_DIR}/client.img
 
 # Import the network config for the controller in the VM image
