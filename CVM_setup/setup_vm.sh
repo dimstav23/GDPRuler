@@ -21,7 +21,7 @@ if [ -d "redis-plus-plus" ]; then
   echo "redis-plus-plus already exists -- skip cloning"
 else
   git clone https://github.com/sewenew/redis-plus-plus.git
-  git checkout f779c71ff20829b0de7aa91e5dae2f9411c9af0d
+  git checkout 75a75ec305b2c1786e022e6e130b4e03e0659ade
   cd redis-plus-plus
   mkdir build
   cd build
@@ -37,7 +37,7 @@ if [ -d "GDPRuler" ]; then
 else
   git clone https://github.com/dimstav23/GDPRuler.git
   cd GDPRuler
-  git checkout dimstav23/benchmark_automation
+  git checkout dev
   git submodule update --init
 
   # Compile redis to get the redis-server exec:
