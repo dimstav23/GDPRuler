@@ -9,4 +9,4 @@
 	url = https://github.com/dimstav23/GDPRbench.git
 [submodule "CVM_setup/AMDSEV"]
 	path = CVM_setup/AMDSEV
-	url = https://github.com/dimstav23/AMDSEV.git
+	url = git@github.com:dimstav23/AMDSEV.git
