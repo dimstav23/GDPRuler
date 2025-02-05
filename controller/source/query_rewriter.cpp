@@ -13,14 +13,14 @@ query_rewriter::query_rewriter(const query &query_args,
 {
   /* create the new value based on the query arguments and the default policy */
   /* note: string_view data type is okay as query outlives the query_rewriter */
-  std::string_view user_key = query_args.user_key().has_value() ? query_args.user_key().value() : def_policy.user_key();
+  std::string_view user_key = query_args.user_key().value_or(def_policy.user_key());
   bool encryption = def_policy.encryption();
-  std::bitset<num_purposes> purpose = query_args.purpose().has_value() ? query_args.purpose().value() : def_policy.purpose();
-  std::bitset<num_purposes> objection = query_args.objection().has_value() ? query_args.objection().value() : def_policy.objection();
-  std::string_view origin = query_args.origin().has_value() ? query_args.origin().value() : def_policy.origin();
-  int64_t expiration = query_args.expiration().has_value() ? query_args.expiration().value() : def_policy.expiration();
-  std::string_view share = query_args.share().has_value() ? query_args.share().value() : def_policy.share();
-  bool monitor = query_args.monitor().has_value() ? query_args.monitor().value() : def_policy.monitor();
+  std::bitset<num_purposes> purpose = query_args.purpose().value_or(def_policy.purpose());
+  std::bitset<num_purposes> objection = query_args.objection().value_or(def_policy.objection());
+  std::string_view origin = query_args.origin().value_or(def_policy.origin());
+  int64_t expiration = query_args.expiration().value_or(def_policy.expiration());
+  std::string_view share = query_args.share().value_or(def_policy.share());
+  bool monitor = query_args.monitor().value_or(def_policy.monitor());
   
   // Pre-calculate the size of the final string
   size_t delimiters = (max_gdpr_field_guard - 1) * sizeof(char);

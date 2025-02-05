@@ -1,5 +1,4 @@
 #include "default_policy.hpp"
-#include <iostream>
 
 namespace controller {
 
@@ -56,9 +55,9 @@ auto default_policy::check_policy(const std::unordered_map<std::string, std::str
   }
 }
 
-auto default_policy::user_key() const -> std::string
+auto default_policy::user_key() const -> std::string_view
 {
-  return this->m_user_key;
+  return std::string_view(this->m_user_key);
 }
 
 auto default_policy::encryption() const -> bool
@@ -76,9 +75,9 @@ auto default_policy::objection() const -> std::bitset<num_purposes>
   return this->m_objection;
 }
 
-auto default_policy::origin() const -> std::string
+auto default_policy::origin() const -> std::string_view
 {
-  return this->m_origin;
+  return std::string_view(this->m_origin);
 }
 
 auto default_policy::expiration() const -> int64_t
@@ -86,9 +85,9 @@ auto default_policy::expiration() const -> int64_t
   return this->m_expiration;
 }
 
-auto default_policy::share() const -> std::string
+auto default_policy::share() const -> std::string_view
 {
-  return this->m_share;
+  return std::string_view(this->m_share);
 }
 
 auto default_policy::monitor() const -> bool
