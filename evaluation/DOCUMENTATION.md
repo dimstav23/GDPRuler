@@ -144,10 +144,10 @@ This script is designed to facilitate the end-to-end testing of a GDPR-compliant
 
 ---
 
-6. [VM/VM_controller.expect](./VM/VM_controller.expect) 
+6. [VM/CVM_GDPRuler.expect](./VM/CVM_GDPRuler.expect)
 
 **Overview:**
-This Expect script automates the deployment and execution of a controller virtual machine (VM) for a GDPR-compliant data management system. It launches the VM, configures the controller, and initiates the appropriate controller type (native or GDPR) based on user-defined parameters.
+This Expect script automates the deployment and execution of a controller confidential virtual machine (CVM) for a GDPR-compliant data management system. It launches the CVM, configures the controller, and initiates GDPR controller based on user-defined parameters.
 
 **Requirements:**
 - Linux environment
@@ -155,16 +155,16 @@ This Expect script automates the deployment and execution of a controller virtua
 - Necessary permissions to execute commands with sudo
 
 **Usage:**
-- Setup: Ensure the script is executable (`chmod +x VM_controller.expect`) and Expect is installed.
+- Setup: Ensure the script is executable (`chmod +x CVM_GDPRuler.expect`) and Expect is installed.
 - Configuration: Modify the script variables according to your environment and requirements, such as VM settings, database details, controller type, and output file path.
 - Execution: Run the script with appropriate arguments:
 ```
-./script_name <controller_type> <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_config> <gdpr_log_path>
+./script_name <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_config> <gdpr_log_path>
 ```
 to deploy the VM and start the controller.
 - Functionality:
   - The script launches a VM using QEMU and enters the necessary login credentials.
-  - It navigates to the controller directory and starts either the native or GDPR controller based on user input.
+  - It navigates to the controller directory and starts the GDPR controller based on user input.
   - For the GDPR controller, it creates a log directory and configures logging.
   - Output from the controller is redirected to a specified file for analysis.
 

@@ -26,7 +26,7 @@ convetion of:
 
 - In the end, it prints a summary of the failed tests, if any.
 
-### VM-based execution
+### VM-based execution (outdated)
 In this setup, the DB server and the controller are executed inside a confidential VM (currently SEV-ES).
 For the plain YCSB workloads (workload A-F) that enforce the default (generated) client policies 
 (see [the policy generator script](./default_policy_creator.sh)),
@@ -44,7 +44,7 @@ Overall, the [`run_query_mgmt.sh`](./VM/run_query_mgmt.sh) script performs the f
 - Parses the `--logging` argument (default set to `OFF`) and generates the client configuration files with the value of the `monitor` field set to `true` or `false` depending on the chosen option. These configuration files are copied inside the controller VM.
 - Sets the appropriate parameters for the controller and db address and ports
 - Creates a `results` directory, if it does not exist
-- Performs loops that run over the configured set of parameters and perform the experiments. In this setup, the spawn of the VMs is performed through the `expect` scripts ([`VM_controller.expect`](./VM/VM_controller.expect) and [`VM_server.expect`](./VM/VM_server.expect)).
+- Performs loops that run over the configured set of parameters and perform the experiments. In this setup, the spawn of the VMs is performed through the `expect` scripts ([`CVM_GDPRuler.expect`](./VM/CVM_GDPRuler.expect) and [`VM_server.expect`](./VM/VM_server.expect)).
 - For each controller type (`native`, `gdpr`), it stores the results in .csv files in the `results` directory with the name
 convetion of:
 

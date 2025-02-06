@@ -1,0 +1,63 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+
+set curr_dir [file normalize [file dirname $argv0]]
+
+# indicates the number of cores
+set cores [lindex $argv 0];
+# indicates the MB of memory for the VM
+set memory [lindex $argv 1];
+# indicates the db type
+set db_type [lindex $argv 2];
+# indicates the db address
+set db_address [lindex $argv 3];
+# indicates the controller address
+set controller_address [lindex $argv 4];
+# indicates the controller port
+set controller_port [lindex $argv 5];
+# indicates the output file path
+set output_file [lindex $argv 6];
+# (GDPR only) indicates the gdpr config
+set gdpr_config [lindex $argv 7];
+# (GDPR only) indicates the gdpr log path
+set gdpr_log_path [lindex $argv 8];
+
+# Launch the controller VM
+spawn sudo LD_LIBRARY_PATH=$::env(LD_LIBRARY_PATH) numactl --cpunodebind=0 --membind=0   \
+bash ${curr_dir}/../../CVM_setup/AMDSEV/launch-qemu.sh \
+-hda ${curr_dir}/../../CVM_setup/images/controller.img \
+-sev-snp \
+-bridge virbr0 \
+-bios ${curr_dir}/../../CVM_setup/firmware/controller \
+-smp $cores \
+-mem $memory \
+-log ${curr_dir}/controller.out
+
+# Enter username
+expect -- "login: "
+send -- "root\r"
+
+# Enter Password
+expect -- "Password: "
+send -- "123456\r"
+
+# Expect the login to be done
+expect -- "# "
+
+# Go to the controller directory
+send -- "cd /root/GDPRuler/controller\r"
+expect -- "# "
+
+# Start the appropriate controller
+send -- "cd /root/GDPRuler\r"
+expect -- "# "
+
+# Delete and recreate the folder for the logs
+send -- "rm -rf $gdpr_log_path\r"
+expect -- "# "
+send -- "mkdir -p $gdpr_log_path\r"
+expect -- "# "
+# Run GDPR controller
+send -- "python3 scripts/GDPRuler.py --db $db_type --config $gdpr_config --logpath $gdpr_log_path --db_address $db_address --controller_address $controller_address --controller_port $controller_port > $output_file\r"
+expect -- "# "
