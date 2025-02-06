@@ -35,43 +35,47 @@ public:
     return result;
   }
 
-  static auto deserialize(const std::string& raw_query) -> query_message
+  static auto deserialize(std::string_view raw_query) -> query_message
   {
-    static query_message invalid_query;
-    static std::unordered_set<std::string> valid_query_types {"get", "put", "del", "getm", "putm"};
-
-    std::vector<std::string> splits;
-    boost::split(splits, raw_query, boost::is_any_of(" "));
-
-    if (splits.size() < 2) {
-      std::cout << "Invalid query message. Minimum 2 arguments needed."
-                << std::endl;
-      return invalid_query;
-    }
-
-    if (!valid_query_types.contains(splits[0])) {
-      std::cout
-          << "Invalid query type. A valid query can be one of {get, put, del}"
-          << std::endl;
-      return invalid_query;
-    }
-
-    if (splits[0] == "put" && splits.size() <= 2) {
-      std::cout << "Invalid query. put query expects a third value argument."
-                << std::endl;
-      return invalid_query;
-    }
+    static const std::unordered_set<std::string_view> valid_query_types {
+      "get", "put", "del", "getm", "putm"
+    };
 
     query_message request;
-    request.m_command = splits[0];
-    request.m_key = splits[1];
-    if (splits.size() >= 3) {
-      // use the join in case our encrypted value contains ' ' chars
-      request.m_value = boost::algorithm::join(
-        std::vector<std::string>(splits.begin() + 2, splits.end()),
-        " "
-      );
+
+    // Find command (first token)
+    const size_t first_space = raw_query.find(' ');
+    if (first_space == std::string_view::npos) [[unlikely]] {
+      std::cerr << "Invalid query: missing command\n";
+      return request; // invalid
     }
+    request.m_command = raw_query.substr(0, first_space);
+
+    // Command validation
+    if (!valid_query_types.count(request.m_command)) [[unlikely]] {
+      std::cerr << "Invalid command: " << request.m_command << '\n';
+      return request;
+    }
+
+    // Find key (second token)
+    size_t key_start = first_space + 1;
+    if (key_start >= raw_query.size()) [[unlikely]] {
+      std::cerr << "Invalid query: missing key\n";
+      return request; // invalid
+    }
+    size_t key_end = raw_query.find(' ', key_start);
+    request.m_key = raw_query.substr(key_start, key_end - key_start);
+
+    // Handle value (remaining string)
+    if (request.m_command == "put") {
+      size_t value_start = key_end + 1;
+      if (value_start >= raw_query.size()) [[unlikely]] {
+        std::cerr << "Invalid put query: missing value\n";
+        return request; // invalid
+      }
+      request.m_value = raw_query.substr(value_start);
+    }
+
     request.m_is_valid = true;
     return request;
   }
