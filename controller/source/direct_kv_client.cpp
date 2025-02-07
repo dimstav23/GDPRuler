@@ -53,19 +53,20 @@ auto main(int argc, char* argv[]) -> int
     std::getline(std::cin, input);
 
     const query query_args(input);
-
+    std::string result;
     if (query_args.cmd() == "get") {
-      auto result = handle_get(query_args, client);
+      result = handle_get(query_args, client);
     } else if (query_args.cmd() == "put") {
-      auto result = handle_put(query_args, client);
+      result = handle_put(query_args, client);
     } else if (query_args.cmd() == "delete") {
-      auto result = handle_delete(query_args, client);
+      result = handle_delete(query_args, client);
     } else if (query_args.cmd() == "exit") {
       std::cout << "Exiting..." << std::endl;
       break;
     } else {
-      std::cout << INVALID_COMMAND << std::endl;
+      result = INVALID_COMMAND;
     }
+    std::cout << result << std::endl;
   }
 
   return 0;
