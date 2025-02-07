@@ -43,7 +43,7 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then return the value of the get operation
-    return controller::remove_gdpr_metadata(res.value());
+    return controller::remove_gdpr_metadata(std::move(res.value()));
   }
   
   return GET_FAILED;// GET_FAILED: Non existing key or does not comply with GDPR rules;
@@ -140,7 +140,7 @@ auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then return the GDPR metadata of the key
-    return controller::preserve_only_gdpr_metadata(res.value());
+    return controller::preserve_only_gdpr_metadata(std::move(res.value()));
   }
 
   return GETM_FAILED; // GETM_FAILED: Invalid key or does not comply with GDPR rules

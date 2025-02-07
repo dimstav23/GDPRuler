@@ -136,7 +136,7 @@ auto inline get_expiration_time(int64_t secs_from_now) -> int64_t {
  * @param value The string containing the GDPR metadata and actual value.
  * @return The actual value after removing the metadata.
  */
-auto inline remove_gdpr_metadata(std::string &value) -> std::string {
+auto inline remove_gdpr_metadata(std::string value) -> std::string {
   size_t last_delimiter_idx = value.find_last_of('|');
   if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
   {
@@ -153,7 +153,7 @@ auto inline remove_gdpr_metadata(std::string &value) -> std::string {
  * @param value The string containing the GDPR metadata and the value.
  * @return The GDPR metadata.
  */
-auto inline preserve_only_gdpr_metadata(std::string &value) -> std::string {
+auto inline preserve_only_gdpr_metadata(std::string value) -> std::string {
   size_t last_delimiter_idx = value.find_last_of('|');
   if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
   {
