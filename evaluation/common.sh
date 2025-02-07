@@ -26,6 +26,8 @@ failed_tests=""
 VM_cores="16"
 VM_memory="16384"
 
+NODE_BIND="numactl --cpunodebind=0 --membind=0"
+
 # Helper functions for the evaluation and workload execution
 
 # Function to run RocksDB server in a specified environment
@@ -51,7 +53,7 @@ function run_rocksdb() {
     fi
     echo "Starting rocksdb server"
     # run rocksdb server
-    $rocksdb_server_bin $port $log_dir > $output_file &
+    $NODE_BIND $rocksdb_server_bin $port $log_dir > $output_file &
     # wait for the server to be initialized and listen to connections
     wait_for_activation "localhost" $port
 
@@ -90,7 +92,7 @@ function run_redis() {
       fi
       echo "Starting redis server"
       # run redis server
-      $redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file &
+      $NODE_BIND $redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file &
       # wait for the server to be initialized and listen to connections
       wait_for_activation "localhost" $port
 
@@ -134,7 +136,7 @@ function run_gdpr_controller() {
   --controller_address $controller_address --controller_port $controller_port"
 
   echo "Starting the GDPR controller"
-  python3 $ctl > $output_file &
+  $NODE_BIND python3 $ctl > $output_file &
   wait_for_activation "localhost" $controller_port
 }
 
@@ -188,7 +190,7 @@ function run_native_controller() {
   --controller_address $controller_address --controller_port $controller_port"
 
   echo "Starting the native controller"
-  python3 $ctl > $output_file &
+  $NODE_BIND python3 $ctl > $output_file &
   wait_for_activation "localhost" $controller_port
 }
 
@@ -215,7 +217,7 @@ function run_direct_client() {
 
   client="$client_path --db $db --db_address $db_address --workload $workload --clients $n_clients"
   echo "Starting the client(s): $client"
-  python3 ${client} > $output_file
+  $NODE_BIND python3 ${client} > $output_file
   status=$?
   return $status
 }
@@ -243,7 +245,7 @@ function run_client() {
 
   client="$client --workload $workload --clients $n_clients --address $controller_address --port $controller_port"
   echo "Starting the client(s): $client"
-  python3 ${client} > $output_file
+  $NODE_BIND python3 ${client} > $output_file
   status=$?
   return $status
 }
