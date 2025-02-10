@@ -47,7 +47,7 @@ public:
                         m_query_args.monitor().value() : m_filter->check_monitoring();      
   }
 
-  void monitor_query(const bool& valid, const std::string& new_val = {}) {
+  void monitor_query(const bool& valid, std::string_view new_val = {}) {
     if (m_monitor_needed) {
       m_history_logger->log_encoded_query(m_query_args, m_def_policy, valid, new_val);
     }
