@@ -38,20 +38,17 @@ This module sets the appropriate kernel version and parameters, and adds the man
 - `dmesg | grep -i SEV-ES` should indicate that `SEV-ES` is supported and the number of SEV ASIDs.
 - `dmesg | grep -i SEV-SNP` should indicate that `SEV-SNP` is enabled and the number of ASIDs.
 
-### 3. Prepare the host toolchain
-Compile the custom OVMF and QEMU provided by AMD:
+### 3. Prepare the host toolchain (OVMF)
+Compile the custom OVMF provided by AMD:
 ```
 $ cd AMDSEV
-$ git apply ../AMDSEV.patch
-$ bash build.sh qemu
 $ bash build.sh ovmf
 ```
 
 **Note:** 
 
 For SNP, this setup has been tested with 
-- `qemu`: snp-latest branch provided by AMD ([link to our fork](https://github.com/dimstav23/amd-qemu/tree/snp-latest)) -- the latest tested commit is [here](https://github.com/dimstav23/amd-qemu/commit/b6ee1218e6c9b98a556841615dd10d094e648393)
-- `ovmf`: snp-latest branch provided by AMD ([link to our fork](https://github.com/dimstav23/amd-ovmf/tree/snp-latest)) -- the latest tested commit is [here](https://github.com/dimstav23/amd-ovmf/commit/09fbe92dc545779671d7fd89a5bd4f1b14f7e69b)
+- `ovmf`: snp-latest branch provided by AMD ([link to our fork](https://github.com/dimstav23/amd-ovmf/tree/ovmf_fix_snapshot_31_01_2025)) -- the latest tested commit is [here](https://github.com/dimstav23/amd-ovmf/commit/27bd7da5ca29dd2cdc3186489e95354716fad71e)
 
 
 ### 4. Prepare an AMD SEV-SNP guest.
@@ -60,27 +57,25 @@ For SNP, this setup has been tested with
 
 Follow the next set of commands from the `AMD_SEV_SNP` directory to launch an SEV-SNP guest (tested with ubuntu 22.04 cloud img).
 ```
-$ wget https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+$ wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
 
 $ mkdir images
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./AMDSEV/usr/local/bin/qemu-img convert jammy-server-cloudimg-amd64.img ./images/controller.img
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH qemu-img convert noble-server-cloudimg-amd64.img ./images/controller.img
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH  ./AMDSEV/usr/local/bin/qemu-img resize ./images/controller.img +30G
+$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH qemu-img resize ./images/controller.img +20G
 
 $ bash prepare_net_cfg.sh -br virbr0 -cfg ./network_configs/netplan-controller.yml
 
-$ mkdir -p OVMF_files/controller
+$ mkdir -p firmware/controller
 
-$ cp ./AMDSEV/usr/local/share/qemu/OVMF_CODE.fd ./OVMF_files/controller/OVMF_CODE.fd
-
-$ cp ./AMDSEV/usr/local/share/qemu/OVMF_VARS.fd ./OVMF_files/controller/OVMF_VARS.fd
+$ cp ./AMDSEV/usr/local/share/qemu/OVMF.fd ./firmware/controller/OVMF.fd
 ```
 
 For convenience, we wrap these operations in a single script ([GDPRuler_VMs_setup.sh](./GDPRuler_VMs_setup.sh))to setup a controller, a server and a client image.
 
 **Important note:** 
-- Each VM requires a separate `.img` and `OVMF_*.fd` files.
+- Each VM requires a separate `.img` and `OVMF.fd` files.
 - To avoid any problems, you have to use a distro with text-based installer, otherwise your launched VM might stuck ([issue](https://github.com/AMDESE/AMDSEV/issues/38)).
 
 ### 5. Launch an AMD SEV-SNP guest.
@@ -89,7 +84,7 @@ $ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH bash AMDSEV/launch-qemu.sh \
 -hda images/controller.img \
 -sev-snp \
 -bridge virbr0 \
--bios OVMF_files/controller
+-bios firmware/controller
 ```
 
 **IMPORTANT:** 
@@ -118,10 +113,6 @@ sudo ifconfig virbr0 up
 sudo ifconfig virbr0 192.168.122.1 netmask 255.255.255.0
 ```
 Our script [`prepare_net_cfg.sh`](./prepare_net_cfg.sh) checks the given virtual bridge and adjusts the prefix of the IP declared in the network configuration file. Example configuration files are given in the [network_configs](./network_configs/) folder. They are used mainly to pre-determine the IPs of the VMs in the network.
-
-### 8. Attestation (maybe outdated due to updated kernel):
-For more information about the attestation process, please consult our [dedicated documentation](./ATTESTATION.md).
-Sample attestation process is also presented in our [sev-snp-attestation](./sev-snp-attestation/) submodule.
 
 ### Manual ssh connection setup
 - After you make sure that networking works fine and you can reach the VM guest from the host, you can log-in the VM using ssh (after placing your ssh keys in the `~/.ssh/autorhized_keys` file of the guest VM).

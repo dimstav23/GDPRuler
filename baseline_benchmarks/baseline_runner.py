@@ -8,8 +8,9 @@ from aggregate_results import aggregate_csv_files, delete_temp_csv_files
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
-sys.path.insert(0, parent_dir) 
-from common import execute_queries
+sys.path.insert(0, parent_dir)
+from policy_compiler.helper import safe_open
+from policy_compiler.query_analyser import analyze_query
 
 dbs = ["redis", "rocksdb"]
 workload_folder = os.path.join(curr_dir, "../workload_traces")
@@ -48,6 +49,40 @@ def create_result_files(db, workload, client_num, rep):
 def close_result_files(result_files):
   for result_file in result_files:
     result_file.close()
+
+def execute_queries(controller, workload_file):
+  # Start the time measurement before sending the workload
+  start_time = time.perf_counter_ns()
+
+  # Parse and send the query args to the native controller
+  workload_file = safe_open(workload_file, "r")
+  queries = workload_file.readlines()
+
+  for query in queries:
+    if query.startswith("#"):
+      continue  # Skip queries starting with '#'
+    new_query = analyze_query(query.rstrip())
+    controller.stdin.write(new_query.encode() + b'\n')
+    controller.stdin.flush()
+
+  controller.stdin.write(b'exit\n')
+  controller.stdin.flush()
+
+  # Read process' standard output and error
+  _, error = controller.communicate()
+  controller.terminate()
+
+  # End the timer after the controller has returned and analyse the measurements
+  end_time = time.perf_counter_ns()
+  runtime = end_time - start_time
+
+  # Print the output of the controller process
+  if error:
+    print(error.decode('utf-8'))
+
+  # Print the timer results
+  seconds = runtime / 1000000000
+  print("System time: {:.9f} s".format(seconds))
 
 # Start the KV server
 def run_server(db):

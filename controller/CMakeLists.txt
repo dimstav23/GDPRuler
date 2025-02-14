@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.28)
 
 include(cmake/prelude.cmake)
 
@@ -70,11 +70,11 @@ find_path(REDIS_PLUS_PLUS_HEADER sw)
 find_library(REDIS_PLUS_PLUS_LIB redis++)
 
 # ---- Add rocksdb dependency ----
-# find_path(ROCKSDB_HEADER rocksdb)
+find_path(ROCKSDB_HEADER rocksdb)
 find_library(ROCKSDB_LIB rocksdb)
 
 # ---- Add boost dependency ----
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost CONFIG REQUIRED COMPONENTS system)
 
 # ---- Add OpenSSL dependency ----
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
@@ -101,7 +101,17 @@ target_compile_features(native_controller_exe PRIVATE cxx_std_20)
 
 target_link_libraries(native_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
 
-# redis interface
+# rocksdb server
+add_executable(rocksdb_server_exe source/rocksdb_server/server.cpp)
+add_executable(rocksdb_server::exe ALIAS rocksdb_server_exe)
+
+set_property(TARGET rocksdb_server_exe PROPERTY OUTPUT_NAME rocksdb_server)
+
+target_compile_features(rocksdb_server_exe PRIVATE cxx_std_20)
+
+target_link_libraries(rocksdb_server_exe PRIVATE ${Boost_LIBRARIES} ${ROCKSDB_LIB})
+
+# kv_client testing interface for baseline_benchmarks
 add_executable(test_kv_client_driver_exe source/test_kv_client_driver.cpp)
 add_executable(test_kv_client_driver::exe ALIAS test_kv_client_driver_exe)
 
@@ -112,15 +122,16 @@ target_compile_features(test_kv_client_driver_exe PRIVATE cxx_std_20)
 target_link_libraries(test_kv_client_driver_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} OpenSSL::Crypto)
 target_include_directories(test_kv_client_driver_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
 
-# rocksdb server
-add_executable(rocksdb_server_exe source/rocksdb_server/server.cpp)
-add_executable(rocksdb_server::exe ALIAS rocksdb_server_exe)
+# kv client executable to connect directly to the server for the baseline 
+add_executable(direct_kv_client_exe source/direct_kv_client.cpp)
+add_executable(direct_kv_client::exe ALIAS direct_kv_client_exe)
 
-set_property(TARGET rocksdb_server_exe PROPERTY OUTPUT_NAME rocksdb_server)
+set_property(TARGET direct_kv_client_exe PROPERTY OUTPUT_NAME direct_kv_client)
 
-target_compile_features(rocksdb_server_exe PRIVATE cxx_std_20)
+target_compile_features(direct_kv_client_exe PRIVATE cxx_std_20)
 
-target_link_libraries(rocksdb_server_exe PRIVATE ${Boost_LIBRARIES} ${ROCKSDB_LIB})
+target_link_libraries(direct_kv_client_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} OpenSSL::Crypto)
+target_include_directories(direct_kv_client_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
 
 # ---- Install rules ----
 

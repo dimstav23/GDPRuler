@@ -4,17 +4,23 @@
 namespace controller {
 
 /* deserialize the metadata from the retrieved value and place them in the fields of the filter class */
-gdpr_filter::gdpr_filter(const std::optional<std::string> &ret_value)
-    : m_name {"gdpr_controller_gdpr_filter"}
+gdpr_filter::gdpr_filter(std::optional<std::string_view> ret_value)
+    : m_valid{false},
+      m_encryption{false},
+      m_expiration{0},
+      m_monitor{false}
 {
   if (ret_value) {
     m_valid = true;
-    std::istringstream iss(*ret_value);
-    std::string token;
+    std::string_view value = *ret_value;
+    size_t start = 0;
+    size_t end = 0;
     int count = 0;
+
     // retrieve the metadata fields without the actual value
-    while (count < metadata_prefix_fields && std::getline(iss, token, '|')) {
-      // std::cout << count << " " << token << std::endl;
+    while (count < metadata_prefix_fields && (end = value.find('|', start)) != std::string_view::npos) {
+      std::string_view token = value.substr(start, end - start);
+
       switch (count) {
         case usr: 
           m_user_key = token;
@@ -23,16 +29,16 @@ gdpr_filter::gdpr_filter(const std::optional<std::string> &ret_value)
           m_encryption = (token == "1");
           break;
         case pur:
-          m_purpose = std::bitset<num_purposes>(std::stoull(token));
+          m_purpose = std::bitset<num_purposes>(std::stoull(std::string(token)));
           break;
         case obj:
-          m_objection = std::bitset<num_purposes>(std::stoull(token));
+          m_objection = std::bitset<num_purposes>(std::stoull(std::string(token)));
           break;
         case org:
           m_origin = token;
           break;
         case exp:
-          m_expiration = std::stoi(token);
+          m_expiration = std::stoll(std::string(token));
           break;
         case shr:
           m_share = token;
@@ -43,28 +49,19 @@ gdpr_filter::gdpr_filter(const std::optional<std::string> &ret_value)
         default:
           break;
       }
+      start = end + 1;
       count++;
     }
+
     if (count != metadata_prefix_fields) {
       throw std::invalid_argument("Invalid GDPR metadata format");
     }
-  }
-  else {
-    // no value returned for given key
-    m_valid = false;
-    // no monitor is needed if no value returned for given key
-    m_monitor = false;
   }
 }
 
 // gdpr_filter::~gdpr_filter()
 // {
 // }
-
-auto gdpr_filter::name() const -> std::string
-{
-  return this->m_name;
-}
 
 /* Perform the validation checks for the gdpr metadata */
 auto gdpr_filter::validate(const controller::query &query_args, 
@@ -125,10 +122,10 @@ auto gdpr_filter::validate(const controller::query &query_args,
 }
 
 /* Validate that the user session key belongs to the owner or the share_with set */
-auto gdpr_filter::validate_session_key(const std::optional<std::string> &query_user_key,
-                                        const std::string &def_user_key) const -> bool
+auto gdpr_filter::validate_session_key(std::optional<std::string_view> query_user_key,
+                                        std::string_view def_user_key) const -> bool
 {
-  std::string user_key = query_user_key.value_or(def_user_key);
+  std::string_view user_key = query_user_key.value_or(def_user_key);
   // Check if the user that requests the data is the owner (likely)
   if (user_key == this->user_key()) {
     return true;
@@ -136,10 +133,11 @@ auto gdpr_filter::validate_session_key(const std::optional<std::string> &query_u
   
   // If the user is not the owner, check if the data is shared with the client-user
   // Check if share user string contains user_key as a sub-token separated by commas
+  std::string_view share = this->share();
   size_t start = 0;
-  size_t end = std::string::npos;
-  while ((end = this->share().find(',', start)) != std::string::npos) {
-    if (user_key == this->share().substr(start, end - start)) {
+  size_t end = 0;
+  while ((end = share.find(',', start)) != std::string_view::npos) {
+    if (user_key == share.substr(start, end - start)) {
       return true;
     }
     start = end + 1;
@@ -147,7 +145,7 @@ auto gdpr_filter::validate_session_key(const std::optional<std::string> &query_u
 
   // Check if the user key matches the last user in the shared users string
   // if not, the function will return false
-  return (user_key == this->share().substr(start));
+  return (user_key == share.substr(start));
 }
 
 /* Validate that the purpose of the query is indeed in the allowed purposes */
@@ -209,7 +207,7 @@ auto gdpr_filter::is_valid() const -> bool
   return this->m_valid;
 }
 
-auto gdpr_filter::user_key() const -> std::string
+auto gdpr_filter::user_key() const -> std::string_view
 {
   return this->m_user_key;
 }
@@ -229,7 +227,7 @@ auto gdpr_filter::objection() const -> std::bitset<num_purposes>
   return this->m_objection;
 }
 
-auto gdpr_filter::origin() const -> std::string
+auto gdpr_filter::origin() const -> std::string_view
 {
   return this->m_origin;
 }
@@ -239,7 +237,7 @@ auto gdpr_filter::expiration() const -> int64_t
   return this->m_expiration;
 }
 
-auto gdpr_filter::share() const -> std::string
+auto gdpr_filter::share() const -> std::string_view
 {
   return this->m_share;
 }

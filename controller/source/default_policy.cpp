@@ -1,11 +1,9 @@
 #include "default_policy.hpp"
-#include <iostream>
 
 namespace controller {
 
 default_policy::default_policy()
-    : m_name {"gdpr_controller_default_policy"},
-      m_encryption{false},
+    : m_encryption{false},
       m_purpose{0},
       m_objection{0},
       m_expiration{0},
@@ -14,8 +12,7 @@ default_policy::default_policy()
 }
 
 default_policy::default_policy(const std::string &input)
-    : m_name {"gdpr_controller_default_policy"},
-      m_encryption{false},
+    : m_encryption{false},
       m_purpose{0},
       m_objection{0},
       m_expiration{0},
@@ -35,11 +32,11 @@ default_policy::default_policy(const std::string &input)
   this->m_user_key = option_map["-sessionKey"];
   this->m_origin = option_map["-origin"];
   this->m_share = option_map["-objShare"];
-  this->m_expiration = stoi(option_map["-expTime"]);
-  this->m_encryption = str_to_bool(option_map["-encryption"]);
-  this->m_monitor = str_to_bool(option_map["-monitor"]);
-  set_bitmap(this->m_purpose, split_comma_string(option_map["-purpose"]));
-  set_bitmap(this->m_objection, split_comma_string(option_map["-objection"]));
+  this->m_expiration = stoll(option_map["-expTime"]);
+  this->m_encryption = str_to_bool(std::string_view(option_map["-encryption"]));
+  this->m_monitor = str_to_bool(std::string_view(option_map["-monitor"]));
+  set_bitmap(this->m_purpose, split_comma_string(std::string_view(option_map["-purpose"])));
+  set_bitmap(this->m_objection, split_comma_string(std::string_view(option_map["-objection"])));
 }
 
 // default_policy::~default_policy()
@@ -58,14 +55,9 @@ auto default_policy::check_policy(const std::unordered_map<std::string, std::str
   }
 }
 
-auto default_policy::name() const -> std::string
+auto default_policy::user_key() const -> std::string_view
 {
-  return this->m_name;
-}
-
-auto default_policy::user_key() const -> std::string
-{
-  return this->m_user_key;
+  return std::string_view(this->m_user_key);
 }
 
 auto default_policy::encryption() const -> bool
@@ -83,9 +75,9 @@ auto default_policy::objection() const -> std::bitset<num_purposes>
   return this->m_objection;
 }
 
-auto default_policy::origin() const -> std::string
+auto default_policy::origin() const -> std::string_view
 {
-  return this->m_origin;
+  return std::string_view(this->m_origin);
 }
 
 auto default_policy::expiration() const -> int64_t
@@ -93,9 +85,9 @@ auto default_policy::expiration() const -> int64_t
   return this->m_expiration;
 }
 
-auto default_policy::share() const -> std::string
+auto default_policy::share() const -> std::string_view
 {
-  return this->m_share;
+  return std::string_view(this->m_share);
 }
 
 auto default_policy::monitor() const -> bool

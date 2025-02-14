@@ -4,33 +4,50 @@ set timeout -1
 
 set curr_dir [file normalize [file dirname $argv0]]
 
-# first argument indicates the db backend type: redis or rocksdb
-set db_type [lindex $argv 0];
-# second argument indicates number of cores
-set cores [lindex $argv 1];
-# third argument indicates MB of memory for the VM
-set memory [lindex $argv 2];
-# fourth argument indicates the port of the server
-set port [lindex $argv 3];
-# fifth argument indicates the directory of the logs
-set log_dir [lindex $argv 4];
-# sixth argument indicates the output file path
-set output_file [lindex $argv 5];
+# indicates the VM backend type: VM or CVM
+set VM_type [lindex $argv 0];
+# indicates the db backend type: redis or rocksdb
+set db_type [lindex $argv 1];
+# indicates the number of cores
+set cores [lindex $argv 2];
+# indicates the MB of memory for the VM
+set memory [lindex $argv 3];
+# indicates the port of the server
+set port [lindex $argv 4];
+# indicates the directory of the logs
+set log_dir [lindex $argv 5];
+# indicates the output file path
+set output_file [lindex $argv 6];
 
 # Set the server executables for the server VM environment
 set rocksdb_server_bin /root/GDPRuler/controller/build/rocksdb_server
 set redis_server_bin /root/GDPRuler/KVs/redis/src/redis-server
 
 # Launch the server VM
-spawn sudo LD_LIBRARY_PATH=$::env(LD_LIBRARY_PATH) numactl --cpunodebind=0 --membind=0   \
-bash ${curr_dir}/../../AMD_SEV_SNP/AMDSEV/launch-qemu.sh \
--hda /scratch/dimitrios/images/server.img \
--sev-es \
--bridge virbr0 \
--bios /scratch/dimitrios/OVMF_files/server \
--smp $cores \
--mem $memory \
--log ${curr_dir}/server.out
+if { $VM_type == "VM" } {
+  spawn sudo LD_LIBRARY_PATH=$::env(LD_LIBRARY_PATH) numactl --cpunodebind=0 --membind=0   \
+  bash ${curr_dir}/../../CVM_setup/AMDSEV/launch-qemu.sh \
+  -hda ${curr_dir}/../../CVM_setup/images/server.img \
+  -bridge virbr0 \
+  -bios ${curr_dir}/../../CVM_setup/firmware/server \
+  -smp $cores \
+  -mem $memory \
+  -log ${curr_dir}/server.out
+} elseif { $VM_type == "CVM" } {
+  spawn sudo LD_LIBRARY_PATH=$::env(LD_LIBRARY_PATH) numactl --cpunodebind=0 --membind=0   \
+  bash ${curr_dir}/../../CVM_setup/AMDSEV/launch-qemu.sh \
+  -hda ${curr_dir}/../../CVM_setup/images/server.img \
+  -sev-snp \
+  -bridge virbr0 \
+  -bios ${curr_dir}/../../CVM_setup/firmware/server \
+  -smp $cores \
+  -mem $memory \
+  -log ${curr_dir}/server.out
+} else {
+  # invalid VM type
+  send_user "Error: Invalid VM type '$VM_type'\n"
+  exit 1
+}
 
 # Enter username
 expect -- "login: "
@@ -64,5 +81,6 @@ if { $db_type == "rocksdb" } {
   expect -- "# "
 } else {
   # invalid DB backend
-  shutdown
+  send_user "Error: Invalid DB backend '$db_type'\n"
+  exit 1
 }

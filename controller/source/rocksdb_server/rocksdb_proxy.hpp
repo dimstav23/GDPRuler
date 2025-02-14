@@ -51,7 +51,7 @@ public:
 private:
   rocksdb::DB* m_rocksdb {nullptr};
 
-  auto get(const std::string& key) -> response_message
+  auto get(std::string_view key) -> response_message
   {
     std::string value;
     rocksdb::Status status =
@@ -62,7 +62,7 @@ private:
     return response_message{/*is_success*/false, ""};
   }
 
-  auto put(const std::string& key, const std::string& value) -> response_message
+  auto put(std::string_view key, std::string_view value) -> response_message
   {
     rocksdb::Status status =
         m_rocksdb->Put(rocksdb::WriteOptions(), key, value);
@@ -72,7 +72,7 @@ private:
     return response_message{/*is_success*/false, ""};
   }
 
-  auto del(const std::string& key) -> response_message
+  auto del(std::string_view key) -> response_message
   {
     rocksdb::Status status = m_rocksdb->Delete(rocksdb::WriteOptions(), key);
     if (status.ok()) {

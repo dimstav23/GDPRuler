@@ -12,11 +12,11 @@ using boost::asio::ip::tcp;
 
 constexpr int socket_timeout_seconds = 60; 
 
-// io_service is the entry point to use boost's async capabilities. It is an interface to the OS I/O services.
+// io_context is the entry point to use boost's async capabilities. It is an interface to the OS I/O services.
 // It manages the threads and the event loop related to connections and handler callbacks. 
 // See here for more info: https://www.boost.org/doc/libs/1_65_1/doc/html/boost_asio/overview/core/basics.html
 //NOLINTNEXTLINE 
-boost::asio::io_service io_service;
+boost::asio::io_context io_context;
 
 /**
  * session class represents a connection handler for a single client.
@@ -105,8 +105,8 @@ class rocksdb_server {
 public:
   rocksdb_server(uint16_t port,
                  const std::string& db_path)
-      : m_acceptor(io_service, tcp::endpoint(tcp::v4(), port))
-      , m_socket(io_service)
+      : m_acceptor(io_context, tcp::endpoint(tcp::v4(), port))
+      , m_socket(io_context)
       , m_rocksdb_proxy(std::make_shared<rocksdb_proxy>(db_path))
   {
     std::cout << "Starting server on port: " << port << std::endl;
@@ -143,7 +143,7 @@ auto main(int argc, char* argv[]) -> int {
     rocksdb_server rocksdb_server(static_cast<uint16_t>(std::stoul(args[1])), args[2]);
 
     // run() method is used to dequeue the async operation results and call the respective handlers.
-    io_service.run();
+    io_context.run();
   } catch (std::exception& e) {
     std::cerr << "Exception in Rocksdb server: " << e.what() << std::endl;
     return 1;

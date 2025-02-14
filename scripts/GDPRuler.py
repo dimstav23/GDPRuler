@@ -2,12 +2,14 @@ import json
 import argparse
 import subprocess
 import os
+import sys
+from common import DbType
 
-from common import execute_queries, DbType
+curr_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(curr_dir)
+sys.path.insert(0, parent_dir) 
 from policy_compiler.helper import safe_open
 from policy_compiler.policy_config import parse_user_policy
-
-# NOTE: we use send(str+"\n") to communicate with the process because the sendline() hangs with 0 delaybeforesend
 
 # Define a custom validation function for the --db_encryptionkey argument
 def validate_encryption_key(key):
@@ -38,7 +40,7 @@ def main():
   def_policy = parse_user_policy(user_policy)
 
   # Open the controller process
-  process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), './controller/build/gdpr_controller')]
+  process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../controller/build/gdpr_controller')]
   process_args += ['--db', args.db]
   if args.db_address:
     process_args += ['--db_address', args.db_address]

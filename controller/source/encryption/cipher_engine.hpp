@@ -90,7 +90,7 @@ public:
    * @param keyType The encryption key type to use.
    * @return An encrypt_result object containing the ciphertext and success status.
    */
-  auto encrypt(const std::string& input, cipher_key_type key_type) -> encrypt_result {
+  auto encrypt(std::string_view input, cipher_key_type key_type) -> encrypt_result {
     static encrypt_result failed_encrypt_result {{}, /*success*/ false};
     
     const unsigned char* key = get_encryption_key(key_type);
@@ -152,6 +152,8 @@ public:
     EVP_CIPHER_CTX_free(ctx);
 
     std::string result_string;
+    result_string.reserve(initialization_vector_len + tag_len + sizeof(int) + ciphertext_len);
+
     result_string.append(reinterpret_cast<const char*>(initialization_vector.data()), initialization_vector_len);
     result_string.append(reinterpret_cast<const char*>(mac.data()), tag_len);
 
@@ -161,16 +163,7 @@ public:
     result_string.append(reinterpret_cast<const char*>(ciphertext.data()), 
                          static_cast<std::string::size_type>(ciphertext_len));
 
-    // std::cout << "iv : ";
-    // print_bytes(initialization_vector);
-    // std::cout << "mac : ";
-    // print_bytes(mac);
-    // std::cout << "len: " << ciphertext_len << "  ";
-    // print_int_bytes(ciphertext_len);
-    // std::cout << "ciphertext : ";
-    // print_bytes(ciphertext);
-
-    return encrypt_result {result_string, /*success*/ true};
+    return encrypt_result {std::move(result_string), /*success*/ true};
   }
 
 
@@ -184,7 +177,7 @@ public:
    * @param keyType The encryption key type to use.
    * @return A decrypt_result object containing the plaintext and success status.
    */
-  auto decrypt(const std::string& ciphertext, cipher_key_type key_type) -> decrypt_result {
+  auto decrypt(std::string_view ciphertext, cipher_key_type key_type) -> decrypt_result {
     static decrypt_result failed_decrypt_result {{}, /*success*/ false};
 
     const unsigned char* key = get_encryption_key(key_type);
@@ -201,18 +194,7 @@ public:
 
     // Retrieve the ciphertext length from the 4-byte integer
     int ciphertext_len = 0;
-    std::copy_n(len_bytes, sizeof(int), reinterpret_cast<unsigned char*>(&ciphertext_len));
-
-    // std::cout << "to_decrypt: ";
-    // print_bytes(ciphertext);
-    // std::cout << "iv: ";
-    // print_buffer_bytes(iv, initialization_vector_len);
-    // std::cout << "mac: ";
-    // print_buffer_bytes(mac, tag_len);
-    // std::cout << "len: " << ciphertext_len << "  ";
-    // print_int_bytes(ciphertext_len);
-    // std::cout << "encrypted_value: ";
-    // print_buffer_bytes(encrypted_value, static_cast<unsigned int>(ciphertext_len));
+    std::memcpy(&ciphertext_len, len_bytes, sizeof(int));
 
     // Create and initialize the context
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -256,10 +238,10 @@ public:
     // Clean up
     EVP_CIPHER_CTX_free(ctx);
 
-    auto result_string = std::string(reinterpret_cast<const char*>(plaintext.data()), 
+    std::string result_string = std::string(reinterpret_cast<const char*>(plaintext.data()),
                                      static_cast<std::string::size_type>(plaintext_len));
     
-    return decrypt_result { result_string, /*success*/ true};
+    return decrypt_result {std::move(result_string), /*success*/ true};
   }
 
   /**
@@ -269,23 +251,23 @@ public:
    * @param encryption_key The encryption key to set.
    * @param keyType The encryption key type to initialize.
    */
-  auto init_encryption_key(const std::optional<std::string>& encryption_key = std::nullopt,
+  auto init_encryption_key(std::string_view encryption_key = {},
                           cipher_key_type key_type = cipher_key_type::max_key) -> bool 
   {
-    if (encryption_key.has_value()) {
+    if (!encryption_key.empty()) {
       const unsigned char* key = get_encryption_key(key_type);
       if (key == nullptr) {
         std::cerr << "Invalid encryption key type!" << std::endl;
         return false;
       }
 
-      if (encryption_key.value().size() != encryption_key_len) {
+      if (encryption_key.size() != encryption_key_len) {
         std::cerr << "Failed to set encryption key. Expected length is " << encryption_key_len 
-                  << ", given length is " <<  encryption_key.value().size()
+                  << ", given length is " <<  encryption_key.size()
                   << ". Falling back to the default key." << std::endl;
         return false;
       }
-      memcpy(const_cast<unsigned char*>(key), encryption_key.value().c_str(), encryption_key_len);
+      std::memcpy(const_cast<unsigned char*>(key), encryption_key.data(), encryption_key_len);
     }
     return true;
   }

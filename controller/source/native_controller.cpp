@@ -19,25 +19,25 @@ auto handle_get(const query &query_args, std::unique_ptr<kv_client> &client) -> 
   if (ret_val) {
     return ret_val.value();
   } 
-  return "GET_FAILED: Invalid key";
+  return GET_FAILED; // GET_FAILED: Non existing key
 }
 
 auto handle_put(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
 {
   bool success = client->gdpr_put(query_args.key(), query_args.value());
   if (success) {
-    return "PUT_SUCCESS";
+    return PUT_SUCCESS;
   } 
-  return "PUT_FAILED: Failed to put value";
+  return PUT_FAILED; // PUT_FAILED: Failed to put value
 }
 
 auto handle_delete(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
 {
   bool success = client->gdpr_del(query_args.key());
   if (success) {
-    return "DELETE_SUCCESS";
+    return DELETE_SUCCESS;
   }
-  return "DELETE_FAILED: Failed to delete key";
+  return DELETE_FAILED; // DELETE_FAILED: Failed to delete key
 }
 
 auto handle_connection(int socket, const std::string& db_type, const std::string& db_address) -> void
@@ -82,36 +82,47 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     const query query_args(buffer.data() + header_size);
     std::string response;
 
-    if (query_args.cmd() == "get") {
-      response = handle_get(query_args, client);
-    } else if (query_args.cmd() == "put") {
-      response = handle_put(query_args, client);
-    } else if (query_args.cmd() == "delete") {
-      response = handle_delete(query_args, client);
-    } else if (query_args.cmd() == "exit") {
+    if (query_args.cmd() == "exit") [[unlikely]] {
       std::cout << "Client exiting..." << std::endl;
       break;
-    } else {
+    }
+    else if (query_args.cmd() == "invalid") [[unlikely]] {
       // std::cout << "Invalid command" << std::endl;
-      response = "Invalid command";
+      response = INVALID_COMMAND;
+    }
+    else [[likely]] {
+      if (query_args.cmd() == "get") {
+        response = handle_get(query_args, client);
+      }
+      else if (query_args.cmd() == "put") {
+        response = handle_put(query_args, client);
+      }
+      else if (query_args.cmd() == "delete") {
+        response = handle_delete(query_args, client);
+      }
+      else {
+        // std::cout << "Invalid command: " << query_args.cmd() << std::endl;
+        response = INVALID_COMMAND;
+      }
     }
 
     // Resize the buffer (if needed) to accommodate the response
-    if (header_size + response.length() > buffer.size()) {
-      buffer.resize(header_size + response.length());
+    size_t response_length = response.length();
+    if (header_size + response_length > buffer.size()) {
+      buffer.resize(header_size + response_length);
     }
 
     // Prepare the response size header
-    auto response_size = static_cast<uint32_t>(response.length());
+    auto response_size = static_cast<uint32_t>(response_length);
     response_size = htonl(response_size);
     std::memcpy(buffer.data(), &response_size, header_size);
 
     // Copy the response data to the buffer
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    std::memcpy(buffer.data() + header_size, response.c_str(), response.length());
+    std::memcpy(buffer.data() + header_size, response.c_str(), response_length);
 
     // Send the response to the client
-    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response.length());
+    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response_length);
     if (bytes_sent <= 0) {
       // Failed to send the response or connection closed
       std::cerr << "Failed to send the response to the client or the connection is closed." << std::endl;
@@ -119,10 +130,7 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     }
   }
   // Close the client socket
-  int result = close(socket);
-  if (result != 0) {
-    std::cerr << "Error closing client socket" << std::endl;
-  }
+  safe_close_socket(socket);
 }
 
 auto main(int argc, char* argv[]) -> int
@@ -164,14 +172,14 @@ auto main(int argc, char* argv[]) -> int
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
   if (bind(listen_socket, reinterpret_cast<struct sockaddr*>(&server_address), sizeof(server_address)) == -1) {
     std::cerr << "Failed to bind socket to address" << std::endl;
-    close(listen_socket);
+    safe_close_socket(listen_socket);
     return 1;
   }
 
   // Start listening for incoming connections
   if (listen(listen_socket, SOMAXCONN) == -1) {
     std::cerr << "Failed to listen for connections" << std::endl;
-    close(listen_socket);
+    safe_close_socket(listen_socket);
     return 1;
   }
 

@@ -84,11 +84,11 @@ Example:
 
 ---
 
-4. [bare_metal/run_query_mgmt.sh](./bare_metal/run_query_mgmt.sh)
+4. [bare_metal/automated_runner.sh](./bare_metal/automated_runner.sh)
 
 **Overview:**
-This script conducts end-to-end tests for query management with encryption and logging enabled or disabled. It covers both native and GDPR controllers with various combinations of clients, databases, and workloads.
-
+This script conducts end-to-end tests for query management with encryption and logging enabled or disabled. It covers both the native direct execution, the native and GDPR (running bare-metal) controllers with various combinations of clients, databases, and workloads.
+The config for the experiments are taken from [`bare_metal/config.sh`](./bare_metal/config.sh)
 **Features:**
 - End-to-End Testing: Conducts comprehensive end-to-end tests for query management with different configurations.
 - Controller Support: Supports both native and GDPR controllers for evaluation.
@@ -96,7 +96,7 @@ This script conducts end-to-end tests for query management with encryption and l
 - Results Tracking: Tracks test results in CSV files for analysis and comparison.
 
 **Usage:**
-- Setup: Ensure the script is executable (`chmod +x run_query_mgmt.sh`) and run in a bash environment.
+- Setup: Ensure the script is executable (`chmod +x automated_runner.sh`) and run in a bash environment.
 - Configuration: Customize the script variables to match your test environment and requirements.
 - Command Line Arguments: Use command line options to set encryption and logging options.
 - Run: Execute the script and monitor the test progress.
@@ -104,7 +104,7 @@ This script conducts end-to-end tests for query management with encryption and l
 
 Example:
 ```
-./run_query_mgmt.sh --encryption ON --logging OFF
+./automated_runner.sh
 ```
 
 **Notes:**
@@ -113,7 +113,7 @@ Example:
 
 ---
 
-5. [VM/run_query_mgmt.sh](./VM/run_query_mgmt.sh)
+5. [VM/automated_runner.sh](./VM/automated_runner.sh)
 
 **Overview:**
 This script is designed to facilitate the end-to-end testing of a GDPR-compliant data management system. It automates the setup and execution of tests with varying parameters such as the number of clients, type of database, workload, encryption settings, and logging preferences.
@@ -126,9 +126,9 @@ This script is designed to facilitate the end-to-end testing of a GDPR-compliant
 - cmake
 
 **Usage:**
-- Setup: Ensure that the script is executable (`chmod +x run_query_mgmt.sh`) and all necessary dependencies are installed.
+- Setup: Ensure that the script is executable (`chmod +x automated_runner.sh`) and all necessary dependencies are installed.
 - Configuration: Modify the variables within the script to match your specific environment and requirements, such as database addresses, ports, controller details, and test combinations.
-- Execution: Run the script (`./run_query_mgmt.sh --encryption ON/OFF --logging ON/OFF`) to initiate the end-to-end tests according to the configured parameters.
+- Execution: Run the script to initiate the end-to-end tests according to the configured parameters.
 
 **Functionality:**
 - The script automates the setup of the controller environment, compiling the controller with encryption options if specified.
@@ -144,10 +144,10 @@ This script is designed to facilitate the end-to-end testing of a GDPR-compliant
 
 ---
 
-6. [VM/VM_controller.expect](./VM/VM_controller.expect) 
+6. [VM/CVM_GDPRuler.expect](./VM/CVM_GDPRuler.expect)
 
 **Overview:**
-This Expect script automates the deployment and execution of a controller virtual machine (VM) for a GDPR-compliant data management system. It launches the VM, configures the controller, and initiates the appropriate controller type (native or GDPR) based on user-defined parameters.
+This Expect script automates the deployment and execution of a controller confidential virtual machine (CVM) for a GDPR-compliant data management system. It launches the CVM, configures the controller, and initiates GDPR controller based on user-defined parameters.
 
 **Requirements:**
 - Linux environment
@@ -155,16 +155,16 @@ This Expect script automates the deployment and execution of a controller virtua
 - Necessary permissions to execute commands with sudo
 
 **Usage:**
-- Setup: Ensure the script is executable (`chmod +x VM_controller.expect`) and Expect is installed.
+- Setup: Ensure the script is executable (`chmod +x CVM_GDPRuler.expect`) and Expect is installed.
 - Configuration: Modify the script variables according to your environment and requirements, such as VM settings, database details, controller type, and output file path.
 - Execution: Run the script with appropriate arguments:
 ```
-./script_name <controller_type> <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_config> <gdpr_log_path>
+./script_name <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_config> <gdpr_log_path>
 ```
 to deploy the VM and start the controller.
 - Functionality:
   - The script launches a VM using QEMU and enters the necessary login credentials.
-  - It navigates to the controller directory and starts either the native or GDPR controller based on user input.
+  - It navigates to the controller directory and starts the GDPR controller based on user input.
   - For the GDPR controller, it creates a log directory and configures logging.
   - Output from the controller is redirected to a specified file for analysis.
 

@@ -10,7 +10,7 @@ class kv_client
 {
 public:
   /* kv_client interface signatures */
-  auto gdpr_get(const std::string& key) -> std::optional<std::string> {
+  auto gdpr_get(std::string_view key) -> std::optional<std::string> {
     #ifndef ENCRYPTION_ENABLED
       // get the value directly w/o decryption
       return get(key);
@@ -31,7 +31,7 @@ public:
   }
 
   // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-  auto gdpr_put(const std::string& key, const std::string& value) -> bool {
+  auto gdpr_put(std::string_view key, std::string_view value) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // put the pair directly w/o encryption
       return put(key, value);
@@ -46,7 +46,7 @@ public:
     #endif
   }
 
-  auto gdpr_del(const std::string& key) -> bool {
+  auto gdpr_del(std::string_view key) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // delete the pair directly w/o decryption
       return del(key);
@@ -56,7 +56,7 @@ public:
     #endif
   }
 
-  auto gdpr_getm(const std::string& key) -> std::optional<std::string> {
+  auto gdpr_getm(std::string_view key) -> std::optional<std::string> {
     #ifndef ENCRYPTION_ENABLED
       // get the value directly w/o decryption
       return getm(key);
@@ -76,7 +76,7 @@ public:
     #endif
   }
 
-  auto gdpr_putm(const std::string& key, const std::string& value) -> bool {
+  auto gdpr_putm(std::string_view key, std::string_view value) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // put the pair directly w/o encryption
       return putm(key, value);
@@ -101,12 +101,12 @@ public:
 
 protected:
   /* kv_client interface signatures */
-  virtual auto get(const std::string& key) -> std::optional<std::string> = 0;
-  virtual auto put(const std::string& key, const std::string& value) -> bool = 0;
-  virtual auto del(const std::string& key) -> bool = 0;
+  virtual auto get(std::string_view key) -> std::optional<std::string> = 0;
+  virtual auto put(std::string_view key, std::string_view value) -> bool = 0;
+  virtual auto del(std::string_view key) -> bool = 0;
 
-  virtual auto getm(const std::string& key) -> std::optional<std::string> = 0;
-  virtual auto putm(const std::string& key, const std::string& value) -> bool = 0;
+  virtual auto getm(std::string_view key) -> std::optional<std::string> = 0;
+  virtual auto putm(std::string_view key, std::string_view value) -> bool = 0;
 
 private:
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();

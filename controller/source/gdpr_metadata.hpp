@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <sstream>
 #include <bitset>
+#include <cstring>
 
 namespace controller {
 
@@ -30,13 +31,13 @@ enum metadata_fields {
 
 // NOLINTBEGIN(cert-err58-cpp)
 static const std::unordered_map<std::string, std::size_t> pur_index = []() {
-    std::unordered_map<std::string, std::size_t> temp;
-    for (std::size_t i = 0; i < num_purposes; i++) {
-      std::string value = "purpose" + std::to_string(i);
-      temp[value] = i;
-    }
-    return temp;
-  }();
+  std::unordered_map<std::string, std::size_t> temp;
+  for (std::size_t i = 0; i < num_purposes; i++) {
+    std::string value = "purpose" + std::to_string(i);
+    temp[value] = i;
+  }
+  return temp;
+}();
 // NOLINTEND(cert-err58-cpp)
 
 /* return the mapping between purposes and indexes in bitmap*/
@@ -77,29 +78,40 @@ auto inline get_purposes_string(std::bitset<N> &bits) -> std::string {
   return res.str();
 }
 
-auto inline split_comma_string(const std::string &str) -> std::vector<std::string> {
+auto inline split_comma_string(std::string_view str) -> std::vector<std::string> {
   std::vector<std::string> result;
-  std::istringstream sstream(str);
-  std::string token;
+  size_t start = 0;
+  size_t end = str.find(',');
 
-  while (std::getline(sstream, token, ',')) {
-    result.push_back(token);
+  while (end != std::string_view::npos) {
+    result.emplace_back(str.substr(start, end - start));
+    start = end + 1;
+    end = str.find(',', start);
   }
+
+  // Add the last token (or the only token if there are no commas)
+  result.emplace_back(str.substr(start));
 
   return result;
 }
 
-/* convert "true" -> true, "false" -> false */
-auto inline str_to_bool(const std::string& str) -> bool {
-  std::string mod_str = str;
-  std::transform(mod_str.begin(), mod_str.end(), mod_str.begin(), ::tolower);
-  if (mod_str == "true") {
+/* convert "true" -> true, "false" -> false without a copy */
+auto inline str_to_bool(std::string_view str) -> bool {
+  auto equals_ignore_case = [](std::string_view lhs, std::string_view rhs) -> bool {
+    if (lhs.size() != rhs.size()) {
+      return false;
+    }
+    return std::equal(lhs.begin(), lhs.end(), rhs.begin(),
+                      [](char a, char b) { return std::tolower(a) == std::tolower(b); });
+  };
+
+  if (equals_ignore_case(str, "true")) {
     return true;
   }
-  if (mod_str == "false") {
+  if (equals_ignore_case(str, "false")) {
     return false;
   }
-  throw std::runtime_error("Invalid string value");
+  throw std::runtime_error("Invalid string value: " + std::string(str));
 }
 
 /* convert true -> "true", false -> "false" */
@@ -124,7 +136,7 @@ auto inline get_expiration_time(int64_t secs_from_now) -> int64_t {
  * @param value The string containing the GDPR metadata and actual value.
  * @return The actual value after removing the metadata.
  */
-auto inline remove_gdpr_metadata(std::string &value) -> std::string {
+auto inline remove_gdpr_metadata(std::string value) -> std::string {
   size_t last_delimiter_idx = value.find_last_of('|');
   if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
   {
@@ -141,7 +153,7 @@ auto inline remove_gdpr_metadata(std::string &value) -> std::string {
  * @param value The string containing the GDPR metadata and the value.
  * @return The GDPR metadata.
  */
-auto inline preserve_only_gdpr_metadata(std::string &value) -> std::string {
+auto inline preserve_only_gdpr_metadata(std::string value) -> std::string {
   size_t last_delimiter_idx = value.find_last_of('|');
   if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
   {

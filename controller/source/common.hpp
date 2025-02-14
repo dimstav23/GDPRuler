@@ -12,6 +12,19 @@ constexpr int ns_precision = 9;
 
 constexpr int max_msg_size = 8192;
 
+// controller response codes
+constexpr std::string GET_FAILED       = "0";
+constexpr std::string PUT_SUCCESS      = "1";
+constexpr std::string PUT_FAILED       = "2";
+constexpr std::string DELETE_SUCCESS   = "3";
+constexpr std::string DELETE_FAILED    = "4";
+constexpr std::string GETM_FAILED      = "5";
+constexpr std::string PUTM_SUCCESS     = "6";
+constexpr std::string PUTM_FAILED      = "7";
+constexpr std::string GET_LOGS_FAILED  = "8";
+constexpr std::string INVALID_COMMAND  = "9";
+constexpr std::string UNKNOWN_ERROR    = "10";
+
 /* Parse the value corresponding to given option. Return empty string if not found. */
 auto inline get_command_line_argument(const auto& args, const std::string& option) -> std::string
 {

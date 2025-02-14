@@ -43,10 +43,10 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then return the value of the get operation
-    return controller::remove_gdpr_metadata(res.value());
+    return controller::remove_gdpr_metadata(std::move(res.value()));
   }
   
-  return "GET_FAILED: Invalid key or does not comply with GDPR rules";
+  return GET_FAILED;// GET_FAILED: Non existing key or does not comply with GDPR rules;
 }
 
 auto handle_put(const std::unique_ptr<kv_client> &client, 
@@ -54,7 +54,6 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
                 const default_policy &def_policy) -> std::string 
 {
   auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
 
   bool is_valid = true;
   // if the key does not exist, perform the put
@@ -69,12 +68,13 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
     auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
     if (ret_val) {
-      return "PUT_SUCCESS";
+      return PUT_SUCCESS;
     }
-    return "PUT_FAILED: Failed to put value";
+    return PUT_FAILED; //PUT_FAILED: Failed to put value
   }
 
   // if the key exists and complies with the gdpr rules, perform the put
+  auto filter = std::make_shared<gdpr_filter>(res);
   if ((is_valid = filter->validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the 
@@ -87,15 +87,15 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
     auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
     if (ret_val) {
-      return "PUT_SUCCESS";
+      return PUT_SUCCESS;
     }
-    return "PUT_FAILED: Failed to put value";
+    return PUT_FAILED; // PUT_FAILED: Failed to put value
   }
   
   // Perform the logging of the invalid operation -- if needed
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
   monitor.monitor_query(is_valid);
-  return "PUT_FAILED: Invalid key or does not comply with GDPR rules";
+  return PUT_FAILED; // PUT_FAILED: Invalid key or does not comply with GDPR rules
   
 }
 
@@ -117,9 +117,9 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
     auto ret_val = client->gdpr_del(query_args.key());
 
     if (ret_val) {
-      return "DELETE_SUCCESS";
+      return DELETE_SUCCESS;
     }
-    return "DELETE_FAILED: Failed to delete key";
+    return DELETE_FAILED; // DELETE_FAILED: Failed to delete key
   }
 
   return "DELETE_FAILED: Invalid key or does not comply with GDPR rules";
@@ -140,10 +140,10 @@ auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
   if (is_valid) {
     // if the key exists and complies with the gdpr rules
     // then return the GDPR metadata of the key
-    return controller::preserve_only_gdpr_metadata(res.value());
+    return controller::preserve_only_gdpr_metadata(std::move(res.value()));
   }
 
-  return "GETM_FAILED: Invalid key or does not comply with GDPR rules";
+  return GETM_FAILED; // GETM_FAILED: Invalid key or does not comply with GDPR rules
 }
 
 auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
@@ -151,7 +151,6 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
                 const default_policy &def_policy) -> std::string
 {
   auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
 
   bool is_valid = true;
   // if the key does not exist, return the error
@@ -159,6 +158,7 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
     return "PUTM_FAILED: The specified key does not exist";
   }
   // if the key exists and complies with the gdpr rules, perform the GDPR metadata update
+  auto filter = std::make_shared<gdpr_filter>(res);
   if ((is_valid = filter->validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the
@@ -170,16 +170,16 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
     monitor.monitor_query(is_valid, rewriter.new_value());
     auto ret_val = client->gdpr_putm(query_args.key(), rewriter.new_value());
     if (ret_val) {
-      return "PUTM_SUCCESS";
+      return PUTM_SUCCESS;
     }
-    return "PUTM_FAILED: Failed to put value";
+    return PUTM_FAILED; // PUTM_FAILED: Failed to put value
   }
 
   // Perform the logging of the invalid operation -- if needed
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
   monitor.monitor_query(is_valid);
 
-  return "PUTM_FAILED: Invalid key or does not comply with GDPR rules";
+  return PUTM_FAILED; // PUTM_FAILED: Invalid key or does not comply with GDPR rules
 }
 
 auto handle_get_logs(const query &query_args,
@@ -189,7 +189,7 @@ auto handle_get_logs(const query &query_args,
   /* if the current key does not match with the regulator key, return */
   if (!gdpr_regulator::validate_reg_key(query_args, def_policy)) {
     // std::cout << "getLogs query requested without the regulator key." << std::endl;
-    return "GET_LOGS_FAILED: Invalid regulator key";
+    return GET_LOGS_FAILED; // GET_LOGS_FAILED: Invalid regulator key
   }
 
   auto regulator = gdpr_regulator(); 
@@ -276,7 +276,7 @@ auto handle_connection
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
       // std::cout << "Invalid command" << std::endl;
-      response = "Invalid command";
+      response = INVALID_COMMAND;
     }
     else [[likely]] {
       if (query_args.cmd() == "get") {
@@ -300,26 +300,27 @@ auto handle_connection
       }
       else {
         // std::cout << "Invalid command: " << query_args.cmd() << std::endl;
-        response = "Invalid command";
+        response = INVALID_COMMAND;
       }
     }
 
     // Resize the buffer (if needed) to accommodate the response
-    if (header_size + response.length() > buffer.size()) {
-      buffer.resize(header_size + response.length());
+    size_t response_length = response.length();
+    if (header_size + response_length > buffer.size()) {
+      buffer.resize(header_size + response_length);
     }
 
     // Prepare the response size header
-    auto response_size = static_cast<uint32_t>(response.length());
+    auto response_size = static_cast<uint32_t>(response_length);
     response_size = htonl(response_size);
     std::memcpy(buffer.data(), &response_size, header_size);
 
     // Copy the response data to the buffer
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    std::memcpy(buffer.data() + header_size, response.c_str(), response.length());
+    std::memcpy(buffer.data() + header_size, response.c_str(), response_length);
 
     // Send the response to the client
-    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response.length());
+    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response_length);
     if (bytes_sent <= 0) {
       // Failed to send the response or connection closed
       std::cerr << "Failed to send the response to the client or the connection is closed." << std::endl;

@@ -17,21 +17,17 @@ public:
   explicit default_policy(const std::string &input);
   // ~default_policy();
 
-	[[nodiscard]] auto name() const -> std::string;
-
   /* private members getters */
-  [[nodiscard]] auto user_key() const -> std::string;
+  [[nodiscard]] auto user_key() const -> std::string_view;
   [[nodiscard]] auto encryption() const -> bool;
   [[nodiscard]] auto purpose() const -> std::bitset<num_purposes>;
   [[nodiscard]] auto objection() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto origin() const -> std::string;
+  [[nodiscard]] auto origin() const -> std::string_view;
   [[nodiscard]] auto expiration() const -> int64_t;
-  [[nodiscard]] auto share() const -> std::string;
+  [[nodiscard]] auto share() const -> std::string_view;
   [[nodiscard]] auto monitor() const -> bool;
 
 private:
-  std::string m_name;
-
   // default policy fields
   std::string m_user_key;
   bool m_encryption;

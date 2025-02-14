@@ -14,11 +14,12 @@ It helps visualize the performance characteristics under different configuration
 - Python 3.x
 - `pandas`
 - `matplotlib`
+- `seaborn`
 
 You can install the required libraries using pip:
 
 ```bash
-pip install pandas matplotlib
+pip install pandas matplotlib seaborn
 ```
 
 ## Input Data Structure
@@ -30,8 +31,8 @@ The script expects a directory containing CSV files that adhere to the following
 ```
 
 **Example:**
-- `gdpr-query_mgmt_1M-encryption_OFF-logging_ON.csv`
-- `native-query_mgmt-encryption_ON-logging_ON.csv`
+- `gdpr_ctl-query_mgmt_mediume-encryption_OFF-logging_ON.csv`
+- `native_ctl-query_mgmt_medium-encryption_ON-logging_ON.csv`
 
 Each CSV file should have the following columns:
 - `elapsed_time (s)`: The time taken to complete the operations.
@@ -42,28 +43,13 @@ Each CSV file should have the following columns:
 To run the script, navigate to the directory containing the script in your terminal and execute the following command:
 
 ```bash
-python bare_metal_plots.py --input_dir <path_to_input_directory> --output_dir <path_to_output_directory>
+python3 generate_plots.py --bare_metal_results <path_to_bare_metal_results> --vm_results <path_to_vm_results> --output_dir <path_to_output_directory>
 ```
 
-- `--input_dir`: (Optional) Directory containing the CSV files. Default is `../bare_metal/results`.
+- `--bare_metal_results`: (Optional) Directory containing the bare-metal result CSV files. Default is `../bare_metal/results`.
+- `--vm_results`: (Optional) Directory containing the VM result CSV files. Default is `../VM/results`.
 - `--output_dir`: (Optional) Directory to save the generated plots. Default is `plots`.
-
-**Example:**
-
-```bash
-python bare_metal_plots.py --input_dir ../bare_metal/results --output_dir plots
-```
 
 ## Output
 
-The script generates two types of plots:
-- **Latency Plot**: Visualizes average latency per workload and controller configuration.
-- **Throughput Plot**: Visualizes throughput (operations per second) per workload and controller configuration.
-
-The plots are saved in both PNG and PDF formats in the specified output directory.
-
-
-For instance, given CSV files in the `../bare_metal/results` directory, running the script will produce plots named according to the database, encryption, and logging settings, such as:
-
-- `db_encryption_OFF_logging_ON.png`
-- `db_encryption_OFF_logging_ON.pdf`
+The script generates a set of plots for all the metrics (latency, throughput) DBs (redis, rocksdb) and all the variants and places them in the output directory.

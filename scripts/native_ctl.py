@@ -4,9 +4,6 @@ import os
 
 from common import DbType
 
-
-# NOTE: we use send(str+"\n") to communicate with the process because the sendline() hangs with 0 delaybeforesend
-
 def main():
   parser = argparse.ArgumentParser(description='Start Native controller instance.')
   parser.add_argument('--db', help='db to use, one of {rocksdb,redis}', default=DbType.ROCKSDB, required=False, type=DbType)
@@ -16,7 +13,7 @@ def main():
   args = parser.parse_args()
 
   # Open the controller process
-  process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), './controller/build/native_controller')]
+  process_args = [os.path.join(os.path.dirname(os.path.abspath(__file__)), '../controller/build/native_controller')]
   process_args += ['--db', args.db]
   if args.db_address:
     process_args += ['--db_address', args.db_address]
