@@ -113,7 +113,7 @@ Example:
 
 ---
 
-5. [VM/run_query_mgmt.sh](./VM/run_query_mgmt.sh)
+5. [VM/automated_runner.sh](./VM/automated_runner.sh)
 
 **Overview:**
 This script is designed to facilitate the end-to-end testing of a GDPR-compliant data management system. It automates the setup and execution of tests with varying parameters such as the number of clients, type of database, workload, encryption settings, and logging preferences.
@@ -126,9 +126,9 @@ This script is designed to facilitate the end-to-end testing of a GDPR-compliant
 - cmake
 
 **Usage:**
-- Setup: Ensure that the script is executable (`chmod +x run_query_mgmt.sh`) and all necessary dependencies are installed.
+- Setup: Ensure that the script is executable (`chmod +x automated_runner.sh`) and all necessary dependencies are installed.
 - Configuration: Modify the variables within the script to match your specific environment and requirements, such as database addresses, ports, controller details, and test combinations.
-- Execution: Run the script (`./run_query_mgmt.sh --encryption ON/OFF --logging ON/OFF`) to initiate the end-to-end tests according to the configured parameters.
+- Execution: Run the script to initiate the end-to-end tests according to the configured parameters.
 
 **Functionality:**
 - The script automates the setup of the controller environment, compiling the controller with encryption options if specified.
