@@ -44,7 +44,7 @@ for n_clients in $clients; do
   # copy the configs in the controller image
   virt-customize --add ${images_dir}/controller.img --copy-in ${script_dir}/../configs:/root
   # set the client config file appropriately
-  client_cfg=/root/configs/client0_config.json
+  client_cfg=/root/configs/
   for db in $dbs; do
     for workload in $workloads; do
       if [[ $db == "rocksdb" ]]; then

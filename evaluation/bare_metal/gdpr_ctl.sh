@@ -38,7 +38,7 @@ for n_clients in $clients; do
   # prepare the client configs
   prepare_configs $n_clients
   # set the client config file appropriately
-  client_cfg=$script_dir/../configs/client0_config.json
+  client_cfg=$script_dir/../configs/
   for db in $dbs; do
     for workload in $workloads; do
       if [[ $db == "rocksdb" ]]; then

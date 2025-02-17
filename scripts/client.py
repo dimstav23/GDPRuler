@@ -62,13 +62,14 @@ def load_workload(server_address, server_port, workload_name, value_size, config
 
   value = generate_value(value_size)
 
-  # Load and send default policy - get the client 0 as default policy 
-  default_policy = load_config(config_path, 0)
-  if not send_default_policy(client_socket, default_policy):
-    print(f"Failed to set default policy for the workload loader")
-    client_socket.close()
-    return
-    
+  # Load and send default policy - get the client 0 as default policy
+  if config_path != "no_cfg":
+    default_policy = load_config(config_path, 0)
+    if not send_default_policy(client_socket, default_policy):
+      print(f"Failed to set default policy for the workload loader")
+      client_socket.close()
+      return
+
   with safe_open(load_file, 'r') as file:
     for line in file:
       if not line.startswith("#"):
@@ -110,12 +111,13 @@ def send_queries(server_address, server_port, queries, latency_results, config_p
     client_socket.connect((server_address, server_port))
 
     # Load and send default policy
-    default_policy = load_config(config_path, client_num)
-    if not send_default_policy(client_socket, default_policy):
-      print(f"Failed to set default policy for client {client_num}")
-      client_socket.close()
-      return
-    
+    if config_path != "no_cfg":
+      default_policy = load_config(config_path, client_num)
+      if not send_default_policy(client_socket, default_policy):
+        print(f"Failed to set default policy for client {client_num}")
+        client_socket.close()
+        return
+
     # Read the contents of the workload file line by line
     total_latency = 0
     request_count = 0
@@ -158,7 +160,7 @@ def create_client_process(server_address, server_port, queries, latency_results,
 
 def main():
   parser = argparse.ArgumentParser(description='Start a client.')
-  parser.add_argument('--config', help='Path to config file or directory containing client configs', required=True, type=str)
+  parser.add_argument('--config', help='Path to config file or directory containing client configs for the GDPR case. Leave empty for passthrough case', required=True, type=str)
   parser.add_argument('--workload', help='Name of the workload trace', required=True, type=str, choices=get_workload_options())
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)

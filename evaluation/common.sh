@@ -124,15 +124,14 @@ function run_gdpr_controller() {
   local controller_port="$3"
   local db="$4"
   local db_address="$5"
-  local config="$6"
-  local log_path="$7"
-  local output_file="$8"
+  local log_path="$6"
+  local output_file="$7"
 
   if [ ! -f $controller ]; then
     echo "Controller not found in $controller. Exiting..."
     exit
   fi
-  ctl="$controller --db $db --config $config --logpath $log_path --db_address $db_address \
+  ctl="$controller --db $db --logpath $log_path --db_address $db_address \
   --controller_address $controller_address --controller_port $controller_port"
 
   echo "Starting the GDPR controller"
@@ -147,8 +146,7 @@ function run_gdpr_controller() {
 #   3: db                 (database type)
 #   4: db_address         (database address and port)
 #   5: output_file        (temporary output file)
-#   6: config             (configuration file)
-#   7: log_path           (directory for logs)
+#   6: log_path           (directory for logs)
 
 function run_gdpr_controller_CVM() {
   local controller_address="$1"
@@ -156,12 +154,11 @@ function run_gdpr_controller_CVM() {
   local db="$3"
   local db_address="$4"
   local output_file="$5"
-  local config="$6"
-  local log_path="$7"
+  local log_path="$6"
 
   echo "Starting the GDPR controller in a CVM"
   echo $(pwd)
-  expect $controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $config $log_path &
+  expect $controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $log_path &
 
   wait_for_activation $controller_address $controller_port
 }
@@ -230,6 +227,7 @@ function run_direct_client() {
 #   4: controller_address (controller IP address)
 #   5: controller_port    (controller port)
 #   6: output_file        (temporary output file)
+#   7: config directory   (directory where the client default policies reside)
 function run_client() {
   local client="$1"
   local workload="$2"
@@ -237,13 +235,14 @@ function run_client() {
   local controller_address="$4"
   local controller_port="$5"
   local output_file="$6"
+  local config="$7"
 
   if [ ! -f $client ]; then
     echo "Client not found in $client. Exiting..."
     exit
   fi
 
-  client="$client --workload $workload --clients $n_clients --address $controller_address --port $controller_port"
+  client="$client --workload $workload --clients $n_clients --address $controller_address --port $controller_port --config $config"
   echo "Starting the client(s): $client"
   $NODE_BIND python3 ${client} > $output_file
   status=$?
@@ -441,7 +440,7 @@ run_native_direct_experiment() {
 #   6: controller         (controller type. one of {gdpr, native})
 #   7: controller_address (address of the controller)
 #   8: controller_port    (port of the controller)
-#   9: config             (configuration file for the client)
+#   9: config             (configuration file/directory for the client)
 #  10: results_csv_file   (result file path -- must exist beforehand)
 run_native_ctl_experiment() {
   local n_clients="$1"
@@ -470,7 +469,7 @@ run_native_ctl_experiment() {
   if [[ $controller == "gdpr" ]]; then
     controller_path="$project_root/scripts/GDPRuler.py"
     run_gdpr_controller $controller_path $controller_address $controller_port \
-    $db $db_address_formatted $config $db_dump_and_logs_dir ${tmp_dir}/controller.txt
+    $db $db_address_formatted $db_dump_and_logs_dir ${tmp_dir}/controller.txt
   elif [[ $controller == "native" ]]; then
     controller_path="$project_root/scripts/native_ctl.py"
     run_native_controller $controller_path $controller_address $controller_port \
@@ -480,7 +479,7 @@ run_native_ctl_experiment() {
   # Run the client and gather the results
   client_path="$project_root/scripts/client.py"
   # workload_path=${project_root}/workload_traces/${workload}
-  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
+  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt $config
   status=$?
   if [ $status -ne 0 ]; then
     echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
@@ -545,12 +544,12 @@ run_VM_ctl_experiment() {
 
   # Run the GDPR controller in a CVM
   run_gdpr_controller_CVM $controller_address $controller_port \
-    $db $db_address_formatted ${tmp_dir}/controller.txt $config $db_dump_and_logs_dir
+    $db $db_address_formatted ${tmp_dir}/controller.txt $db_dump_and_logs_dir
 
   # Run the client and gather the results
   client_path="$project_root/scripts/client.py"
   # workload_path=${project_root}/workload_traces/${workload}
-  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt
+  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt $config
   status=$?
   if [ $status -ne 0 ]; then
     echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
