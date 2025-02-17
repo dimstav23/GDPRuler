@@ -5,11 +5,13 @@ import time
 import os
 import sys
 import glob
+import json
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
 sys.path.insert(0, parent_dir) 
 from policy_compiler.helper import safe_open
+from policy_compiler.policy_config import parse_user_policy
 
 workload_trace_dir = os.path.join(curr_dir, '..', 'workload_traces')
 exit_query="query(exit)\n"
@@ -23,6 +25,27 @@ def process_query(query, value):
   """Replace 'VAL' with the dummy value in the query."""
   return query.replace('VAL', value)
 
+def load_config(config_path, client_num):
+  if os.path.isdir(config_path):
+    config_file = os.path.join(config_path, f"client{client_num}_config.json")
+  else:
+    config_file = config_path
+
+  with safe_open(config_file, 'r') as f:
+    return json.load(f)
+
+def send_default_policy(client_socket, default_policy):
+  def_policy = parse_user_policy(default_policy)
+  def_policy = def_policy.encode()
+  msg_size = len(def_policy).to_bytes(msg_header_size, 'big')
+  client_socket.sendall(msg_size + def_policy)
+
+  # Receive acknowledgment
+  ack_size_data = safe_receive(client_socket, msg_header_size)
+  ack_size = int.from_bytes(ack_size_data, 'big')
+  ack = safe_receive(client_socket, ack_size)
+  return ack.decode() == "ACK"
+
 def preprocess_queries(queries, value_size):
   """Preprocess all queries, replacing 'VAL' with a dummy value."""
   value = generate_value(value_size)
@@ -32,13 +55,20 @@ def get_workload_options():
   workload_files = glob.glob(os.path.join(workload_trace_dir, '*_run'))
   return [os.path.basename(f).replace('_run', '') for f in workload_files]
 
-def load_workload(server_address, server_port, workload_name, value_size):
+def load_workload(server_address, server_port, workload_name, value_size, config_path):
   load_file = os.path.join(workload_trace_dir, f"{workload_name}_load")
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect((server_address, server_port))
 
   value = generate_value(value_size)
 
+  # Load and send default policy - get the client 0 as default policy 
+  default_policy = load_config(config_path, 0)
+  if not send_default_policy(client_socket, default_policy):
+    print(f"Failed to set default policy for the workload loader")
+    client_socket.close()
+    return
+    
   with safe_open(load_file, 'r') as file:
     for line in file:
       if not line.startswith("#"):
@@ -74,11 +104,18 @@ def safe_receive(socket, size):
       total_bytes_received += len(chunk)
     return data
 
-def send_queries(server_address, server_port, queries, latency_results):
+def send_queries(server_address, server_port, queries, latency_results, config_path, client_num):
     # Open a connection to the server
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((server_address, server_port))
 
+    # Load and send default policy
+    default_policy = load_config(config_path, client_num)
+    if not send_default_policy(client_socket, default_policy):
+      print(f"Failed to set default policy for client {client_num}")
+      client_socket.close()
+      return
+    
     # Read the contents of the workload file line by line
     total_latency = 0
     request_count = 0
@@ -114,13 +151,14 @@ def send_queries(server_address, server_port, queries, latency_results):
       average_latency = total_latency / request_count
       latency_results.append(average_latency)
 
-def create_client_process(server_address, server_port, queries, latency_results):
-  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, queries, latency_results))
+def create_client_process(server_address, server_port, queries, latency_results, config_path, client_num):
+  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, queries, latency_results, config_path, client_num))
   process.start()
   return process
 
 def main():
   parser = argparse.ArgumentParser(description='Start a client.')
+  parser.add_argument('--config', help='Path to config file or directory containing client configs', required=True, type=str)
   parser.add_argument('--workload', help='Name of the workload trace', required=True, type=str, choices=get_workload_options())
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)
@@ -129,7 +167,7 @@ def main():
   args = parser.parse_args()
 
   # Perform the load phase of the workload
-  load_workload(args.address, args.port, args.workload, args.value_size)
+  load_workload(args.address, args.port, args.workload, args.value_size, args.config)
 
   # Read the run phase of the workload
   run_file = os.path.join(workload_trace_dir, f"{args.workload}_run")
@@ -148,8 +186,8 @@ def main():
   manager = multiprocessing.Manager()
   latency_results = manager.list()
   processes = []
-  for client_queries in queries_per_client:
-    process = create_client_process(args.address, args.port, client_queries, latency_results)
+  for i, client_queries in enumerate(queries_per_client):
+    process = create_client_process(args.address, args.port, client_queries, latency_results, args.config, i)
     processes.append(process)
 
   # Wait for all client processes to finish
