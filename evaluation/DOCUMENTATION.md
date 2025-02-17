@@ -159,7 +159,7 @@ This Expect script automates the deployment and execution of a controller confid
 - Configuration: Modify the script variables according to your environment and requirements, such as VM settings, database details, controller type, and output file path.
 - Execution: Run the script with appropriate arguments:
 ```
-./script_name <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_config> <gdpr_log_path>
+./script_name <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_log_path>
 ```
 to deploy the VM and start the controller.
 - Functionality:
@@ -190,7 +190,7 @@ This Expect script automates the deployment and execution of a controller virtua
 - Configuration: Modify the script variables according to your environment and requirements, such as VM settings, database details, controller type, and output file path.
 - Execution: Run the script with appropriate arguments:
 ```
-./script_name <controller_type> <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_config> <gdpr_log_path>
+./script_name <controller_type> <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_log_path>
 ```
 to deploy the VM and start the controller.
 - Functionality:

@@ -78,14 +78,14 @@ $ python3 scripts/native_ctl.py --db [redis/rocksdb]
 ```
 For the native GDPR controller:
 ```
-$ python3 scripts/GDPRuler.py --config [user_config] --db [redis/rocksdb]
+$ python3 scripts/GDPRuler.py --db [redis/rocksdb]
 ```
 
 For more command line options, please consult [`scripts/native_ctl.py`](scripts/native_ctl.py) and [`scripts/GDPRuler.py`](scripts/GDPRuler.py).
 
 ### 4. Run the client(s) with a desired workload:
 ```
-$ python3 scripts/client.py --workload [workload_trace_name] --clients [num_of_clients]
+$ python3 scripts/client.py --workload [workload_trace_name] --clients [num_of_clients] --config [user_config/user_config_directory]
 ```
 
 For more command line options, please consult [`scripts/client.py`](scripts/client.py).

@@ -18,10 +18,8 @@ set controller_address [lindex $argv 4];
 set controller_port [lindex $argv 5];
 # indicates the output file path
 set output_file [lindex $argv 6];
-# (GDPR only) indicates the gdpr config
-set gdpr_config [lindex $argv 7];
 # (GDPR only) indicates the gdpr log path
-set gdpr_log_path [lindex $argv 8];
+set gdpr_log_path [lindex $argv 7];
 
 # Launch the controller VM
 spawn sudo LD_LIBRARY_PATH=$::env(LD_LIBRARY_PATH) numactl --cpunodebind=0 --membind=0   \
@@ -59,5 +57,5 @@ expect -- "# "
 send -- "mkdir -p $gdpr_log_path\r"
 expect -- "# "
 # Run GDPR controller
-send -- "python3 scripts/GDPRuler.py --db $db_type --config $gdpr_config --logpath $gdpr_log_path --db_address $db_address --controller_address $controller_address --controller_port $controller_port > $output_file\r"
+send -- "python3 scripts/GDPRuler.py --db $db_type --logpath $gdpr_log_path --db_address $db_address --controller_address $controller_address --controller_port $controller_port > $output_file\r"
 expect -- "# "

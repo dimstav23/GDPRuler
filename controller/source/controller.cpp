@@ -28,6 +28,47 @@ using controller::logger;
 using controller::gdpr_monitor;
 using controller::gdpr_regulator;
 
+// Declare a thread-local default_policy object
+thread_local default_policy def_policy;
+
+auto receive_policy(int socket) -> std::optional<default_policy>
+{
+  constexpr size_t header_size = sizeof(uint32_t);
+  std::vector<char> buffer(max_msg_size);
+
+  // Read the policy size from the socket
+  ssize_t bytes_read = safe_sock_receive(socket, buffer.data(), header_size);
+  if (bytes_read != header_size) {
+    std::cerr << "Failed to read the policy size or the connection is closed." << std::endl;
+    return std::nullopt;
+  }
+
+  uint32_t policy_size = 0;
+  std::memcpy(&policy_size, buffer.data(), sizeof(uint32_t));
+  policy_size = ntohl(policy_size);
+
+  if (policy_size > buffer.size() - 1) {
+    buffer.resize(policy_size + 1);
+  }
+
+  bytes_read = safe_sock_receive(socket, buffer.data(), policy_size);
+  if (bytes_read != static_cast<ssize_t>(policy_size)) {
+    std::cerr << "Failed to read the policy or the connection is closed." << std::endl;
+    return std::nullopt;
+  }
+
+  std::string client_policy(buffer.data());
+
+  // Send acknowledgment for policy receive
+  std::string ack = "ACK\0";
+  uint32_t ack_size = htonl(static_cast<uint32_t>(ack.length()));
+  std::memcpy(buffer.data(), &ack_size, sizeof(uint32_t));
+  std::memcpy(buffer.data() + sizeof(uint32_t), ack.c_str(), ack.length());
+  safe_sock_send(socket, buffer.data(), sizeof(uint32_t) + ack.length());
+
+  return default_policy(client_policy);
+}
+
 auto handle_get(const std::unique_ptr<kv_client> &client, 
                 const query &query_args,
                 const default_policy &def_policy) -> std::string 
@@ -228,13 +269,23 @@ auto handle_get_logs(const query &query_args,
 }
 
 auto handle_connection
-(int socket, const std::string& db_type, const std::string& db_address, const default_policy& def_policy) -> void 
+(int socket, const std::string& db_type, const std::string& db_address) -> void
 {
+  // Receive and set the client-specific policy
+  auto received_policy = receive_policy(socket);
+  if (received_policy) {
+    def_policy = *received_policy;
+  } else {
+    std::cerr << "Failed to receive client policy." << std::endl;
+    safe_close_socket(socket);
+    return;
+  }
+
+  // Create the connection with the database instance
+  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
+
   constexpr size_t header_size = sizeof(uint32_t);  // Size of the header containing the message size
   std::vector<char> buffer(max_msg_size);  // Buffer to hold the message and its size
-  
-  // create the connection with the database instance
-  std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
 
   while (true) {
     // Read the message size from the socket
@@ -333,19 +384,6 @@ auto handle_connection
 
 auto main(int argc, char* argv[]) -> int
 { 
-  // read the default policy line
-  // std::string def_policy_line = "user_policy -sessionKey user0 -encryption true -purpose purpose0,purpose1,purpose2 -objection purpose3 -origin src0 -expTime 0 -objShare user1,user2,user3 -monitor false";
-  std::string def_policy_line;
-  std::getline(std::cin, def_policy_line);
-  default_policy def_policy;
-
-  if (absl::StartsWith(def_policy_line, controller::def_policy_prefix)) {
-    def_policy = default_policy{def_policy_line};
-  } else {
-    std::cout << "Invalid default policy provided\n";
-    return 1;
-  }
-
   /* initialize the client object that exports put/get/delete API */
   auto args = std::span(argv, static_cast<size_t>(argc));
   std::string db_type = get_command_line_argument(args, "--db");
@@ -426,7 +464,7 @@ auto main(int argc, char* argv[]) -> int
 
     // Create a new thread and pass the client socket to it
     // The client socket must be independently managed by the thread now
-    std::thread connection_thread(handle_connection, client_socket, db_type, db_address, def_policy);
+    std::thread connection_thread(handle_connection, client_socket, db_type, db_address);
     connection_thread.detach();  // Detach the thread and let it run independently
   }
   
