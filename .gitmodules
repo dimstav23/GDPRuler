@@ -10,3 +10,6 @@
 [submodule "CVM_setup/AMDSEV"]
 	path = CVM_setup/AMDSEV
 	url = https://github.com/dimstav23/AMDSEV.git
+[submodule "evaluation/microbenchmarks/ipc-bench"]
+	path = evaluation/microbenchmarks/ipc-bench
+	url = git@github.com:dimstav23/ipc-bench.git
