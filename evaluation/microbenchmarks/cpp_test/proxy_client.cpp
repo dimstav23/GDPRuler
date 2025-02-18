@@ -2,12 +2,15 @@
 #include <string>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <cstring>
 #include <unistd.h>
 #include <chrono>
 #include <random>
 
 #define PORT 8081  // Proxy server port
+
+#define BUFFER_SIZE 64000
 
 constexpr int N = 1000000;
 constexpr int KEY_SIZE = 16;
@@ -40,6 +43,29 @@ int main() {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
     server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    int buffer_size = BUFFER_SIZE;
+    int return_code = setsockopt(
+		client_socket,
+		SOL_SOCKET,
+		SO_RCVBUF,
+		&buffer_size,
+		sizeof buffer_size
+	  );
+    return_code = setsockopt(
+		client_socket,
+		SOL_SOCKET,
+		SO_SNDBUF,
+		&buffer_size,
+		sizeof buffer_size
+	  );
+
+    int tcpnodelay = 1;
+    if (setsockopt(client_socket, IPPROTO_TCP, TCP_NODELAY, &tcpnodelay, sizeof(tcpnodelay))) {
+      std::cerr << "Failed to set TCP_NODELAY option" << std::endl;
+      close(client_socket);
+      return 1;
+    }
 
     // Connect to the proxy server
     if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
