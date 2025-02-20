@@ -28,7 +28,7 @@ public:
     //   // It's invalid to dereference a null Optional<T> object.
     //   // std::cout << "GET operation failed" << std::endl;
     // }
-    return result;
+    return std::move(result);
   }
 
   inline auto put(std::string_view key, std::string_view value) -> bool override

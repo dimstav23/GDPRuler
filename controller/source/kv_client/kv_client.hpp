@@ -13,7 +13,7 @@ public:
   inline auto gdpr_get(std::string_view key) -> std::optional<std::string> {
     #ifndef ENCRYPTION_ENABLED
       // get the value directly w/o decryption
-      return get(key);
+      return std::move(get(key));
     #else
       // get the value after decryption
       auto encrypted_value = get(key);
