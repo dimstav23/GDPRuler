@@ -9,6 +9,10 @@
 #include "common.hpp"
 // #include "argh.hpp"
 
+#ifdef DEBUG
+#include <chrono>
+#endif
+
 using controller::query;
 
 inline auto handle_get(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
@@ -54,6 +58,10 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
   // create the connection with the database instance
   std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
 
+  #ifdef DEBUG
+  std::chrono::duration<double> total_query_time{};
+  #endif
+
   while (true) {
     // Read the message size from the socket
     ssize_t bytes_read = safe_sock_receive(socket, buffer);
@@ -65,6 +73,10 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     // Set the termination character for the string
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     (static_cast<char*>(buffer))[bytes_read] = '\0';
+
+    #ifdef DEBUG
+    auto start_time = std::chrono::high_resolution_clock::now();
+    #endif
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     query query_args(static_cast<char*>(buffer));
@@ -92,6 +104,12 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
       }
     }
 
+    #ifdef DEBUG
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto query_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    total_query_time += query_time;
+    #endif
+
     // Check the message size
     size_t response_length = response.length();
     if (response_length > max_msg_size) {
@@ -106,6 +124,10 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
       break;
     }
   }
+
+  #ifdef DEBUG
+  std::cout << "Total query processing time: " << total_query_time.count() << " seconds\n";
+  #endif
 
   // Unmap the socket communication buffer
   munmap(buffer, max_msg_size);

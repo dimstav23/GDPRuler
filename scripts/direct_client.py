@@ -12,6 +12,7 @@ sys.path.insert(0, parent_dir)
 from policy_compiler.helper import safe_open
 
 workload_trace_dir = os.path.join(curr_dir, '..', 'workload_traces')
+exit_query="query(exit)\n"
 
 def generate_value(size):
     """Generate a string of the specified size in bytes."""
@@ -80,8 +81,18 @@ def send_queries(db_type, db_address, queries, latency_results):
     request_count += 1
 
   # Close the client process
-  client_process.terminate()
+  client_process.stdin.write(exit_query.encode())
+  client_process.stdin.flush()
   client_process.wait()
+
+  # Read the stderr output
+  stderr_output = client_process.stderr.read()
+  # Decode the output if it is in bytes format
+  if isinstance(stderr_output, bytes):
+    stderr_output = stderr_output.decode()
+  # Print the stderr output if it is not empty
+  if stderr_output:
+    print(stderr_output)
 
   # Save the average latency
   if request_count > 0:
