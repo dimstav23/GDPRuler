@@ -14,7 +14,7 @@ public:
   {
   }
 
-  auto get(std::string_view key) -> std::optional<std::string> override
+  inline auto get(std::string_view key) -> std::optional<std::string> override
   {
     auto result = m_redis.get(key);
     // if (result) {
@@ -31,7 +31,7 @@ public:
     return result;
   }
 
-  auto put(std::string_view key, std::string_view value) -> bool override
+  inline auto put(std::string_view key, std::string_view value) -> bool override
   {
     bool res = true;
     auto result = m_redis.set(key, value);
@@ -45,7 +45,7 @@ public:
     return res;
   }
 
-  auto del(std::string_view key) -> bool override
+  inline auto del(std::string_view key) -> bool override
   {
     bool res = true;
     auto result = m_redis.del(key);
