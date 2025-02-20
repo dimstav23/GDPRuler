@@ -100,7 +100,7 @@ def main():
   parser.add_argument('--db', help='Database type (redis or rocksdb)', required=True, type=str, choices=["redis", "rocksdb"])
   parser.add_argument('--db_address', help='Address of the database server', required=True, type=str)
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
-  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=1024, type=int)
+  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=64, type=int)
   args = parser.parse_args()
 
   # Perform the load phase of the workload

@@ -2,9 +2,7 @@
 #include <string>
 #include <chrono>
 #include <thread>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <sys/mman.h>
 
 #include "kv_client/factory.hpp"
 #include "query.hpp"
@@ -13,27 +11,31 @@
 
 using controller::query;
 
-auto handle_get(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
+inline auto handle_get(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
 {
-  auto ret_val = client->gdpr_get(query_args.key());
+  std::string_view key = query_args.key();
+  auto ret_val = client->gdpr_get(key);
   if (ret_val) {
-    return ret_val.value();
+    return std::move(ret_val.value());
   } 
   return GET_FAILED; // GET_FAILED: Non existing key
 }
 
-auto handle_put(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
+inline auto handle_put(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
 {
-  bool success = client->gdpr_put(query_args.key(), query_args.value());
+  std::string_view key = query_args.key();
+  std::string_view value = query_args.value();
+  bool success = client->gdpr_put(key, value);
   if (success) {
     return PUT_SUCCESS;
   } 
   return PUT_FAILED; // PUT_FAILED: Failed to put value
 }
 
-auto handle_delete(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
+inline auto handle_delete(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
 {
-  bool success = client->gdpr_del(query_args.key());
+  std::string_view key = query_args.key();
+  bool success = client->gdpr_del(key);
   if (success) {
     return DELETE_SUCCESS;
   }
@@ -42,44 +44,30 @@ auto handle_delete(const query &query_args, std::unique_ptr<kv_client> &client) 
 
 auto handle_connection(int socket, const std::string& db_type, const std::string& db_address) -> void
 {
-  constexpr size_t header_size = sizeof(uint32_t);  // Size of the header containing the message size
-  std::vector<char> buffer(max_msg_size);  // Buffer to hold the message and its size
+  // Allocate a large buffer using mmap to hold the message and its size
+  void* buffer = mmap(nullptr, max_msg_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (buffer == MAP_FAILED) {
+    std::cerr << "Failed to allocate buffer" << std::endl;
+    return;
+  }
 
   // create the connection with the database instance
   std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
 
   while (true) {
     // Read the message size from the socket
-    ssize_t bytes_read = safe_sock_receive(socket, buffer.data(), header_size);
-    if (bytes_read != header_size) {
-      std::cerr << "Failed to read the message size or the connection is closed." << std::endl;
-      break;
-    }
-
-    // Convert network byte order to host byte order
-    uint32_t msg_size = 0;
-    std::memcpy(&msg_size, buffer.data(), sizeof(uint32_t));
-    msg_size = ntohl(msg_size);
-
-    // Resize the buffer if needed (+-1 for the null termination character)
-    if (msg_size + header_size > buffer.size() - 1) {
-      buffer.resize(msg_size + header_size + 1);
-    }
-
-    // Read the message data from the socket
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    bytes_read = safe_sock_receive(socket, buffer.data() + header_size, msg_size);
-    if (bytes_read != static_cast<ssize_t>(msg_size)) {
+    ssize_t bytes_read = safe_sock_receive(socket, buffer);
+    if (bytes_read <= 0) {
       std::cerr << "Failed to read the message or the connection is closed." << std::endl;
       break;
     }
 
     // Set the termination character for the string
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    buffer[static_cast<size_t>(bytes_read) + header_size] = '\0';
+    (static_cast<char*>(buffer))[bytes_read] = '\0';
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    const query query_args(buffer.data() + header_size);
+    query query_args(static_cast<char*>(buffer));
     std::string response;
 
     if (query_args.cmd() == "exit") [[unlikely]] {
@@ -87,7 +75,6 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
       break;
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
-      // std::cout << "Invalid command" << std::endl;
       response = INVALID_COMMAND;
     }
     else [[likely]] {
@@ -101,34 +88,27 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
         response = handle_delete(query_args, client);
       }
       else {
-        // std::cout << "Invalid command: " << query_args.cmd() << std::endl;
         response = INVALID_COMMAND;
       }
     }
 
-    // Resize the buffer (if needed) to accommodate the response
+    // Check the message size
     size_t response_length = response.length();
-    if (header_size + response_length > buffer.size()) {
-      buffer.resize(header_size + response_length);
+    if (response_length > max_msg_size) {
+      std::cerr << "Outgoing message too large." << std::endl;
+      break;
     }
 
-    // Prepare the response size header
-    auto response_size = static_cast<uint32_t>(response_length);
-    response_size = htonl(response_size);
-    std::memcpy(buffer.data(), &response_size, header_size);
-
-    // Copy the response data to the buffer
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    std::memcpy(buffer.data() + header_size, response.c_str(), response_length);
-
     // Send the response to the client
-    ssize_t bytes_sent = safe_sock_send(socket, buffer.data(), header_size + response_length);
+    ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
     if (bytes_sent <= 0) {
-      // Failed to send the response or connection closed
       std::cerr << "Failed to send the response to the client or the connection is closed." << std::endl;
       break;
     }
   }
+
+  // Unmap the socket communication buffer
+  munmap(buffer, max_msg_size);
   // Close the client socket
   safe_close_socket(socket);
 }
@@ -158,6 +138,13 @@ auto main(int argc, char* argv[]) -> int
   int reuse = 1;
   if (setsockopt(listen_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) == -1) {
     std::cerr << "Failed to set SO_REUSEADDR option" << std::endl;
+    safe_close_socket(listen_socket);
+    return 1;
+  }
+  
+  int tcpnodelay = 1;
+  if (setsockopt(listen_socket, IPPROTO_TCP, TCP_NODELAY, &tcpnodelay, sizeof(tcpnodelay))) {
+    std::cerr << "Failed to set TCP_NODELAY option" << std::endl;
     safe_close_socket(listen_socket);
     return 1;
   }

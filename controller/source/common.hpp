@@ -5,12 +5,16 @@
 #include <span>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/uio.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 constexpr int s2ns = 1000000000;
 constexpr int s2ms = 1000;
 constexpr int ns_precision = 9;
 
-constexpr int max_msg_size = 8192;
+constexpr int max_msg_size = 4096;
+constexpr size_t msg_header_size = sizeof(uint32_t);
 
 // controller response codes
 constexpr std::string GET_FAILED       = "0";
@@ -49,38 +53,53 @@ auto inline safe_close_socket(int socket) -> void {
   }
 }
 
-// Function to safely receive a specified number of bytes from the socket
-auto inline safe_sock_receive(int socket, void* buffer, size_t size) -> ssize_t {
-  char* ptr = static_cast<char*>(buffer);
-  size_t total_bytes_received = 0;
+// Function to safely send a specified number of bytes to the socket
+// Optimized version using sendmsg() with iovec and MSG_NOSIGNAL
+auto inline safe_sock_send(int socket, void* buffer, size_t size) -> ssize_t {
+  struct iovec iov[2];
+  struct msghdr msg = {};
 
-  while (total_bytes_received < size) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    ssize_t bytes_received = recv(socket, ptr + total_bytes_received, size - total_bytes_received, 0);
-    if (bytes_received <= 0) {
-      // Failed to receive bytes or connection closed
-      return bytes_received;
-    }
-    total_bytes_received += static_cast<size_t>(bytes_received);
-  }
+  uint32_t msg_size = htonl(size);
 
-  return static_cast<ssize_t>(total_bytes_received);
+  // Set up iov for the message header with the size
+  iov[0].iov_base = &msg_size;
+  iov[0].iov_len = msg_header_size;
+
+  // Set up iov for the actual message
+  iov[1].iov_base = buffer;
+  iov[1].iov_len = size;
+
+  msg.msg_iov = iov;
+  msg.msg_iovlen = 2;
+
+  return sendmsg(socket, &msg, MSG_NOSIGNAL);
 }
 
-// Function to safely send a specified number of bytes to the socket
-auto inline safe_sock_send(int socket, const void* buffer, size_t size) -> ssize_t {
-  const char* ptr = static_cast<const char*>(buffer);
-  size_t total_bytes_sent = 0;
+// Function to safely receive a specified number of bytes from the socket
+// Optimized version using recvmsg() with iovec and MSG_WAITALL
+auto inline safe_sock_receive(int socket, void* buffer) -> ssize_t {
+  struct iovec iov;
+  struct msghdr msg = {};
 
-  while (total_bytes_sent < size) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-    ssize_t bytes_sent = send(socket, ptr + total_bytes_sent, size - total_bytes_sent, 0);
-    if (bytes_sent <= 0) {
-      // Failed to send bytes or connection closed
-      return bytes_sent;
-    }
-    total_bytes_sent += static_cast<size_t>(bytes_sent);
+  uint32_t msg_size;
+
+  ssize_t bytes_received = recv(socket, &msg_size, sizeof(msg_size), MSG_WAITALL);
+  if (bytes_received < 0) {
+    std::cerr << "Failed to read the message size or the connection is closed." << std::endl;
+    return bytes_received;
   }
 
-  return static_cast<ssize_t>(total_bytes_sent);
+  msg_size = ntohl(msg_size);
+
+  if (msg_size > max_msg_size) {
+    std::cerr << "Incoming message too large!" << std::endl;
+    return -1;
+  }
+
+  iov.iov_base = buffer;
+  iov.iov_len = msg_size;
+  msg.msg_iov = &iov;
+  msg.msg_iovlen = 1;
+
+  return recvmsg(socket, &msg, MSG_WAITALL);
 }

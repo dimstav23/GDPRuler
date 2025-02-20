@@ -50,6 +50,8 @@
             libguestfs
             guestfs-tools
             gdb
+            zmqpp
+            zeromq
             #for the kernel module build
             # cpuid
             # dmidecode

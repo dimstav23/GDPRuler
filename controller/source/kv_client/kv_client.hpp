@@ -10,10 +10,10 @@ class kv_client
 {
 public:
   /* kv_client interface signatures */
-  auto gdpr_get(std::string_view key) -> std::optional<std::string> {
+  inline auto gdpr_get(std::string_view key) -> std::optional<std::string> {
     #ifndef ENCRYPTION_ENABLED
       // get the value directly w/o decryption
-      return get(key);
+      return std::move(get(key));
     #else
       // get the value after decryption
       auto encrypted_value = get(key);
@@ -31,7 +31,7 @@ public:
   }
 
   // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-  auto gdpr_put(std::string_view key, std::string_view value) -> bool {
+  inline auto gdpr_put(std::string_view key, std::string_view value) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // put the pair directly w/o encryption
       return put(key, value);
@@ -46,7 +46,7 @@ public:
     #endif
   }
 
-  auto gdpr_del(std::string_view key) -> bool {
+  inline auto gdpr_del(std::string_view key) -> bool {
     #ifndef ENCRYPTION_ENABLED
       // delete the pair directly w/o decryption
       return del(key);
