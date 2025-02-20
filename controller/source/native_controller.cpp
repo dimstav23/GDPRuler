@@ -56,7 +56,7 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
 
   while (true) {
     // Read the message size from the socket
-    ssize_t bytes_read = safe_sock_receive(socket, buffer, max_msg_size);
+    ssize_t bytes_read = safe_sock_receive(socket, buffer);
     if (bytes_read <= 0) {
       std::cerr << "Failed to read the message or the connection is closed." << std::endl;
       break;

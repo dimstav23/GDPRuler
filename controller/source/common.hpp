@@ -77,7 +77,7 @@ auto inline safe_sock_send(int socket, void* buffer, size_t size) -> ssize_t {
 
 // Function to safely receive a specified number of bytes from the socket
 // Optimized version using recvmsg() with iovec and MSG_WAITALL
-auto inline safe_sock_receive(int socket, void* buffer, size_t size) -> ssize_t {
+auto inline safe_sock_receive(int socket, void* buffer) -> ssize_t {
   struct iovec iov;
   struct msghdr msg = {};
 

@@ -39,7 +39,7 @@ auto receive_policy(int socket) -> std::optional<default_policy>
   }
 
   // Read the policy from the socket
-  ssize_t bytes_read = safe_sock_receive(socket, buffer, max_msg_size);
+  ssize_t bytes_read = safe_sock_receive(socket, buffer);
   if (bytes_read <= 0) {
     std::cerr << "Failed to read the message or the connection is closed." << std::endl;
     return std::nullopt;
@@ -286,7 +286,7 @@ auto handle_connection
 
   while (true) {
     // Read the message size from the socket
-    ssize_t bytes_read = safe_sock_receive(socket, buffer, max_msg_size);
+    ssize_t bytes_read = safe_sock_receive(socket, buffer);
     if (bytes_read <= 0) {
       std::cerr << "Failed to read the message or the connection is closed." << std::endl;
       break;
