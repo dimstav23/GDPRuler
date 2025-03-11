@@ -48,7 +48,7 @@ else
 
   # Compile the controller (release version)
   cd /root/GDPRuler/controller
-  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
+  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF
   cmake --build build -j$(nproc)
 
   # Optional -- workload generation
