@@ -238,7 +238,7 @@ def main():
     print(f"Network send time: {total_send_time:.3f} seconds ({total_send_time/elapsed_time*100:.2f}%)")
     print(f"Wait and receive time: {total_wait_time:.3f} seconds ({total_wait_time/elapsed_time*100:.2f}%)")
 
-  print(f"Total time: {elapsed_time:.3f} seconds (100%)")
+  print(f"Elapsed time: {elapsed_time:.3f} seconds (100%)")
 
 if __name__ == "__main__":
   main()
