@@ -121,14 +121,21 @@ cp ${OVMF_VARS} ${OVMF_FILES_DIR}/server/OVMF_VARS.fd
 cp ${IMAGES_DIR}/controller.img ${IMAGES_DIR}/server.img
 
 # Import the network config for the controller in the VM image
+# note: Enable idle polling (idle=poll) and Update the GRUB configuration
 echo "[4/5] Setting up the controller network configuration and copying ssh key"
 bash ${THIS_DIR}/prepare_net_cfg.sh -br ${BRIDGE_NAME} -cfg ${THIS_DIR}/network_configs/netplan-controller.yaml
 virt-customize --add ${IMAGES_DIR}/controller.img \
   --copy-in ${THIS_DIR}/network_configs/netplan-controller.yaml:/etc/netplan/ \
-  --ssh-inject root:file:/home/$(whoami)/.ssh/id_rsa.pub
+  --ssh-inject root:file:/home/$(whoami)/.ssh/id_rsa.pub \
+  --run-command "echo 'GRUB_CMDLINE_LINUX_DEFAULT=\"\$GRUB_CMDLINE_LINUX_DEFAULT idle=poll\"' >> /etc/default/grub.d/50-cloudimg-settings.cfg" \
+  --run-command "update-grub"
 
 # Import the network config for the server in the VM image
+# note: Enable idle polling (idle=poll) and Update the GRUB configuration
 echo "[5/5] Setting up the server network configuration"
 bash ${THIS_DIR}/prepare_net_cfg.sh -br ${BRIDGE_NAME} -cfg ${THIS_DIR}/network_configs/netplan-server.yaml
 virt-customize --add ${IMAGES_DIR}/server.img \
-  --copy-in ${THIS_DIR}/network_configs/netplan-server.yaml:/etc/netplan/
+  --copy-in ${THIS_DIR}/network_configs/netplan-server.yaml:/etc/netplan/ \
+  --ssh-inject root:file:/home/$(whoami)/.ssh/id_rsa.pub \
+  --run-command "echo 'GRUB_CMDLINE_LINUX_DEFAULT=\"\$GRUB_CMDLINE_LINUX_DEFAULT idle=poll\"' >> /etc/default/grub.d/50-cloudimg-settings.cfg" \
+  --run-command "update-grub"
