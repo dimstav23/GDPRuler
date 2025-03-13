@@ -12,7 +12,7 @@ $ ./automated_runner.sh
 ```
 The configuration parameters are taken from [`bare_metal/config.sh`](./bare_metal/config.sh).
 
-The underlying scripts (`native_direct.sh`, `native_ctl.sh`, `gdpr_ctl.sh`) perform the following actions with the help of the [`common.sh`](./common.sh) and [`args_and_checks.sh`](./args_and_checks.sh) scripts:
+The underlying scripts (`native_direct.sh`, `passthrough.sh`, `gdpr_ctl.sh`) perform the following actions with the help of the [`common.sh`](./common.sh) and [`args_and_checks.sh`](./args_and_checks.sh) scripts:
 - Parses the `--encryption` argument (default set to `OFF`) and compiles the controller
 - Parses the `--logging` argument (default set to `OFF`) and generates the client configuration files with the value of the `monitor` field set to `true` or `false` depending on the chosen option.
 - Sets the appropriate parameters for the controller and db address and ports

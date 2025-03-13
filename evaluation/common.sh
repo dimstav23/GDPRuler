@@ -10,7 +10,8 @@ rocksdb_server_bin="$project_root/controller/build/rocksdb_server"
 redis_server_bin="$project_root/KVs/redis/src/redis-server"
 
 # Expect scripts
-controller_expect_script="$project_root/evaluation/VM/CVM_GDPRuler.expect"
+gdpr_controller_expect_script="$project_root/evaluation/VM/CVM_GDPRuler.expect"
+passthrough_controller_expect_script="$project_root/evaluation/VM/CVM_passthrough.expect"
 server_expect_script="$project_root/evaluation/VM/VM_server.expect"
 
 # Directory for storing temporary files for each experiment
@@ -147,7 +148,6 @@ function run_gdpr_controller() {
 #   4: db_address         (database address and port)
 #   5: output_file        (temporary output file)
 #   6: log_path           (directory for logs)
-
 function run_gdpr_controller_CVM() {
   local controller_address="$1"
   local controller_port="$2"
@@ -158,7 +158,7 @@ function run_gdpr_controller_CVM() {
 
   echo "Starting the GDPR controller in a CVM"
   echo $(pwd)
-  expect $controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $log_path &
+  expect $gdpr_controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $log_path &
 
   wait_for_activation $controller_address $controller_port
 }
@@ -189,6 +189,29 @@ function run_native_controller() {
   echo "Starting the native controller"
   $NODE_BIND python3 $ctl > $output_file &
   wait_for_activation "localhost" $controller_port
+}
+
+# Function to run passthrough controller in a CVM environment
+# Args:
+#   1: controller_address (address for the controller)
+#   2: controller_port    (port for the controller)
+#   3: db                 (database type)
+#   4: db_address         (database address and port)
+#   5: output_file        (temporary output file)
+#   6: log_path           (directory for logs)
+function run_passthrough_controller_CVM() {
+  local controller_address="$1"
+  local controller_port="$2"
+  local db="$3"
+  local db_address="$4"
+  local output_file="$5"
+  local log_path="$6"
+
+  echo "Starting the passthrough controller in a CVM"
+  echo $(pwd)
+  expect $passthrough_controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $log_path &
+
+  wait_for_activation $controller_address $controller_port
 }
 
 # Function to run client(s) directly connected to the server
@@ -471,7 +494,7 @@ run_native_ctl_experiment() {
     run_gdpr_controller $controller_path $controller_address $controller_port \
     $db $db_address_formatted $db_dump_and_logs_dir ${tmp_dir}/controller.txt
   elif [[ $controller == "native" ]]; then
-    controller_path="$project_root/scripts/native_ctl.py"
+    controller_path="$project_root/scripts/passthrough.py"
     run_native_controller $controller_path $controller_address $controller_port \
     $db $db_address_formatted ${tmp_dir}/controller.txt
   fi
@@ -517,7 +540,7 @@ run_native_ctl_experiment() {
 #   8: controller_port    (port of the controller)
 #   9: config             (configuration file for the client)
 #  10: results_csv_file   (result file path -- must exist beforehand)
-run_VM_ctl_experiment() {
+run_VM_gdpr_ctl_experiment() {
   local server_type="$1"
   local n_clients="$2"
   local workload="$3"
@@ -544,6 +567,76 @@ run_VM_ctl_experiment() {
 
   # Run the GDPR controller in a CVM
   run_gdpr_controller_CVM $controller_address $controller_port \
+    $db $db_address_formatted ${tmp_dir}/controller.txt $db_dump_and_logs_dir
+
+  # Run the client and gather the results
+  client_path="$project_root/scripts/client.py"
+  # workload_path=${project_root}/workload_traces/${workload}
+  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt $config
+  status=$?
+  if [ $status -ne 0 ]; then
+    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
+    exit 1
+  else
+    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" finished successfully. Output:"
+    # Direct client output to stdout for better observability
+    cat ${tmp_dir}/clients.txt
+    # Retrieve the client results from the temp files
+    elapsed_time=$(grep "Elapsed time: " ${tmp_dir}/clients.txt | awk '{print $3}')
+    avg_latency=$(grep "Average Latency: " ${tmp_dir}/clients.txt | awk '{print $3}')
+  fi
+
+  cleanup $controller_address $controller_port $db $db_address $db_port
+
+  if [ -z $avg_latency ]; then
+    # Case of a failed test
+    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
+  else
+    # Write the total elapsed time for all the threads and the average latency
+    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
+  fi
+}
+
+# Start a test by running the server in a bare-metal or within a (C)VM, 
+# the controller in a CVM and the clients natively
+# Args:
+#   1: server_type        (type of the server deployment)
+#   2: n_clients          (number of clients to run concurrently)
+#   3: workload           (workload file name)
+#   4: db                 (db to be used in controller. one of {rocksdb, redis})
+#   5: db_address         (address for the DB)
+#   6: db_port            (port for the DB)
+#   7: controller_address (address of the controller)
+#   8: controller_port    (port of the controller)
+#   9: config             (configuration file for the client)
+#  10: results_csv_file   (result file path -- must exist beforehand)
+run_VM_passthrough_ctl_experiment() {
+  local server_type="$1"
+  local n_clients="$2"
+  local workload="$3"
+  local db="$4"
+  local db_address="$5"
+  local db_port="$6"
+  local controller_address="$7"
+  local controller_port="$8"
+  local config="${9}"
+  local results_csv_file="${10}"
+
+  local db_address_formatted="${db_address}:${db_port}"
+
+  local controller="passthrough"
+
+  prepare_experiment $results_csv_file
+
+  # Run the db server
+  if [[ $db == "rocksdb" ]]; then
+    run_rocksdb $server_type $db_address $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
+  elif [[ $db == "redis" ]]; then
+    run_redis $server_type $db_address $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
+  fi
+
+  # Run the GDPR controller in a CVM
+  run_passthrough_controller_CVM $controller_address $controller_port \
     $db $db_address_formatted ${tmp_dir}/controller.txt $db_dump_and_logs_dir
 
   # Run the client and gather the results
