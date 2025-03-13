@@ -15,6 +15,7 @@
 #include "logging/logger.hpp"
 #include "logging/monitor.hpp"
 #include "gdpr_regulator.hpp"
+#include "global_gdpr_metadata_cache.hpp"
 
 #ifdef DEBUG
 #include <chrono>
@@ -28,6 +29,11 @@ using controller::gdpr_filter;
 using controller::logger;
 using controller::gdpr_monitor;
 using controller::gdpr_regulator;
+
+#ifdef METADATA_CACHE
+// Define the cache size (in keys)
+static constexpr size_t GDPR_METADATA_CACHE_SIZE = 10000;
+#endif
 
 // Declare a thread-local default_policy object
 thread_local default_policy def_policy;
@@ -69,12 +75,43 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
                 const query &query_args,
                 const default_policy &def_policy) -> std::string 
 {
+  #ifdef METADATA_CACHE
+  auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
+  auto cached_metadata = cache.cache_get(query_args.key());
+  std::shared_ptr<controller::gdpr_filter> filter;
+  std::optional<std::string> res = std::nullopt;
+  if (!cached_metadata) {
+    res = client->gdpr_get(query_args.key());
+    filter = std::make_shared<gdpr_filter>(res);
+  }
+  else {
+    filter = std::make_shared<gdpr_filter>(*cached_metadata);
+  }
+  // Check if the retrieved value requires logging
+  bool is_valid = filter->validate(query_args, def_policy);
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+  // Perform the logging of the (in)valid operation -- if needed
+  monitor.monitor_query(is_valid);
+
+  if (is_valid) {
+    if (!cached_metadata) {
+      return controller::remove_gdpr_metadata(std::move(res.value()));
+    }
+    else {
+      res = client->gdpr_get(query_args.key());
+      return controller::remove_gdpr_metadata(std::move(res.value()));
+    }
+  }
+  
+  return GET_FAILED;// GET_FAILED: Non existing key or does not comply with GDPR rules;
+  #else
+
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
 
   // Check if the retrieved value requires logging
-  auto monitor = gdpr_monitor(filter, query_args, def_policy);
   bool is_valid = filter->validate(query_args, def_policy);
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
   // Perform the logging of the (in)valid operation -- if needed
   monitor.monitor_query(is_valid);
   if (is_valid) {
@@ -84,12 +121,92 @@ auto handle_get(const std::unique_ptr<kv_client> &client,
   }
   
   return GET_FAILED;// GET_FAILED: Non existing key or does not comply with GDPR rules;
+  #endif
 }
 
 auto handle_put(const std::unique_ptr<kv_client> &client, 
                 const query &query_args,
                 const default_policy &def_policy) -> std::string 
 {
+  #ifdef METADATA_CACHE
+  bool is_valid = true;
+  auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
+  auto cached_metadata = cache.cache_get(query_args.key());
+  std::optional<std::string> res = std::nullopt;
+  if (!cached_metadata) {
+    res = client->gdpr_get(query_args.key());
+    // key does not exist
+    if (!res) {
+      // If no value is returned, check the respective query args
+      // If no query args are specified, enforce the default policy for monitoring
+      auto monitor = gdpr_monitor(query_args, def_policy);
+      // construct the gdpr metadata for the new value
+      query_rewriter rewriter(query_args, def_policy, query_args.value());
+      // Perform the logging of the valid operation -- if needed
+      monitor.monitor_query(is_valid, rewriter.new_value());
+      auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
+
+      if (ret_val) {
+        auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
+        cache.cache_put(query_args.key(),
+                        controller::preserve_only_gdpr_metadata(std::move(rewriter.new_value())));
+        return PUT_SUCCESS;
+      }
+      return PUT_FAILED; //PUT_FAILED: Failed to put value
+    }
+
+    // if the key exists and complies with the gdpr rules, perform the put
+    auto filter = std::make_shared<gdpr_filter>(res);
+    if ((is_valid = filter->validate(query_args, def_policy))) {
+      // Check if the retrieved value requires logging
+      // the query args do not need to be checked since they cannot update the
+      // gpdr metadata of the value -- only putm operations can
+      auto monitor = gdpr_monitor(filter, query_args, def_policy);
+      // update the current value with the new one without modifying any metadata
+      query_rewriter rewriter(res.value(), query_args.value());
+      // Perform the logging of the valid operation -- if needed
+      monitor.monitor_query(is_valid, rewriter.new_value());
+      auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
+
+      if (ret_val) {
+        auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
+        cache.cache_put(query_args.key(),
+                        controller::preserve_only_gdpr_metadata(std::move(rewriter.new_value())));
+        return PUT_SUCCESS;
+      }
+      return PUT_FAILED; // PUT_FAILED: Failed to put value
+    }
+
+    // Perform the logging of the invalid operation -- if needed
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    monitor.monitor_query(is_valid);
+    return PUT_FAILED; // PUT_FAILED: Invalid key or does not comply with GDPR rules
+  }
+  else {
+    auto filter = std::make_shared<gdpr_filter>(*cached_metadata);
+    if ((is_valid = filter->validate(query_args, def_policy))) {
+      // Check if the retrieved value requires logging
+      // the query args do not need to be checked since they cannot update the
+      // gpdr metadata of the value -- only putm operations can
+      auto monitor = gdpr_monitor(filter, query_args, def_policy);
+      // update the current value with the new one without modifying any metadata
+      query_rewriter rewriter(*cached_metadata, query_args.value());
+      // Perform the logging of the valid operation -- if needed
+      monitor.monitor_query(is_valid, rewriter.new_value());
+      auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
+
+      if (ret_val) {
+        return PUT_SUCCESS;
+      }
+      return PUT_FAILED; // PUT_FAILED: Failed to put value
+    }
+    // Perform the logging of the invalid operation -- if needed
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    monitor.monitor_query(is_valid);
+    return PUT_FAILED; // PUT_FAILED: Invalid key or does not comply with GDPR rules
+  }
+
+  #else
   auto res = client->gdpr_get(query_args.key());
 
   bool is_valid = true;
@@ -133,13 +250,45 @@ auto handle_put(const std::unique_ptr<kv_client> &client,
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
   monitor.monitor_query(is_valid);
   return PUT_FAILED; // PUT_FAILED: Invalid key or does not comply with GDPR rules
-  
+  #endif
 }
 
 auto handle_delete(const std::unique_ptr<kv_client> &client, 
                   const query &query_args,
                   const default_policy &def_policy) -> std::string 
 {
+  #ifdef METADATA_CACHE
+  auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
+  auto cached_metadata = cache.cache_get(query_args.key());
+  std::shared_ptr<controller::gdpr_filter> filter;
+  std::optional<std::string> res = std::nullopt;
+  if (!cached_metadata) {
+    res = client->gdpr_get(query_args.key());
+    filter = std::make_shared<gdpr_filter>(res);
+  }
+  else {
+    filter = std::make_shared<gdpr_filter>(*cached_metadata);
+  }
+  // Check if the retrieved value requires logging
+  bool is_valid = filter->validate(query_args, def_policy);
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+  // Perform the logging of the (in)valid operation -- if needed
+  monitor.monitor_query(is_valid);
+
+  if (is_valid) {
+    // if the key exists and complies with the gdpr rules
+    // then perform the delete operation
+    auto ret_val = client->gdpr_del(query_args.key());
+
+    if (ret_val) {
+      auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
+      cache.cache_remove(query_args.key());
+      return DELETE_SUCCESS;
+    }
+    return DELETE_FAILED; // DELETE_FAILED: Failed to delete key
+  }
+  return DELETE_FAILED;// GET_FAILED: Non existing key or does not comply with GDPR rules;
+  #else
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
   // Check if the retrieved value requires logging
@@ -159,7 +308,8 @@ auto handle_delete(const std::unique_ptr<kv_client> &client,
     return DELETE_FAILED; // DELETE_FAILED: Failed to delete key
   }
 
-  return "DELETE_FAILED: Invalid key or does not comply with GDPR rules";
+  return DELETE_FAILED;
+  #endif
 }
 
 auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
