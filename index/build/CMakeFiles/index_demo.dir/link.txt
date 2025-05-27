@@ -1,0 +1,1 @@
+/nix/store/xcn9p4xxfbvlkpah7pwchpav4ab9d135-gcc-wrapper-14-20241116/bin/g++ -Wl,--dependency-file=CMakeFiles/index_demo.dir/link.d CMakeFiles/index_demo.dir/main.cpp.o -o index_demo

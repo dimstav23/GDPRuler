@@ -1,0 +1,8 @@
+/scratch/sherif/GDPRuler/index/build/CMakeFiles/index_demo.dir
+/scratch/sherif/GDPRuler/index/build/CMakeFiles/test.dir
+/scratch/sherif/GDPRuler/index/build/CMakeFiles/edit_cache.dir
+/scratch/sherif/GDPRuler/index/build/CMakeFiles/rebuild_cache.dir
+/scratch/sherif/GDPRuler/index/build/tests/CMakeFiles/user_index_test.dir
+/scratch/sherif/GDPRuler/index/build/tests/CMakeFiles/test.dir
+/scratch/sherif/GDPRuler/index/build/tests/CMakeFiles/edit_cache.dir
+/scratch/sherif/GDPRuler/index/build/tests/CMakeFiles/rebuild_cache.dir
