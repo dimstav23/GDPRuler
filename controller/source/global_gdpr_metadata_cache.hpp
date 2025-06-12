@@ -60,7 +60,7 @@ public:
     auto it = m_cache_map.find(key);
     if (it != m_cache_map.end()) {
       // Move the accessed item to the front of the list (most recently used)
-      m_cache_list.splice(m_cache_list.begin(), m_cache_list, it->second.list_it);
+      // m_cache_list.splice(m_cache_list.begin(), m_cache_list, it->second.list_it);
       #ifdef CACHE_STATS
       m_hits.fetch_add(1, std::memory_order_relaxed);
       #endif
