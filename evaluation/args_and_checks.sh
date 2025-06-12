@@ -71,7 +71,7 @@ parse_args_and_checks() {
   # Build the controller
   echo "Building controller with encryption set to $encryption"
   pushd ${project_root}/controller
-  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D ENCRYPTION_ENABLED=$encryption;
+  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=OFF -D ASAN_ENABLED=OFF -D ENCRYPTION_ENABLED=$encryption;
   cmake --build build -j$(nproc)
   popd
 }
