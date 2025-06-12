@@ -425,6 +425,14 @@ auto main(int argc, char* argv[]) -> int
     std::quick_exit(1);
   }
   std::string db_address = get_command_line_argument(args, "--db_address");
+  if (db_address.empty()) {
+    if (db_type == "redis") {
+      db_address = "unix:///tmp/redis.sock"; // Default Unix socket path for Redis
+    }
+    else if (db_type == "rocksdb") {
+      db_address = "unix:///tmp/rocksdb.sock"; // Default Unix socket path for RocksDB
+    }
+  }
   
   // set the log path based on the input parameter
   const std::string log_path = get_command_line_argument(args, "--logpath");

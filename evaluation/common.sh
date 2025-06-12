@@ -7,7 +7,9 @@ project_root=$(git rev-parse --show-toplevel 2>/dev/null)
 
 # Server executables
 rocksdb_server_bin="$project_root/controller/build/rocksdb_server"
+rocksdb_socket="/tmp/rocksdb.sock"
 redis_server_bin="$project_root/KVs/redis/src/redis-server"
+redis_socket="/tmp/redis.sock"
 
 # Expect scripts
 gdpr_controller_expect_script="$project_root/evaluation/VM/CVM_GDPRuler.expect"
@@ -56,7 +58,7 @@ function run_rocksdb() {
     # run rocksdb server
     $NODE_BIND $rocksdb_server_bin $port $log_dir > $output_file &
     # wait for the server to be initialized and listen to connections
-    wait_for_activation "localhost" $port
+    wait_for_tcp_activation "localhost" $port
 
   elif [[ $server_type == "VM" ]] || [[ $server_type == "CVM" ]]; then
 
@@ -64,7 +66,7 @@ function run_rocksdb() {
     expect $server_expect_script $server_type "rocksdb" $VM_cores $VM_memory $port $log_dir $output_file &
 
     # wait for the server to be initialized and listen to connections
-    wait_for_activation $db_address $port
+    wait_for_tcp_activation $db_address $port
 
   fi
   
@@ -86,25 +88,30 @@ function run_redis() {
 
   # Run the redis server
   if [[ $server_type == "bare-metal" ]]; then
-
       if [ ! -f $redis_server_bin ]; then
         echo "Redis server not found. Please compile the redis version of the provided submodule."
         exit
       fi
-      echo "Starting redis server"
       # run redis server
-      $NODE_BIND $redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file &
-      # wait for the server to be initialized and listen to connections
-      wait_for_activation "localhost" $port
-
+      if [[ $port == "0" ]]; then
+        # if port is set to 0, use a Unix socket
+        echo "Starting redis server: $NODE_BIND $redis_server_bin --port $port --unixsocket $redis_socket --unixsocketperm 700 --dir $log_dir --protected-mode no > $output_file"
+        $NODE_BIND $redis_server_bin --port $port --unixsocket $redis_socket --unixsocketperm 700 --dir $log_dir --protected-mode no > $output_file &
+        # wait for the server to be initialized and listen to connections
+        wait_for_unix_socket_activation $redis_socket
+      else
+        # else use the default address
+        echo "Starting redis server: $NODE_BIND $redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file"
+        $NODE_BIND $redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file &
+        # wait for the server to be initialized and listen to connections
+        wait_for_tcp_activation "localhost" $port
+      fi
   elif [[ $server_type == "VM" ]] || [[ $server_type == "CVM" ]]; then
-
     echo "Starting redis server in a ${server_type}"
     expect $server_expect_script $server_type "redis" $VM_cores $VM_memory $port $log_dir $output_file &
-
     # wait for the server to be initialized and listen to connections
     # for redis: remove the tcp:// in front of the address
-    wait_for_activation "${db_address#tcp://}" $port
+    wait_for_tcp_activation "${db_address#tcp://}" $port
 
   fi
 }
@@ -115,29 +122,26 @@ function run_redis() {
 #   2: controller_address (address for the controller)
 #   3: controller_port    (port for the controller)
 #   4: db                 (database type)
-#   5: db_address         (database address and port)
-#   6: config             (configuration file)
-#   7: log_path           (directory for logs)
-#   8: output_file        (temporary output file)
+#   5: config             (configuration file)
+#   6: log_path           (directory for logs)
+#   7: output_file        (temporary output file)
 function run_gdpr_controller() {
   local controller="$1"
   local controller_address="$2"
   local controller_port="$3"
   local db="$4"
-  local db_address="$5"
-  local log_path="$6"
-  local output_file="$7"
+  local log_path="$5"
+  local output_file="$6"
 
   if [ ! -f $controller ]; then
     echo "Controller not found in $controller. Exiting..."
     exit
   fi
-  ctl="$controller --db $db --logpath $log_path --db_address $db_address \
-  --controller_address $controller_address --controller_port $controller_port"
+  ctl="$controller --db $db --logpath $log_path --controller_address $controller_address --controller_port $controller_port"
 
-  echo "Starting the GDPR controller"
+  echo "Starting the GDPR controller: $NODE_BIND python3 $ctl > $output_file"
   $NODE_BIND python3 $ctl > $output_file &
-  wait_for_activation "localhost" $controller_port
+  wait_for_tcp_activation "localhost" $controller_port
 }
 
 # Function to run GDPR controller in a CVM environment
@@ -160,7 +164,7 @@ function run_gdpr_controller_CVM() {
   echo $(pwd)
   expect $gdpr_controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $log_path &
 
-  wait_for_activation $controller_address $controller_port
+  wait_for_tcp_activation $controller_address $controller_port
 }
 
 # Function to run native controller
@@ -169,26 +173,23 @@ function run_gdpr_controller_CVM() {
 #   2: controller_address (address for the controller)
 #   3: controller_port    (port for the controller)
 #   4: db                 (database type)
-#   5: db_address         (database address and port)
-#   6: output_file        (temporary output file)
+#   5: output_file        (temporary output file)
 function run_native_controller() {
   local controller="$1"
   local controller_address="$2"
   local controller_port="$3"
   local db="$4"
-  local db_address="$5"
-  local output_file="$6"
+  local output_file="$5"
 
   if [ ! -f $controller ]; then
     echo "Controller not found in $controller. Exiting..."
     exit
   fi
-  ctl="$controller --db $db --db_address $db_address \
-  --controller_address $controller_address --controller_port $controller_port"
+  ctl="$controller --db $db --controller_address $controller_address --controller_port $controller_port"
 
-  echo "Starting the native controller"
+  echo "Starting the native controller: $NODE_BIND python3 $ctl > $output_file"
   $NODE_BIND python3 $ctl > $output_file &
-  wait_for_activation "localhost" $controller_port
+  wait_for_tcp_activation "localhost" $controller_port
 }
 
 # Function to run passthrough controller in a CVM environment
@@ -211,27 +212,27 @@ function run_passthrough_controller_CVM() {
   echo $(pwd)
   expect $passthrough_controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $log_path &
 
-  wait_for_activation $controller_address $controller_port
+  wait_for_tcp_activation $controller_address $controller_port
 }
 
 # Function to run client(s) directly connected to the server
 # Args:
-#   1: client             (client executable)
+#   1: client_path        (client executable)
 #   2: db                 (database type)
 #   3: db_address         (database address and port)
 #   4: workload           (workload file)
 #   5: n_clients          (number of clients)
 #   6: output_file        (temporary output file)
 function run_direct_client() {
-  local client="$1"
+  local client_path="$1"
   local db="$2"
   local db_address="$3"
   local workload="$4"
   local n_clients="$5"
   local output_file="$6"
 
-  if [ ! -f $client ]; then
-    echo "Client not found in $client. Exiting..."
+  if [ ! -f $client_path ]; then
+    echo "Client not found in $client_path. Exiting..."
     exit
   fi
 
@@ -276,7 +277,7 @@ function run_client() {
 # Args:
 #   1: IP Address    (IP address)
 #   2: Port          (port to wait for)
-wait_for_activation() {
+wait_for_tcp_activation() {
   local ip_address="$1"
   local port="$2"
   local max_attempts=60
@@ -293,11 +294,30 @@ wait_for_activation() {
   exit 1
 }
 
+# Function to wait for a unix socket activation
+# Args:
+#   1: socket_path   (unix socket path)
+wait_for_unix_socket_activation() {
+  local socket_path="$1"
+  local max_attempts=60
+
+  for ((attempt=1; attempt<=$max_attempts; attempt++)); do
+    if [ -S "$socket_path" ]; then
+      return
+    else
+      sleep 1
+    fi
+  done
+
+  echo "Timeout: $socket_path did not become active within $max_attempts seconds."
+  exit 1
+}
+
 # Function to wait for a port shutdown
 # Args:
 #   1: IP Address    (IP address)
 #   2: Port          (port to wait for)
-wait_for_shutdown() {
+wait_for_tcp_shutdown() {
   local ip_address="$1"
   local port="$2"
   local max_attempts=60
@@ -310,6 +330,25 @@ wait_for_shutdown() {
   done
 
   echo "Timeout: $ip_address:$portdid not become inactive within $max_attempts seconds."
+  exit 1
+}
+
+# Function to wait for a Unix socket shutdown
+# Args:
+#   1: Socket path   (path to Unix socket file)
+wait_for_unix_socket_shutdown() {
+  local socket_path="$1"
+  local max_attempts=60
+  
+  for ((attempt=1; attempt<=$max_attempts; attempt++)); do
+    if [ ! -S "$socket_path" ]; then
+      return
+    else
+      sleep 1
+    fi
+  done
+
+  echo "Timeout: $socket_path did not become inactive within $max_attempts seconds."
   exit 1
 }
 
@@ -359,9 +398,11 @@ cleanup() {
   kill $(pgrep -f redis-server) 2>/dev/null || true
 
   # Wait for ports to become inactive
-  echo "Waiting for ports to become inactive"
-  wait_for_shutdown "$controller_address" "$controller_port"
-  wait_for_shutdown "${db_address#tcp://}" "$db_port"
+  echo "Waiting for ports and/or unix sockets to become inactive"
+  wait_for_tcp_shutdown "$controller_address" "$controller_port"
+  wait_for_tcp_shutdown "${db_address#tcp://}" "$db_port"
+  wait_for_unix_socket_shutdown "/tmp/redis.sock"
+  wait_for_unix_socket_shutdown "/tmp/rocksdb.sock"
 
   # Remove all potentially generated files
   echo "Cleaning up files"
@@ -477,8 +518,6 @@ run_native_ctl_experiment() {
   local config="$9"
   local results_csv_file="${10}"
 
-  local db_address_formatted="${db_address}:${db_port}"
-
   prepare_experiment $results_csv_file
 
   # Run the db server
@@ -492,11 +531,11 @@ run_native_ctl_experiment() {
   if [[ $controller == "gdpr" ]]; then
     controller_path="$project_root/scripts/GDPRuler.py"
     run_gdpr_controller $controller_path $controller_address $controller_port \
-    $db $db_address_formatted $db_dump_and_logs_dir ${tmp_dir}/controller.txt
+    $db $db_dump_and_logs_dir ${tmp_dir}/controller.txt
   elif [[ $controller == "native" ]]; then
     controller_path="$project_root/scripts/passthrough.py"
     run_native_controller $controller_path $controller_address $controller_port \
-    $db $db_address_formatted ${tmp_dir}/controller.txt
+    $db ${tmp_dir}/controller.txt
   fi
 
   # Run the client and gather the results

@@ -145,7 +145,15 @@ auto main(int argc, char* argv[]) -> int
     std::quick_exit(1);
   }
   std::string db_address = get_command_line_argument(args, "--db_address");
-  
+  if (db_address.empty()) {
+    if (db_type == "redis") {
+      db_address = "unix:///tmp/redis.sock"; // Default Unix socket path for Redis
+    }
+    else if (db_type == "rocksdb") {
+      db_address = "unix:///tmp/rocksdb.sock"; // Default Unix socket path for RocksDB
+    }
+  }
+
   // Create a socket and accept for clients
   std::string controller_address = get_command_line_argument(args, "--controller_address");
   std::string controller_port = get_command_line_argument(args, "--controller_port");
