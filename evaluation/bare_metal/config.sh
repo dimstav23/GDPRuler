@@ -1,8 +1,16 @@
 # Variables for the end-to-end test configuration
-redis_address="tcp://127.0.0.1"
-redis_port=6379
-rocksdb_address="127.0.0.1"
-rocksdb_port=15001
+
+# Variables for Direct client-server communication natively
+direct_redis_address="tcp://127.0.0.1"
+direct_redis_port=6379
+direct_rocksdb_address="127.0.0.1"
+direct_rocksdb_port=15001
+
+# Variables for GDPR & Passthrough controller
+ctl_redis_address="/tmp/redis.sock"
+ctl_redis_port=0
+ctl_rocksdb_address="/tmp/rocksdb.sock"
+ctl_rocksdb_port=0
 controller_address="127.0.0.1"
 controller_port=1312
 

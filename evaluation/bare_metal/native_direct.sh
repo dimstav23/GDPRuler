@@ -18,11 +18,11 @@ for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
       if [[ $db == "rocksdb" ]]; then
-        db_port=$rocksdb_port
-        db_address=$rocksdb_address
+        db_port=$direct_rocksdb_port
+        db_address=$direct_rocksdb_address
       elif [[ $db == "redis" ]]; then
-        db_port=$redis_port
-        db_address=$redis_address
+        db_port=$direct_redis_port
+        db_address=$direct_redis_address
       fi
       echo "Starting a run with $n_clients clients, $db store, direct connection, and $workload."
       run_native_direct_experiment $n_clients $workload $db $db_address $db_port $results_csv_file
