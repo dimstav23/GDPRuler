@@ -19,7 +19,7 @@ public:
     auto result = m_redis.get(key);
     // if (result) {
     //   // Key exists. Dereference val to get the string result.
-    //   // #ifndef NDEBUG
+    //   // #ifdef DEBUG
     //   // std::cout << "GET operation done with key: " << key
     //   //           << " and value: " << *result << std::endl;
     //   // #endif

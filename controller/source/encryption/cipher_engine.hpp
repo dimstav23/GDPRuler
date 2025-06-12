@@ -7,7 +7,7 @@
 #include <vector>
 #include <algorithm>
 
-#ifndef NDEBUG
+#ifdef DEBUG
 #include "cipher_print_utils.hpp"
 #endif
 
