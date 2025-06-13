@@ -430,7 +430,7 @@ auto main(int argc, char* argv[]) -> int
       db_address = "unix:///tmp/redis.sock"; // Default Unix socket path for Redis
     }
     else if (db_type == "rocksdb") {
-      db_address = "unix:///tmp/rocksdb.sock"; // Default Unix socket path for RocksDB
+      db_address = "/tmp/rocksdb.sock"; // Default Unix socket path for RocksDB
     }
   }
   

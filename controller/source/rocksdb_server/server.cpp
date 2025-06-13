@@ -4,11 +4,13 @@
 #include <vector>
 #include <memory>
 #include <boost/asio.hpp>
+#include <boost/asio/local/stream_protocol.hpp>
 #include <thread>
 
 #include "rocksdb_proxy.hpp"
 
 using boost::asio::ip::tcp;
+using boost::asio::local::stream_protocol;
 
 constexpr int socket_timeout_seconds = 60; 
 
@@ -24,9 +26,10 @@ boost::asio::io_context io_context;
  * Given a socket and a rocksdb_proxy, 
  *  it listens the socket asynchronously, parses the requests, executes them, and writes back proper response messages.
 */
-class session : public std::enable_shared_from_this<session> {
+template<typename SocketType>
+class session : public std::enable_shared_from_this<session<SocketType>> {
 public:
-  session(tcp::socket socket, std::shared_ptr<rocksdb_proxy> rocksdb_proxy)
+  session(SocketType socket, std::shared_ptr<rocksdb_proxy> rocksdb_proxy)
       : m_socket(std::move(socket))
       , m_rocksdb_proxy(std::move(rocksdb_proxy))
   {
@@ -34,18 +37,22 @@ public:
 
   void start() {
     // Set socket timeout in win and unix platforms
-    #ifdef _WIN32
-    DWORD socket_timeout_ms = socket_timeout_seconds * s2ms;
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_ms), sizeof(socket_timeout_ms));
-    #else
-    // Set receive timeout of unix socket. See SO_RCVTIMEO in https://linux.die.net/man/7/socket
-    struct timeval socket_timeout_val{};
-    socket_timeout_val.tv_sec = socket_timeout_seconds;
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&socket_timeout_val), sizeof(socket_timeout_val));
-    #endif
-
+    // Socket timeout only applies to TCP sockets
+    if constexpr (std::is_same_v<SocketType, tcp::socket>) {
+      #ifdef _WIN32
+      DWORD socket_timeout_ms = socket_timeout_seconds * 1000;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, 
+                 reinterpret_cast<const char*>(&socket_timeout_ms), sizeof(socket_timeout_ms));
+      #else
+      // Set receive timeout of unix socket. See SO_RCVTIMEO in https://linux.die.net/man/7/socket
+      struct timeval socket_timeout_val{};
+      socket_timeout_val.tv_sec = socket_timeout_seconds;
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      setsockopt(m_socket.native_handle(), SOL_SOCKET, SO_RCVTIMEO, 
+                 reinterpret_cast<const char*>(&socket_timeout_val), sizeof(socket_timeout_val));
+      #endif
+    }
     handle_read();
   }
 
@@ -89,9 +96,8 @@ private:
     }
   }
 
-  tcp::socket m_socket;
+  SocketType m_socket;
   std::shared_ptr<rocksdb_proxy> m_rocksdb_proxy;
-  boost::asio::streambuf m_buffer;
 };
 
 /**
@@ -101,15 +107,15 @@ private:
  *  delegates the handling of them to individual sessions.
  *  
 */
-class rocksdb_server {
+template<typename AcceptorType, typename SocketType>
+class rocksdb_server_base {
 public:
-  rocksdb_server(uint16_t port,
-                 const std::string& db_path)
-      : m_acceptor(io_context, tcp::endpoint(tcp::v4(), port))
+  template<typename EndpointType>
+  rocksdb_server_base(const EndpointType& endpoint, const std::string& db_path)
+      : m_acceptor(io_context, endpoint)
       , m_socket(io_context)
       , m_rocksdb_proxy(std::make_shared<rocksdb_proxy>(db_path))
   {
-    std::cout << "Starting server on port: " << port << std::endl;
     do_accept();
   }
 
@@ -118,7 +124,7 @@ private:
     std::cout << "Server is waiting to accept a new request!" << std::endl;
     m_acceptor.async_accept(m_socket, [this](boost::system::error_code error_code) {
       if (!error_code) {
-        auto session_ptr = std::make_shared<session>(std::move(m_socket), m_rocksdb_proxy);
+        auto session_ptr = std::make_shared<session<SocketType>>(std::move(m_socket), m_rocksdb_proxy);
         std::thread session_thread([session_ptr]() {
           session_ptr->start();
         });
@@ -129,21 +135,41 @@ private:
   }
 
   // tcp connection acceptor to asynchronously accept the connections and delegate the handling to sessions
-  tcp::acceptor m_acceptor;
-  tcp::socket m_socket;
+  AcceptorType m_acceptor;
+  SocketType m_socket;
   std::shared_ptr<rocksdb_proxy> m_rocksdb_proxy;
 };
+
+using tcp_rocksdb_server = rocksdb_server_base<tcp::acceptor, tcp::socket>;
+using unix_rocksdb_server = rocksdb_server_base<stream_protocol::acceptor, stream_protocol::socket>;
 
 auto main(int argc, char* argv[]) -> int {
   auto args = std::span(argv, static_cast<size_t>(argc));
 
   try {
-    assert(argc == 3 && "Usage: ./rocksdb_server <port> <db_path>");
-
-    rocksdb_server rocksdb_server(static_cast<uint16_t>(std::stoul(args[1])), args[2]);
-
-    // run() method is used to dequeue the async operation results and call the respective handlers.
-    io_context.run();
+    if (argc == 3) {
+      // TCP mode: ./rocksdb_server <port> <db_path>
+      std::cout << "Starting TCP server on port: " << args[1] << std::endl;
+      tcp_rocksdb_server server(tcp::endpoint(tcp::v4(), static_cast<uint16_t>(std::stoul(args[1]))), args[2]);
+      io_context.run();
+    }
+    else if (argc == 4 && std::string(args[1]) == "--unix") {
+      // Unix socket mode: ./rocksdb_server --unix <socket_path> <db_path>
+      std::string socket_path = args[2];
+      std::cout << "Starting Unix socket server on: " << socket_path << std::endl;
+      
+      // Remove existing socket file if it exists
+      std::remove(socket_path.c_str());
+      
+      unix_rocksdb_server server(stream_protocol::endpoint(socket_path), args[3]);
+      io_context.run();
+    }
+    else {
+      std::cerr << "Usage:\n";
+      std::cerr << "  TCP mode: ./rocksdb_server <port> <db_path>\n";
+      std::cerr << "  Unix socket mode: ./rocksdb_server --unix <socket_path> <db_path>\n";
+      return 1;
+    }
   } catch (std::exception& e) {
     std::cerr << "Exception in Rocksdb server: " << e.what() << std::endl;
     return 1;

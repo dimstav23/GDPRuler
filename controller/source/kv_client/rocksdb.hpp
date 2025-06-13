@@ -1,29 +1,25 @@
 #pragma once
 
 #include <vector>
+#include <variant>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
+#include <boost/asio/local/stream_protocol.hpp>
 
 #include "../rocksdb_server/message.hpp"
 #include "kv_client.hpp"
+
+using boost::asio::ip::tcp;
+using boost::asio::local::stream_protocol;
 
 class rocksdb_client : public kv_client
 {
 public:
   explicit rocksdb_client(const std::string& addr)
-      : m_socket(m_io_context)
+      : m_io_context()
+      , m_socket_variant(create_socket_and_connect(addr))
   {
-    std::vector<std::string> host_port_splits;
-    boost::split(host_port_splits, addr, boost::is_any_of(":"));
-    assert(host_port_splits.size() == 2 && "DB server address must be in <host>:<port> format!");
-
-    // Resolve the host and port to an endpoint
-    using boost::asio::ip::tcp;
-    tcp::resolver resolver(m_io_context);
-    tcp::resolver::results_type endpoints = resolver.resolve(host_port_splits[0], host_port_splits[1]);
-
-    boost::asio::connect(m_socket, endpoints);
   }
 
   auto get(std::string_view key) -> std::optional<std::string> override
@@ -108,7 +104,35 @@ public:
 
 private:
   boost::asio::io_context m_io_context;
-  boost::asio::ip::tcp::socket m_socket;
+  std::variant<tcp::socket, stream_protocol::socket> m_socket_variant;
+
+  auto create_socket_and_connect(const std::string& addr) -> std::variant<tcp::socket, stream_protocol::socket>
+  {
+    // Check if address starts with "unix://" or is a file path
+    if (addr.starts_with("unix://") || addr.starts_with("/") || addr.find(':') == std::string::npos) {
+      // Unix socket connection
+      std::string socket_path = addr;
+      if (socket_path.starts_with("unix://")) {
+        socket_path = socket_path.substr(7); // Remove "unix://" prefix
+      }
+      
+      stream_protocol::socket unix_socket(m_io_context);
+      unix_socket.connect(stream_protocol::endpoint(socket_path));
+      return std::move(unix_socket);
+    } else {
+      // TCP connection
+      std::vector<std::string> host_port_splits;
+      boost::split(host_port_splits, addr, boost::is_any_of(":"));
+      assert(host_port_splits.size() == 2 && "DB server address must be in <host>:<port> format!");
+
+      tcp::resolver resolver(m_io_context);
+      tcp::resolver::results_type endpoints = resolver.resolve(host_port_splits[0], host_port_splits[1]);
+      
+      tcp::socket tcp_socket(m_io_context);
+      boost::asio::connect(tcp_socket, endpoints);
+      return std::move(tcp_socket);
+    }
+  }
 
   auto execute(query_message query) -> response_message
   {
@@ -120,15 +144,22 @@ private:
     raw_query.insert(0, reinterpret_cast<const char*>(&message_size), sizeof(int));
 
     // Send query
-    boost::asio::write(m_socket, boost::asio::buffer(raw_query));
+    std::visit([&raw_query](auto& socket) {
+      boost::asio::write(socket, boost::asio::buffer(raw_query));
+    }, m_socket_variant);
 
     // Receive response size
     int response_size = 0;
-    boost::asio::read(m_socket, boost::asio::buffer(&response_size, sizeof(int)));
+    std::visit([&response_size](auto& socket) {
+      boost::asio::read(socket, boost::asio::buffer(&response_size, sizeof(int)));
+    }, m_socket_variant);
 
     // Receive response
     std::vector<char> response_buffer(static_cast<size_t>(response_size));
-    boost::asio::read(m_socket, boost::asio::buffer(response_buffer));
+    std::visit([&response_buffer](auto& socket) {
+      boost::asio::read(socket, boost::asio::buffer(response_buffer));
+    }, m_socket_variant);
+
     std::string raw_response(response_buffer.begin(), response_buffer.end());
     return response_message::deserialize(raw_response);
   }
