@@ -91,15 +91,15 @@ if [[ ! -f ${THIS_DIR}/${CLOUD_IMG} ]] ; then
 fi
 
 # Set-up the controller VM
-echo "[1/5] Setting up the controller VM files"
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH ${QEMU_IMG_BIN} convert ${THIS_DIR}/${CLOUD_IMG} ${IMAGES_DIR}/controller.img
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH ${QEMU_IMG_BIN} resize ${IMAGES_DIR}/controller.img +20G
-mkdir -p ${OVMF_FILES_DIR}/controller
-cp ${OVMF} ${OVMF_FILES_DIR}/controller/OVMF.fd
-cp ${OVMF_CODE} ${OVMF_FILES_DIR}/controller/OVMF_CODE.fd
-cp ${OVMF_VARS} ${OVMF_FILES_DIR}/controller/OVMF_VARS.fd
-echo "[2/5] Installing software in the controller VM image -- to be used as a base"
-virt-customize --add ${IMAGES_DIR}/controller.img \
+echo "[1/3] Setting up the controller VM files"
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH ${QEMU_IMG_BIN} convert ${THIS_DIR}/${CLOUD_IMG} ${IMAGES_DIR}/gdpr.img
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH ${QEMU_IMG_BIN} resize ${IMAGES_DIR}/gdpr.img +20G
+mkdir -p ${OVMF_FILES_DIR}/gdpr
+cp ${OVMF} ${OVMF_FILES_DIR}/gdpr/OVMF.fd
+cp ${OVMF_CODE} ${OVMF_FILES_DIR}/gdpr/OVMF_CODE.fd
+cp ${OVMF_VARS} ${OVMF_FILES_DIR}/gdpr/OVMF_VARS.fd
+echo "[2/3] Installing software in the controller VM image -- to be used as a base"
+virt-customize --add ${IMAGES_DIR}/gdpr.img \
   --root-password password:123456 \
   --edit '/etc/ssh/sshd_config:s/#PermitRootLogin prohibit-password/PermitRootLogin yes/' \
   --edit '/etc/ssh/sshd_config:s/PasswordAuthentication no/PasswordAuthentication yes/' \
@@ -112,29 +112,12 @@ virt-customize --add ${IMAGES_DIR}/controller.img \
   --memsize 16384 \
   --run-command /root/setup_vm.sh
 
-# Set-up the server VM
-echo "[3/5] Setting up the server VM files"
-mkdir -p ${OVMF_FILES_DIR}/server
-cp ${OVMF} ${OVMF_FILES_DIR}/server/OVMF.fd
-cp ${OVMF_CODE} ${OVMF_FILES_DIR}/server/OVMF_CODE.fd
-cp ${OVMF_VARS} ${OVMF_FILES_DIR}/server/OVMF_VARS.fd
-cp ${IMAGES_DIR}/controller.img ${IMAGES_DIR}/server.img
-
 # Import the network config for the controller in the VM image
 # note: Enable idle polling (idle=poll) and Update the GRUB configuration
-echo "[4/5] Setting up the controller network configuration and copying ssh key"
-bash ${THIS_DIR}/prepare_net_cfg.sh -br ${BRIDGE_NAME} -cfg ${THIS_DIR}/network_configs/netplan-controller.yaml
-virt-customize --add ${IMAGES_DIR}/controller.img \
-  --copy-in ${THIS_DIR}/network_configs/netplan-controller.yaml:/etc/netplan/ \
+echo "[3/3] Setting up the controller network configuration and copying ssh key"
+bash ${THIS_DIR}/prepare_net_cfg.sh -br ${BRIDGE_NAME} -cfg ${THIS_DIR}/network_configs/netplan-gdpr.yaml
+virt-customize --add ${IMAGES_DIR}/gdpr.img \
+  --copy-in ${THIS_DIR}/network_configs/netplan-gdpr.yaml:/etc/netplan/ \
   --ssh-inject root:file:/home/$(whoami)/.ssh/id_rsa.pub \
   --run-command "echo 'GRUB_CMDLINE_LINUX_DEFAULT=\"\$GRUB_CMDLINE_LINUX_DEFAULT idle=poll\"' >> /etc/default/grub.d/50-cloudimg-settings.cfg" \
   --run-command "update-grub"
-
-# Import the network config for the server in the VM image
-echo "[5/5] Setting up the server network configuration"
-bash ${THIS_DIR}/prepare_net_cfg.sh -br ${BRIDGE_NAME} -cfg ${THIS_DIR}/network_configs/netplan-server.yaml
-virt-customize --add ${IMAGES_DIR}/server.img \
-  --copy-in ${THIS_DIR}/network_configs/netplan-server.yaml:/etc/netplan/ \
-  --ssh-inject root:file:/home/$(whoami)/.ssh/id_rsa.pub
-  # --run-command "echo 'GRUB_CMDLINE_LINUX_DEFAULT=\"\$GRUB_CMDLINE_LINUX_DEFAULT idle=poll\"' >> /etc/default/grub.d/50-cloudimg-settings.cfg" \
-  # --run-command "update-grub"
