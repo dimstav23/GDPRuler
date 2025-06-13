@@ -555,7 +555,7 @@ run_native_ctl_experiment() {
     controller_path="$project_root/scripts/GDPRuler.py"
     run_gdpr_native $controller_path $controller_address $controller_port \
     $db $db_dump_and_logs_dir ${tmp_dir}/controller.txt
-  elif [[ $controller == "native" ]]; then
+  elif [[ $controller == "passthrough" ]]; then
     controller_path="$project_root/scripts/passthrough.py"
     run_passthrough_native $controller_path $controller_address $controller_port \
     $db ${tmp_dir}/controller.txt
@@ -630,10 +630,10 @@ run_CVM_direct_experiment() {
 
   if [ -z $avg_latency ]; then
     # Case of a failed test
-    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
+    failed_tests="$failed_tests $workload,controller=direct,$db,clients=$n_clients"
   else
     # Write the total elapsed time for all the threads and the average latency
-    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
+    echo -e "$workload,direct,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
   fi
 }
 
@@ -687,10 +687,10 @@ run_CVM_passthrough_experiment() {
 
   if [ -z $avg_latency ]; then
     # Case of a failed test
-    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
+    failed_tests="$failed_tests $workload,controller=passthrough,$db,clients=$n_clients"
   else
     # Write the total elapsed time for all the threads and the average latency
-    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
+    echo -e "$workload,passthrough,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
   fi
 }
 
@@ -744,9 +744,9 @@ run_CVM_gdpr_experiment() {
 
   if [ -z $avg_latency ]; then
     # Case of a failed test
-    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
+    failed_tests="$failed_tests $workload,controller=gdpr,$db,clients=$n_clients"
   else
     # Write the total elapsed time for all the threads and the average latency
-    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
+    echo -e "$workload,gdpr,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
   fi
 }

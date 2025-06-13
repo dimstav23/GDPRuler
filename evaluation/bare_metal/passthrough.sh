@@ -14,7 +14,7 @@ parse_args_and_checks "$@"
 
 # Native controller
 results_csv_file=${script_dir}/results/passthrough_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging.csv
-controller="native"
+controller="passthrough"
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
