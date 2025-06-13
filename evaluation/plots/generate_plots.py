@@ -12,16 +12,16 @@ workload_size = {
 }
 
 variant_mapping = {
-    "direct": "Direct client/server",
-    "passthrough": "Native passthrough proxy",
-    "gdpr_ctl": "Native GDPRuler",
-    "passthrough_self_hosted": "CVM passthrough proxy - bare-metal DB",
-    "gdpr_self_hosted": "GDPRuler - bare-metal DB",
-    "gdpr_cloud_hosted": "GDPRuler - VM DB",
-    "gdpr_confidential_cloud_hosted": "GDPRuler - Confidential DB"
+    "direct_bare_metal"     : "Native",
+    "passthrough_bare_metal": "Native passthrough",
+    "gdpr_bare_metal"       : "Native GDPRuler",
+    "direct_CVM"            : "CVM",
+    "passthrough_CVM"       : "CVM passthrough",
+    "gdpr_CVM"              : "CVM GDPRuler",
 }
 
-variant_order = ["direct", "passthrough", "gdpr_ctl", "passthrough_self_hosted", "gdpr_self_hosted", "gdpr_cloud_hosted", "gdpr_confidential_cloud_hosted"]
+variant_order = ["direct_bare_metal", "passthrough_bare_metal", "gdpr_bare_metal",
+                 "direct_CVM", "passthrough_CVM", "gdpr_CVM"]
 
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
