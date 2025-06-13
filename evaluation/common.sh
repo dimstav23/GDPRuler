@@ -45,16 +45,25 @@ function run_rocksdb() {
   local log_dir="$3"
   local output_file="$4"
 
-  # Run the rocksDB server
   if [ ! -f $rocksdb_server_bin ]; then
     echo "Rocksdb server not found. Please compile the rocksdb server available with the controller."
     exit
   fi
-  echo "Starting rocksdb server"
-  # run rocksdb server
-  $NODE_BIND $rocksdb_server_bin $port $log_dir > $output_file &
-  # wait for the server to be initialized and listen to connections
-  wait_for_tcp_activation "localhost" $port 
+
+  # Run the rocksDB server
+  if [[ $port == "0" ]]; then
+    # if port is set to 0, use a Unix socket
+    echo "Starting rocksdb server: $NODE_BIND $rocksdb_server_bin --unix $rocksdb_socket $log_dir > $output_file"
+    $NODE_BIND $rocksdb_server_bin --unix $rocksdb_socket $log_dir > $output_file &
+    # wait for the server to be initialized and listen to connections
+    wait_for_unix_socket_activation $rocksdb_socket
+  else
+    # else use the default address
+    echo "Starting rocksdb server: $NODE_BIND $rocksdb_server_bin $port $log_dir > $output_file"
+    $NODE_BIND $rocksdb_server_bin $port $log_dir > $output_file &
+    # wait for the server to be initialized and listen to connections
+    wait_for_tcp_activation "localhost" $port
+  fi
 }
 
 # Function to run RocksDB server in a specified environment
@@ -69,16 +78,11 @@ function run_rocksdb_CVM() {
   local log_dir="$3"
   local output_file="$4"
 
-  # Run the rocksDB server
-  if [ ! -f $rocksdb_server_bin ]; then
-    echo "Rocksdb server not found. Please compile the rocksdb server available with the controller."
-    exit
-  fi
-  echo "Starting rocksdb server"
-  # run rocksdb server
-  $NODE_BIND $rocksdb_server_bin $port $log_dir > $output_file &
-  # wait for the server to be initialized and listen to connections
-  wait_for_tcp_activation "localhost" $port 
+  echo "Starting the rocksdb server in a CVM"
+  echo $(pwd)
+  expect $server_expect_script "rocksdb" $VM_cores $VM_memory $port $log_dir $output_file &
+
+  wait_for_tcp_activation $db_address $port
 }
 
 # Function to run bare-metal Redis server
@@ -128,7 +132,7 @@ function run_redis_CVM() {
 
   echo "Starting the redis server in a CVM"
   echo $(pwd)
-  expect $server_expect_script $db $VM_cores $VM_memory $port $log_dir $output_file &
+  expect $server_expect_script "redis" $VM_cores $VM_memory $port $log_dir $output_file &
 
   wait_for_tcp_activation $db_address $port
 }
@@ -177,7 +181,7 @@ function run_gdpr_CVM() {
   local db_address="$4"
   local log_path="$5"
   local ctl_output_file="$6"
-  local server_output_file="$6"
+  local server_output_file="$7"
 
   echo "Starting the GDPR controller in a CVM"
   echo $(pwd)
@@ -228,7 +232,7 @@ function run_passthrough_CVM() {
   local db_address="$4"
   local log_path="$5"
   local ctl_output_file="$6"
-  local server_output_file="$6"
+  local server_output_file="$7"
 
   echo "Starting the passthrough controller in a CVM"
   echo $(pwd)
@@ -359,20 +363,13 @@ wait_for_tcp_shutdown() {
 # Function to wait for a Unix socket shutdown
 # Args:
 #   1: Socket path   (path to Unix socket file)
-wait_for_unix_socket_shutdown() {
+remove_unix_sockets() {
   local socket_path="$1"
-  local max_attempts=60
-  
-  for ((attempt=1; attempt<=$max_attempts; attempt++)); do
-    if [ ! -S "$socket_path" ]; then
-      return
-    else
-      sleep 1
-    fi
-  done
-
-  echo "Timeout: $socket_path did not become inactive within $max_attempts seconds."
-  exit 1
+  if [ -S "$socket_path" ]; then
+    echo "Removing Unix socket: $socket_path"
+    rm -f "$socket_path"
+  fi
+  return
 }
 
 # Function to prepare experiment directories and result file
@@ -421,11 +418,13 @@ cleanup() {
   kill $(pgrep -f redis-server) 2>/dev/null || true
 
   # Wait for ports to become inactive
-  echo "Waiting for ports and/or unix sockets to become inactive"
+  echo "Waiting for ports to become inactive"
   wait_for_tcp_shutdown "$controller_address" "$controller_port"
   wait_for_tcp_shutdown "${db_address#tcp://}" "$db_port"
-  wait_for_unix_socket_shutdown "/tmp/redis.sock"
-  wait_for_unix_socket_shutdown "/tmp/rocksdb.sock"
+
+  # Removing unix sockets if they exist
+  remove_unix_sockets "/tmp/redis.sock"
+  remove_unix_sockets "/tmp/rocksdb.sock"
 
   # Remove all potentially generated files
   echo "Cleaning up files"
@@ -616,10 +615,10 @@ run_CVM_direct_experiment() {
   run_direct_client $client_path $db $db_address_formatted $workload $n_clients ${tmp_dir}/clients.txt
   status=$?
   if [ $status -ne 0 ]; then
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
+    echo "Client(s) with the following config \"${workload},${db},direct,${n_clients}\" exited with non-zero status code: $?" >&2
     exit 1
   else
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" finished successfully. Output:"
+    echo "Client(s) with the following config \"${workload},${db},direct,${n_clients}\" finished successfully. Output:"
     # Direct client output to stdout for better observability
     cat ${tmp_dir}/clients.txt
     # Retrieve the client results from the temp files

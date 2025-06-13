@@ -66,7 +66,7 @@ expect -- "# "
 # Start the appropriate DB server in background
 if { $db_type == "rocksdb" } {
   # Run rocksdb server with Unix socket (assuming it supports --socket parameter)
-  send -- "$rocksdb_server_bin --socket $db_socket_path $log_dir > $server_output_file 2>&1 &\r"
+  send -- "$rocksdb_server_bin --unix $db_socket_path $log_dir > $server_output_file 2>&1 &\r"
   expect -- "# "
 } elseif { $db_type == "redis" } {
   # Run redis server with Unix socket
