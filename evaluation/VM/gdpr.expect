@@ -22,8 +22,6 @@ set log_dir [lindex $argv 6];
 set server_output_file [lindex $argv 7];
 # indicates the controller output file path
 set controller_output_file [lindex $argv 8];
-# indicates the gdpr log path
-# set gdpr_log_path [lindex $argv 9];
 
 # Set the server executables
 set rocksdb_server_bin /root/GDPRuler/controller/build/rocksdb_server
