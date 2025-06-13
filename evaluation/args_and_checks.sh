@@ -34,8 +34,9 @@ parse_args_and_checks() {
               ;;
           esac
         else
-            echo "Value for --encryption is missing. Please provide 'ON' or 'OFF'."
-            exit 1
+            echo "Value for --encryption is missing. Using default: 'OFF'."
+            encryption="OFF"
+            shift
         fi
         ;;
       --logging)
@@ -56,8 +57,9 @@ parse_args_and_checks() {
               ;;
           esac
         else
-            echo "Value for --logging is missing. Please provide 'ON' or 'OFF'."
-            exit 1
+            echo "Value for --logging is missing. Using default: 'OFF'."
+            logging="OFF"
+            shift
         fi
         ;;
       *)

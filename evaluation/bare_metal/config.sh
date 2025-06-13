@@ -1,7 +1,7 @@
 # Variables for the end-to-end test configuration
 
 # Variables for Direct client-server communication natively
-direct_redis_address="tcp://127.0.0.1"
+direct_redis_address="127.0.0.1"
 direct_redis_port=6379
 direct_rocksdb_address="127.0.0.1"
 direct_rocksdb_port=15001
