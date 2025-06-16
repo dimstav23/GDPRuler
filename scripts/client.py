@@ -183,7 +183,7 @@ def main():
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
-  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=64, type=int)
+  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=1024, type=int)
   parser.add_argument('--breakdown', help='Enable breakdown measurements', action='store_true')
   args = parser.parse_args()
 
