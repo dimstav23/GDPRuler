@@ -27,6 +27,7 @@ public:
   /* Create kv_client object with given kv_backend and address. */
   static auto create(const std::string& kv_backend, std::string address) -> std::unique_ptr<kv_client> {
     if (address.empty()) {
+      // will never happen in the automation, but useful for testing
       address = get_default_address(kv_backend);
     }
 

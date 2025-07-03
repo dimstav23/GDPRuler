@@ -9,7 +9,7 @@ class redis_client : public kv_client
   sw::redis::Redis m_redis;
 
 public:
-  explicit redis_client(const std::string& addr)
+  explicit redis_client(const std::string& addr = "unix:///tmp/redis.sock") // use default Unix socket path
       : m_redis(addr)
   {
   }

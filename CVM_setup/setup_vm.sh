@@ -46,9 +46,9 @@ else
   # Optional command to test the success of the installation
   # make test
 
-  # Compile the controller (release version)
+  # Compile the controllers (release version)
   cd /root/GDPRuler/controller
-  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF
+  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=OFF -D ASAN_ENABLED=OFF
   cmake --build build -j$(nproc)
 
   # Optional -- workload generation

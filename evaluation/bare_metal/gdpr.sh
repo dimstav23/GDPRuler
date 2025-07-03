@@ -31,33 +31,36 @@ function prepare_configs() {
 # Call the parse_args function with your command-line arguments
 parse_args_and_checks "$@"
 
-# compile the controller in the CVM with the appropriate encryption option
-virt-customize --add ${images_dir}/controller.img --smp $(nproc) --memsize 16384 \
-  --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
-
 # GDPR controller
-results_csv_file=${script_dir}/results/gdpr_confidential_cloud_hosted-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/gdpr_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 controller="gdpr"
-server_type="CVM"
 for n_clients in $clients; do
   # prepare the client configs
   prepare_configs $n_clients
-  # copy the configs in the controller image
-  virt-customize --add ${images_dir}/controller.img --copy-in ${script_dir}/../configs:/root
   # set the client config file appropriately
   client_cfg=$script_dir/../configs/
   for db in $dbs; do
     for workload in $workloads; do
       if [[ $db == "rocksdb" ]]; then
-        db_port=$rocksdb_port
-        db_address=$rocksdb_address
+        if [[ $server_connection == "TCP" ]]; then
+          db_port=$direct_rocksdb_port
+          db_address=$direct_rocksdb_address
+        elif [[ $server_connection == "UNIX" ]]; then
+          db_port=$ctl_rocksdb_port
+          db_address=$ctl_rocksdb_address
+        fi
       elif [[ $db == "redis" ]]; then
-        db_port=$redis_port
-        db_address=$redis_address
+        if [[ $server_connection == "TCP" ]]; then
+          db_port=$direct_redis_port
+          db_address=$direct_redis_address
+        elif [[ $server_connection == "UNIX" ]]; then
+          db_port=$ctl_redis_port
+          db_address=$ctl_redis_address
+        fi
       fi
-      echo "Starting a confidential cloud hosted scenario run with $n_clients clients, $db store, $controller controller, $workload and logging set to $logging"
-      run_VM_gdpr_ctl_experiment $server_type $n_clients $workload $db $db_address $db_port \
-      $controller_address $controller_port $client_cfg $results_csv_file
+      echo "Starting a run with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging, and server connection set to $server_connection"
+      run_experiment native_ctl $n_clients $workload $db $db_address $db_port \
+        $results_csv_file $controller $controller_address $controller_port $client_cfg
       echo ""
     done
   done

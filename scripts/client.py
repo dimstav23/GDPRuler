@@ -57,6 +57,7 @@ def get_workload_options():
   return [os.path.basename(f).replace('_run', '') for f in workload_files]
 
 def load_workload(server_address, server_port, workload_name, value_size, config_path):
+  """Load workload phase - start server and run load queries"""
   load_file = os.path.join(workload_trace_dir, f"{workload_name}_load")
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect((server_address, server_port))
@@ -150,7 +151,7 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
       response_size_data = safe_receive(client_socket, msg_header_size)
       response_size = int.from_bytes(response_size_data, 'big')
       response = safe_receive(client_socket, response_size)
-
+      
     end_time = time.perf_counter() # End the timer
     # Calculate and accumulate the latency
     latency = end_time - start_time
@@ -162,7 +163,7 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
   client_socket.sendall(exit_msg_size + exit_query.encode())
   # Close the connection
   client_socket.close()
-
+  
   # Save the average latency
   if request_count > 0:
     average_latency = total_latency / request_count
@@ -183,7 +184,7 @@ def main():
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
-  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=64, type=int)
+  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=1024, type=int)
   parser.add_argument('--breakdown', help='Enable breakdown measurements', action='store_true')
   args = parser.parse_args()
 
@@ -211,8 +212,6 @@ def main():
   for i, client_queries in enumerate(queries_per_client):
     process = create_client_process(args.address, args.port, client_queries, latency_results, time_breakdowns, args.config, i, args.breakdown)
     processes.append(process)
-
-  start_time = time.perf_counter()
 
   # Wait for all client processes to finish
   for process in processes:
