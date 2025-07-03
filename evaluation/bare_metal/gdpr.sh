@@ -32,7 +32,7 @@ function prepare_configs() {
 parse_args_and_checks "$@"
 
 # GDPR controller
-results_csv_file=${script_dir}/results/gdpr_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/gdpr_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 controller="gdpr"
 for n_clients in $clients; do
   # prepare the client configs
@@ -42,13 +42,23 @@ for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do
       if [[ $db == "rocksdb" ]]; then
-        db_port=$ctl_rocksdb_port
-        db_address=$ctl_rocksdb_address
+        if [[ $server_connection == "TCP" ]]; then
+          db_port=$direct_rocksdb_port
+          db_address=$direct_rocksdb_address
+        elif [[ $server_connection == "UNIX" ]]; then
+          db_port=$ctl_rocksdb_port
+          db_address=$ctl_rocksdb_address
+        fi
       elif [[ $db == "redis" ]]; then
-        db_port=$ctl_redis_port
-        db_address=$ctl_redis_address
+        if [[ $server_connection == "TCP" ]]; then
+          db_port=$direct_redis_port
+          db_address=$direct_redis_address
+        elif [[ $server_connection == "UNIX" ]]; then
+          db_port=$ctl_redis_port
+          db_address=$ctl_redis_address
+        fi
       fi
-      echo "Starting a run with $n_clients clients, $db store, $controller controller, $workload and logging set to $logging"
+      echo "Starting a run with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging, and server connection set to $server_connection"
       run_native_ctl_experiment $n_clients $workload $db $db_address $db_port \
       $controller $controller_address $controller_port $client_cfg $results_csv_file
       echo ""

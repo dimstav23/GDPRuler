@@ -62,8 +62,31 @@ parse_args_and_checks() {
             shift
         fi
         ;;
+      --server_connection)
+        # Check if the next argument is provided
+        if [ $# -gt 1 ]; then
+          case "$2" in
+            TCP)
+              server_connection="TCP"
+              shift
+              ;;
+            UNIX)
+              server_connection="UNIX"
+              shift
+              ;;
+            *)
+              echo "Invalid value for --server_connection. Please use 'TCP' or 'UNIX'."
+              exit 1
+              ;;
+          esac
+        else
+            echo "Value for --server_connection is missing. Using default: 'TCP'."
+            server_connection="TCP"
+            shift
+        fi
+        ;;
       *)
-        echo "Invalid option: $1. Usage: $0 --encryption [ON|OFF] --logging [ON|OFF]"
+        echo "Invalid option: $1. Usage: $0 --encryption [ON|OFF] --logging [ON|OFF] --server_connection [TCP|UNIX]"
         exit 1
         ;;
     esac

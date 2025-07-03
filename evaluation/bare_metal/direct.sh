@@ -12,8 +12,13 @@ source $script_dir/../args_and_checks.sh
 # Call the parse_args function with your command-line arguments
 parse_args_and_checks "$@"
 
+if [[ "$server_connection" != "TCP" ]]; then
+  echo "Error: server_connection must be 'TCP' for the direct, bare metal experiment"
+  exit 1
+fi
+
 # Direct client-server communication natively
-results_csv_file=${script_dir}/results/direct_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/direct_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do

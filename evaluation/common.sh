@@ -143,23 +143,30 @@ function run_redis_CVM() {
 #   2: controller_address (address for the controller)
 #   3: controller_port    (port for the controller)
 #   4: db                 (database type)
-#   5: config             (configuration file)
-#   6: log_path           (directory for logs)
-#   7: output_file        (temporary output file)
+#   5: db_address         (database address and port)
+#   6: config             (configuration file)
+#   7: log_path           (directory for logs)
+#   8: output_file        (temporary output file)
 function run_gdpr_native() {
   local controller="$1"
   local controller_address="$2"
   local controller_port="$3"
   local db="$4"
-  local log_path="$5"
-  local output_file="$6"
+  local db_address="$5"
+  local log_path="$6"
+  local output_file="$7"
 
   if [ ! -f $controller ]; then
     echo "Controller not found in $controller. Exiting..."
     exit
   fi
-  ctl="$controller --db $db --logpath $log_path --controller_address $controller_address --controller_port $controller_port"
-
+  
+  if [[ $server_connection == "UNIX" ]]; then
+    ctl="$controller --db $db --logpath $log_path --controller_address $controller_address --controller_port $controller_port"
+  else
+    ctl="$controller --db $db --logpath $log_path --controller_address $controller_address --controller_port $controller_port --db_address $db_address"
+  fi
+  
   echo "Starting the GDPR controller: $NODE_BIND python3 $ctl > $output_file"
   $NODE_BIND python3 $ctl > $output_file &
   wait_for_tcp_activation "localhost" $controller_port
@@ -197,19 +204,26 @@ function run_gdpr_CVM() {
 #   2: controller_address (address for the controller)
 #   3: controller_port    (port for the controller)
 #   4: db                 (database type)
-#   5: output_file        (temporary output file)
+#   5: db_address         (database address and port)
+#   6: output_file        (temporary output file)
 function run_passthrough_native() {
   local controller="$1"
   local controller_address="$2"
   local controller_port="$3"
   local db="$4"
-  local output_file="$5"
+  local db_address="$5"
+  local output_file="$6"
 
   if [ ! -f $controller ]; then
     echo "Controller not found in $controller. Exiting..."
     exit
   fi
-  ctl="$controller --db $db --controller_address $controller_address --controller_port $controller_port"
+  
+  if [[ $server_connection == "UNIX" ]]; then
+    ctl="$controller --db $db --controller_address $controller_address --controller_port $controller_port"
+  else
+    ctl="$controller --db $db --controller_address $controller_address --controller_port $controller_port --db_address $db_address"
+  fi
 
   echo "Starting the native controller: $NODE_BIND python3 $ctl > $output_file"
   $NODE_BIND python3 $ctl > $output_file &
@@ -541,12 +555,15 @@ run_native_ctl_experiment() {
   local config="$9"
   local results_csv_file="${10}"
 
+  local db_address_formatted="${db_address}:${db_port}"
+
   prepare_experiment $results_csv_file
 
   # Run the db server
   if [[ $db == "rocksdb" ]]; then
     run_rocksdb "" $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
   elif [[ $db == "redis" ]]; then
+    db_address_formatted="tcp://${db_address_formatted}"
     run_redis "" $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
   fi
 
@@ -554,11 +571,11 @@ run_native_ctl_experiment() {
   if [[ $controller == "gdpr" ]]; then
     controller_path="$project_root/scripts/GDPRuler.py"
     run_gdpr_native $controller_path $controller_address $controller_port \
-    $db $db_dump_and_logs_dir ${tmp_dir}/controller.txt
+    $db $db_address_formatted $db_dump_and_logs_dir ${tmp_dir}/controller.txt
   elif [[ $controller == "passthrough" ]]; then
     controller_path="$project_root/scripts/passthrough.py"
     run_passthrough_native $controller_path $controller_address $controller_port \
-    $db ${tmp_dir}/controller.txt
+    $db $db_address_formatted ${tmp_dir}/controller.txt
   fi
 
   # Run the client and gather the results

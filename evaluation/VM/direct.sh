@@ -12,12 +12,17 @@ source $script_dir/../args_and_checks.sh
 # Call the parse_args function with your command-line arguments
 parse_args_and_checks "$@"
 
+if [[ "$server_connection" != "TCP" ]]; then
+  echo "Error: server_connection must be 'TCP' for the direct, VM experiment"
+  exit 1
+fi
+
 # compile the controller in the CVM with the appropriate encryption option
 virt-customize --add ${images_dir}/gdpr.img --smp $(nproc) --memsize 16384 \
   --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
 
 # GDPR controller
-results_csv_file=${script_dir}/results/direct_CVM-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging.csv
+results_csv_file=${script_dir}/results/direct_CVM-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 for n_clients in $clients; do
   # copy the configs in the controller image
   virt-customize --add ${images_dir}/gdpr.img --copy-in ${script_dir}/../configs:/root
