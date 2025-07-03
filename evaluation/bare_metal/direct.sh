@@ -30,7 +30,7 @@ for n_clients in $clients; do
         db_address=$direct_redis_address
       fi
       echo "Starting a run with $n_clients clients, $db store, direct connection, and $workload."
-      run_native_direct_experiment $n_clients $workload $db $db_address $db_port $results_csv_file
+      run_experiment native_direct $n_clients $workload $db $db_address $db_port $results_csv_file
       echo ""
     done
   done

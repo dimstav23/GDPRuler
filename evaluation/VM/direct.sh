@@ -36,7 +36,7 @@ for n_clients in $clients; do
         db_address=$direct_redis_address
       fi
       echo "Starting a direct CVM scenario run with $n_clients clients, $db store and $workload"
-      run_CVM_direct_experiment $n_clients $workload $db $db_address $db_port $results_csv_file
+      run_experiment CVM_direct $n_clients $workload $db $db_address $db_port $results_csv_file
       echo ""
     done
   done

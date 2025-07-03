@@ -59,8 +59,8 @@ for n_clients in $clients; do
         fi
       fi
       echo "Starting a run with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging, and server connection set to $server_connection"
-      run_native_ctl_experiment $n_clients $workload $db $db_address $db_port \
-      $controller $controller_address $controller_port $client_cfg $results_csv_file
+      run_experiment native_ctl $n_clients $workload $db $db_address $db_port \
+        $results_csv_file $controller $controller_address $controller_port $client_cfg
       echo ""
     done
   done

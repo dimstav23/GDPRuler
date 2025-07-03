@@ -59,8 +59,8 @@ for n_clients in $clients; do
         db_address=$ctl_redis_address
       fi
       echo "Starting a gdpr CVM scenario run with $n_clients clients, $db store, gdpr controller, $workload, logging set to $logging, and server connection set to $server_connection"
-      run_CVM_gdpr_experiment $n_clients $workload $db $db_address $db_port \
-      $controller_address $controller_port $client_cfg $results_csv_file
+      run_experiment CVM_gdpr $n_clients $workload $db $db_address $db_port \
+        $results_csv_file $controller_address $controller_port $client_cfg
       echo ""
     done
   done
