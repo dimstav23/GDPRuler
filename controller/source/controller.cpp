@@ -32,7 +32,7 @@ using controller::gdpr_regulator;
 
 #ifdef METADATA_CACHE
 // Define the cache size (in keys)
-static constexpr size_t GDPR_METADATA_CACHE_SIZE = 10000;
+static constexpr size_t GDPR_METADATA_CACHE_SIZE = (1 << 16); // 65536 cached keys / 1024 per shard
 static auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
 #endif
 
@@ -72,6 +72,12 @@ auto receive_policy(int socket) -> std::optional<default_policy>
   return default_policy(client_policy);
 }
 
+// Possible cases:
+// 1. Key does not exist in cache or DB            (cache miss + DB miss) -> {monitor, ""}, is_valid = false
+// 2. Key is in cache, but validation fails        (cache hit, no DB lookup) -> {monitor, std::nullopt}, is_valid = false
+// 3. Key is in cache, validation succeeds         (cache hit, no DB lookup) -> {monitor, std::nullopt}, is_valid = true
+// 4. Key is not in cache, found in DB, invalid    (cache miss + DB hit) -> {monitor, res}, is_valid = false
+// 5. Key is not in cache, found in DB, valid      (cache miss + DB hit) -> {monitor, res}, is_valid = true
 auto filter_and_monitor(const std::unique_ptr<kv_client>& client,
   const query& query_args,
   const default_policy& def_policy,
@@ -85,23 +91,17 @@ auto filter_and_monitor(const std::unique_ptr<kv_client>& client,
     auto filter = std::make_shared<gdpr_filter>(*cached_metadata);
     is_valid = filter->validate(query_args, def_policy);
     auto monitor = gdpr_monitor(filter, query_args, def_policy);
-    return {monitor, std::nullopt};
+    return {monitor, std::nullopt};  // Cache hit, no DB data returned
   }
   #endif
 
-  // Fetch data from client if not in cache or cache is disabled
+  // Fetch data from client if not in cache
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
   is_valid = filter->validate(query_args, def_policy);
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
   return {monitor, res};
-
-// Possible cases:
-// 1. Key does not exist in cache or DB            (cache miss + DB miss) -> {monitor, ""}, is_valid = false
-// 2. Key is in cache, but validation fails        (cache hit, no DB lookup) -> {monitor, std::nullopt}, is_valid = false
-// 3. Key is in cache, validation succeeds         (cache hit, no DB lookup) -> {monitor, std::nullopt}, is_valid = true
-// 4. Key is not in cache, found in DB, invalid    (cache miss + DB hit) -> {monitor, res}, is_valid = false
-// 5. Key is not in cache, found in DB, valid      (cache miss + DB hit) -> {monitor, res}, is_valid = true
+  
 }
 
 // Helper function to update cache with new metadata
@@ -124,17 +124,16 @@ auto handle_get(const std::unique_ptr<kv_client>& client,
                 const query& query_args,
                 const default_policy& def_policy) -> std::string
 {
-  bool query_is_valid;
-  // Get monitor, and optionally fetch data
-  auto [monitor, res] = filter_and_monitor(client, query_args, def_policy, query_is_valid);
-  // Log the operation (if needed)
-  monitor.monitor_query(query_is_valid);
+  // Always fetch from database as even in cache hit, we need to fetch the value
+  auto res = client->gdpr_get(query_args.key());
+  auto filter = std::make_shared<gdpr_filter>(res);
+  bool is_valid = filter->validate(query_args, def_policy);
+  
+  // Create monitor and log
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
+  monitor.monitor_query(is_valid);
 
-  if (query_is_valid) {
-    if (!res) {
-      // Fetch data in case of a cache hit
-      res = client->gdpr_get(query_args.key());
-    }
+  if (is_valid && res) {
     return controller::remove_gdpr_metadata(std::move(res.value()));
   }
 
@@ -146,9 +145,8 @@ auto handle_put(const std::unique_ptr<kv_client>& client,
                 const default_policy& def_policy) -> std::string
 {
   bool query_is_valid;
-  // Get monitor, and optionally fetch data
   auto [monitor, res] = filter_and_monitor(client, query_args, def_policy, query_is_valid);
-
+  
   if (!res) {
     // Handle new key insertion
     query_rewriter rewriter(query_args, def_policy, query_args.value());
@@ -156,8 +154,11 @@ auto handle_put(const std::unique_ptr<kv_client>& client,
     auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
     if (ret_val) {
-      // Update cache and return success
-      update_cache(query_args.key(), std::move(rewriter.new_value()));
+      #ifdef METADATA_CACHE
+      // Extract and cache metadata - move to avoid copy
+      std::string metadata = controller::preserve_only_gdpr_metadata(rewriter.new_value());
+      cache.cache_put(query_args.key(), std::move(metadata));
+      #endif
       return PUT_SUCCESS;
     }
   } else if (query_is_valid) {
@@ -167,8 +168,11 @@ auto handle_put(const std::unique_ptr<kv_client>& client,
     auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
 
     if (ret_val) {
-      // Update cache and return success
-      update_cache(query_args.key(), std::move(rewriter.new_value()));
+      #ifdef METADATA_CACHE
+      // Update cache with new metadata - move to avoid copy
+      std::string metadata = controller::preserve_only_gdpr_metadata(rewriter.new_value());
+      cache.cache_put(query_args.key(), std::move(metadata));
+      #endif
       return PUT_SUCCESS;
     }
   } else {
@@ -184,18 +188,18 @@ auto handle_delete(const std::unique_ptr<kv_client>& client,
                   const default_policy& def_policy) -> std::string
 {
   bool query_is_valid;
-  // Get monitor, and optionally fetch data
   auto [monitor, res] = filter_and_monitor(client, query_args, def_policy, query_is_valid);
 
   // Log the operation (if needed)
   monitor.monitor_query(query_is_valid);
 
   if (query_is_valid) {
-    // Perform deletion if valid
     auto ret_val = client->gdpr_del(query_args.key());
     if (ret_val) {
-      // Remove from cache and return success
-      remove_from_cache(query_args.key());
+      #ifdef METADATA_CACHE
+      // Remove from cache
+      cache.cache_remove(query_args.key());
+      #endif
       return DELETE_SUCCESS;
     }
   }
@@ -408,7 +412,12 @@ auto handle_connection
   #ifdef DEBUG
   std::cout << "Total query processing time: " << total_query_time.count() << " seconds\n";
   #endif
-
+  #ifdef CACHE_STATS
+  std::cout << "Cache size: " << cache.total_size() << "\n";
+  std::cout << "Cache hits: " << cache.cache_hits() << "\n";
+  std::cout << "Cache misses: " << cache.cache_misses() << "\n";
+  std::cout << "Cache hit rate: " << cache.cache_hit_rate() * 100 << "%\n";
+  #endif
   // Unmap the socket communication buffer
   munmap(buffer, max_msg_size);
   // Close the client socket

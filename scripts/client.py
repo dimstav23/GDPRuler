@@ -179,7 +179,7 @@ def create_client_process(server_address, server_port, queries, latency_results,
 
 def main():
   parser = argparse.ArgumentParser(description='Start a client.')
-  parser.add_argument('--config', help='Path to config file or directory containing client configs for the GDPR case. Leave empty for passthrough case', required=True, type=str)
+  parser.add_argument('--config', help='Path to config file or directory containing client configs for the GDPR case. Provide "no_cfg" for passthrough case', required=True, type=str)
   parser.add_argument('--workload', help='Name of the workload trace', required=True, type=str, choices=get_workload_options())
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)

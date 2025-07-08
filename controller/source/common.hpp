@@ -13,7 +13,7 @@ constexpr int s2ns = 1000000000;
 constexpr int s2ms = 1000;
 constexpr int ns_precision = 9;
 
-constexpr int max_msg_size = 4096;
+constexpr int max_msg_size = 8192;
 constexpr size_t msg_header_size = sizeof(uint32_t);
 
 // controller response codes
