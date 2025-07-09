@@ -141,7 +141,11 @@ auto gdpr_filter::validate_session_key(const std::optional<std::bitset<num_users
   std::bitset<num_users> user_key = query_user_key.value_or(def_user_key);
   // Check if the user that requests the data is the owner (likely)
   // or if the data is shared with the client-user
-  // return ((user_key == this->user_key()) ||  ((user_key & this->share()) != 0));
+  #ifdef DEBUG
+  std::cout << "Validating user key: " << user_key.to_string() << " with " << 
+      this->user_key().to_string() << " and " << this->share().to_string() << 
+      " with result " << (user_key & (this->user_key() | this->share())).to_string() << std::endl;
+  #endif
   return ((user_key & (this->user_key() | this->share())) == user_key);
 }
 

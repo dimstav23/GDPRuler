@@ -36,6 +36,7 @@ private:
   template<std::size_t N>
   auto bitmap_to_string(const std::bitset<N>& bitmap) const -> std::string {
     return std::to_string(bitmap.to_ullong());
+    //return bitmap.to_string(); // Convert to string and limit to byte size
   }
 };
 
