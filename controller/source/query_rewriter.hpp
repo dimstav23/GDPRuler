@@ -31,6 +31,12 @@ public:
 
 private:
   std::string m_new_value;
+
+  // Helper function to convert bitmap to string for serialization
+  template<std::size_t N>
+  auto bitmap_to_string(const std::bitset<N>& bitmap) const -> std::string {
+    return std::to_string(bitmap.to_ullong());
+  }
 };
 
 } // namespace controller

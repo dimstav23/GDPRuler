@@ -12,8 +12,9 @@
 
 namespace controller {
 
-constexpr int num_users = 64;
-constexpr int num_purposes = 64;
+constexpr int num_users = 128; // used for users and shared_with fields
+constexpr int num_purposes = 128; // used for purposes and objections
+constexpr int num_origins = 128; // used to map data origins sources
 constexpr int metadata_prefix_fields = 8;
 
 enum metadata_fields {
@@ -29,50 +30,84 @@ enum metadata_fields {
   max_gdpr_field_guard
 };
 
-// NOLINTBEGIN(cert-err58-cpp)
-static const std::unordered_map<std::string, std::size_t> pur_index = []() {
+// Generic template for creating index maps
+template<typename T>
+auto create_index_map(const std::string& prefix, std::size_t count) -> std::unordered_map<std::string, std::size_t> {
   std::unordered_map<std::string, std::size_t> temp;
-  for (std::size_t i = 0; i < num_purposes; i++) {
-    std::string value = "purpose" + std::to_string(i);
+  for (std::size_t i = 0; i < count; i++) {
+    std::string value = prefix + std::to_string(i);
     temp[value] = i;
   }
   return temp;
-}();
-// NOLINTEND(cert-err58-cpp)
+}
 
-/* return the mapping between purposes and indexes in bitmap*/
-auto inline get_pur() -> std::unordered_map<std::string, std::size_t>
-{
+// Create static maps for core metadata field types (usr/shr and pur/obj are correlated)
+// NOLINTBEGIN(cert-err58-cpp)
+static const std::unordered_map<std::string, std::size_t> pur_index = 
+  create_index_map<metadata_fields>("purpose", num_purposes);
+static const std::unordered_map<std::string, std::size_t> usr_index = 
+  create_index_map<metadata_fields>("user", num_users);
+static const std::unordered_map<std::string, std::size_t> org_index = 
+  create_index_map<metadata_fields>("origin", num_origins);
+
+// Generic getter functions
+template<metadata_fields Field>
+auto inline get_index_map() -> const std::unordered_map<std::string, std::size_t>&;
+
+template<>
+auto inline get_index_map<pur>() -> const std::unordered_map<std::string, std::size_t>& {
   return pur_index;
 }
 
+template<>
+auto inline get_index_map<obj>() -> const std::unordered_map<std::string, std::size_t>& {
+  return pur_index;
+}
+
+template<>
+auto inline get_index_map<usr>() -> const std::unordered_map<std::string, std::size_t>& {
+  return usr_index;
+}
+
+template<>
+auto inline get_index_map<shr>() -> const std::unordered_map<std::string, std::size_t>& {
+  return usr_index;
+}
+
+template<>
+auto inline get_index_map<org>() -> const std::unordered_map<std::string, std::size_t>& {
+  return org_index;
+}
+
+// Generic bitmap setter
 /* 
  *  takes as arguments a bitset and a vector of strings
- *  identifies the respective bit for each key based on the defined map of purposes
+ *  identifies the respective bit for each key based on the defined map of metadata fields
  *  and sets the appropriate bits
  */
-template<std::size_t N>
+template<std::size_t N, metadata_fields Field>
 auto inline set_bitmap(std::bitset<N> &bits, const std::vector<std::string> &bit_keys) -> void {
-  std::size_t index = 0;
+  const auto& index_map = get_index_map<Field>();
   for (const auto &bit_key : bit_keys) {
-    index = get_pur()[bit_key];
-    bits.set(index);
+    auto it = index_map.find(bit_key);
+    if (it != index_map.end()) {
+      bits.set(it->second);
+    }
   }
 }
 
+// Generic string generator
 /* 
  *  takes as arguments a bitset and
- *  identifies the respective set bits and, based on the defined map of purposes,
- *  returns a comma separated string with the appropriate set of purposes
+ *  identifies the respective set bits and, based on the defined map of metadata fields,
+ *  returns a comma separated string with the appropriate set of metadata fields
  */
-template<std::size_t N>
-auto inline get_purposes_string(std::bitset<N> &bits) -> std::string {
-  // Iterate over the bits and check each one
+template<std::size_t N, metadata_fields Field>
+auto inline get_field_string(const std::bitset<N> &bits, const std::string& prefix) -> std::string {
   std::stringstream res;
   for (size_t i = 0; i < bits.size(); i++) {
     if (bits.test(i)) {
-      // The i-th bit is set
-      res << "purpose" << i << ",";
+      res << prefix << i << ",";
     }
   }
   return res.str();

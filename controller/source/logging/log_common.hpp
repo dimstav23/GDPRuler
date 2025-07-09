@@ -112,27 +112,33 @@ inline auto gdpr_metadata_fmt(std::string_view value_str) -> std::string {
     std::string_view token = value_str.substr(start, end - start);
 
     switch (count) {
-      case usr: 
-        res.append("User/Owner: ").append(token).append(", ");
-        break;
+      case usr:
+        {
+          auto user_key = std::bitset<num_users>(std::stoull(std::string(token)));
+          res.append("User/Owner: ").append(get_field_string<num_users, usr>(user_key, "user")).append(", ");
+          break;
+        }
       case encr:
         res.append("Encryption enabled: ").append(token == "1" ? "true" : "false").append(", ");
         break;
       case pur:
         {
           auto purposes = std::bitset<num_purposes>(std::stoull(std::string(token)));
-          res.append("Purposes: ").append(get_purposes_string(purposes));
+          res.append("Purposes: ").append(get_field_string<num_purposes, pur>(purposes, "purpose")).append(", ");
           break;
         }
       case obj:
         {
           auto objections = std::bitset<num_purposes>(std::stoull(std::string(token)));
-          res.append("Objections: ").append(get_purposes_string(objections));
+          res.append("Objections: ").append(get_field_string<num_purposes, obj>(objections, "purpose")).append(", ");
           break;
         }
       case org:
-        res.append("Data origin: ").append(token).append(", ");
-        break;
+        {
+          auto origins = std::bitset<num_origins>(std::stoull(std::string(token)));
+          res.append("Data origin: ").append(get_field_string<num_origins, org>(origins, "origin")).append(", ");
+          break;
+        }
       case exp:
         {
           std::string_view expire_time = (token == "0") ?
@@ -141,8 +147,11 @@ inline auto gdpr_metadata_fmt(std::string_view value_str) -> std::string {
           break;
         }
       case shr:
-        res.append("Shared with: ").append(token).append(", ");
-        break;
+        {
+          auto shared_with = std::bitset<num_users>(std::stoull(std::string(token)));
+          res.append("Shared with: ").append(get_field_string<num_users, shr>(shared_with, "user")).append(", ");
+          break;
+        }
       case log:
         res.append("Log enabled: ").append(token == "1" ? "true" : "false").append(", ");
         break;

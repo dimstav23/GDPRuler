@@ -5,7 +5,9 @@
 namespace controller {
 
 query::query()
-    : m_cond_purpose{0},
+    : m_cond_share{0},
+      m_cond_origin{0},
+      m_cond_purpose{0},
       m_cond_objection{0},
       m_cond_expiration{0},
       m_cond_monitor{false}
@@ -18,7 +20,9 @@ query::query(std::string_view user_key,
              std::string_view cmd)
     : m_cmd{cmd},
       m_key{key},
-      m_user_key{user_key},
+      m_user_key{0},
+      m_cond_share{0},
+      m_cond_origin{0},
       m_cond_purpose{0},
       m_cond_objection{0},
       m_cond_expiration{0},
@@ -27,7 +31,9 @@ query::query(std::string_view user_key,
 }
 
 query::query(std::string_view input)
-    : m_cond_purpose{0},
+    : m_cond_share{0},
+      m_cond_origin{0},
+      m_cond_purpose{0},
       m_cond_objection{0},
       m_cond_expiration{0},
       m_cond_monitor{false}
@@ -155,13 +161,16 @@ auto query::parse_query(std::string_view reg_query_args) -> void
 auto query::parse_option(std::string_view option, std::string_view value) -> void
 {
   if (option == "sessionKey") {
-    this->m_user_key = value;
+    this->m_user_key.emplace();
+    set_bitmap<num_users, usr>(this->m_user_key.value(), split_comma_string(value));
   } 
   else if (option == "objOrig") {
-    this->m_origin = value;
+    this->m_origin.emplace();
+    set_bitmap<num_origins, org>(this->m_origin.value(), split_comma_string(value));
   } 
   else if (option == "objShare") {
-    this->m_share = value;
+    this->m_share.emplace();
+    set_bitmap<num_users, shr>(this->m_share.value(), split_comma_string(value));
   } 
   else if (option == "objExp") {
     this->m_expiration = stoi(std::string(value));
@@ -169,29 +178,29 @@ auto query::parse_option(std::string_view option, std::string_view value) -> voi
   } 
   else if (option == "objPur") {
     this->m_purpose.emplace();
-    set_bitmap(this->m_purpose.value(), split_comma_string(value));
+    set_bitmap<num_purposes, pur>(this->m_purpose.value(), split_comma_string(value));
   } 
   else if (option == "objObjections") {
     this->m_objection.emplace();
-    set_bitmap(this->m_objection.value(), split_comma_string(value));
+    set_bitmap<num_purposes, obj>(this->m_objection.value(), split_comma_string(value));
   } 
   else if (option == "monitor") {
     this->m_monitor = str_to_bool(value);
   } 
   else if (option == "objOrigIs") {
-    this->m_cond_origin = value;
+    set_bitmap<num_origins, org>(this->m_cond_origin, split_comma_string(value));
   } 
   else if (option == "objShareIs") {
-    this->m_cond_share = value;
+    set_bitmap<num_users, shr>(this->m_cond_share, split_comma_string(value));
   } 
   else if (option == "objExpIs") {
     this->m_cond_expiration = stoi(std::string(value));
   } 
   else if (option == "objPurIs") {
-    set_bitmap(this->m_cond_purpose, split_comma_string(value));
+    set_bitmap<num_purposes, pur>(this->m_cond_purpose, split_comma_string(value));
   } 
   else if (option == "objObjectionsIs") {
-    set_bitmap(this->m_cond_objection, split_comma_string(value));
+    set_bitmap<num_purposes, obj>(this->m_cond_objection, split_comma_string(value));
   } 
   else if (option == "monitorIs") {
     this->m_cond_monitor = str_to_bool(value);
@@ -227,9 +236,9 @@ auto query::value() const -> std::string_view
   return this->m_value;
 }
 
-auto query::user_key() const -> std::optional<std::string_view>
+auto query::user_key() const -> std::optional<std::bitset<num_users>>
 {
-  return this->m_user_key ? std::optional<std::string_view>(*this->m_user_key) : std::nullopt;
+  return this->m_user_key;
 }
 
 auto query::purpose() const -> std::optional<std::bitset<num_purposes>>
@@ -242,9 +251,9 @@ auto query::objection() const -> std::optional<std::bitset<num_purposes>>
   return this->m_objection;
 }
 
-auto query::origin() const -> std::optional<std::string_view>
+auto query::origin() const -> std::optional<std::bitset<num_origins>>
 {
-  return this->m_origin ? std::optional<std::string_view>(*this->m_origin) : std::nullopt;
+  return this->m_origin;
 }
 
 auto query::expiration() const -> std::optional<int64_t>
@@ -252,9 +261,9 @@ auto query::expiration() const -> std::optional<int64_t>
   return this->m_expiration;
 }
 
-auto query::share() const -> std::optional<std::string_view>
+auto query::share() const -> std::optional<std::bitset<num_users>>
 {
-  return this->m_share ? std::optional<std::string_view>(*this->m_share) : std::nullopt;
+  return this->m_share;
 }
 
 auto query::monitor() const -> std::optional<bool>
@@ -272,7 +281,7 @@ auto query::cond_objection() const -> std::bitset<num_purposes>
   return this->m_cond_objection;
 }
 
-auto query::cond_origin() const -> std::string_view
+auto query::cond_origin() const -> std::bitset<num_origins>
 {
   return this->m_cond_origin;
 }
@@ -282,7 +291,7 @@ auto query::cond_expiration() const -> int64_t
   return this->m_cond_expiration;
 }
 
-auto query::cond_share() const -> std::string_view
+auto query::cond_share() const -> std::bitset<num_users>
 {
   return this->m_cond_share;
 }

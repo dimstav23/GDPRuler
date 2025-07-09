@@ -21,7 +21,7 @@ gdpr_regulator::gdpr_regulator()
 auto gdpr_regulator::validate_reg_key(const controller::query &query_args, 
                                       const controller::default_policy &def_policy) -> bool
 {
-  std::string_view user_key = query_args.user_key().value_or(def_policy.user_key());
+  std::string_view user_key = get_field_string<num_users, usr>(query_args.user_key().value_or(def_policy.user_key()), "user");
   return (user_key == regulator_key);
 }
 

@@ -58,7 +58,7 @@ public:
     // format is the following:
     // timestamp,user_key,operation,operation_result,new_value(if applicable)
     *log_file << std::chrono::system_clock::now().time_since_epoch().count() << ","
-              << query_args.user_key().value_or(def_policy.user_key()) << ","
+              << get_field_string<num_users, usr>(query_args.user_key().value_or(def_policy.user_key()), "user") << ","
               << convert_operation_to_enum(query_args.cmd()) << ","
               << result << ","
               << new_val << std::endl;
@@ -84,7 +84,7 @@ public:
     // Encode the timestamp as a fixed-width integer type
     const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
     // Encode the user key as a string
-    std::string_view user_key = query_args.user_key().value_or(def_policy.user_key());
+    std::string_view user_key = get_field_string<num_users, usr>(query_args.user_key().value_or(def_policy.user_key()), "user");
     // Encode the operation type (3bits) and the operation result (1 bit) as a single byte
     const uint8_t operation = static_cast<uint8_t>((convert_operation_to_enum(query_args.cmd()) & operation_mask) << 1U);
     const uint8_t valid_bit = (valid ? 0x01U : 0x00U);

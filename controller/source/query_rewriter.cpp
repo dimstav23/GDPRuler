@@ -13,35 +13,35 @@ query_rewriter::query_rewriter(const query &query_args,
 {
   /* create the new value based on the query arguments and the default policy */
   /* note: string_view data type is okay as query outlives the query_rewriter */
-  std::string_view user_key = query_args.user_key().value_or(def_policy.user_key());
-  bool encryption = def_policy.encryption();
+  std::bitset<num_users> user_key = query_args.user_key().value_or(def_policy.user_key());
   std::bitset<num_purposes> purpose = query_args.purpose().value_or(def_policy.purpose());
   std::bitset<num_purposes> objection = query_args.objection().value_or(def_policy.objection());
-  std::string_view origin = query_args.origin().value_or(def_policy.origin());
+  std::bitset<num_origins> origin = query_args.origin().value_or(def_policy.origin());
+  std::bitset<num_users> share = query_args.share().value_or(def_policy.share());
+  bool encryption = def_policy.encryption();
   int64_t expiration = query_args.expiration().value_or(def_policy.expiration());
-  std::string_view share = query_args.share().value_or(def_policy.share());
   bool monitor = query_args.monitor().value_or(def_policy.monitor());
   
   // Pre-calculate the size of the final string
   size_t delimiters = (max_gdpr_field_guard - 1) * sizeof(char);
 
-  size_t prefix_size = /* user key */   user_key.size()            + /* encryption */  sizeof(char)               +
-                       /* purpose */    sizeof(unsigned long long) + /* objection */   sizeof(unsigned long long) +
-                       /* origin */     origin.size()              + /* expiration */  sizeof(int64_t)            +
-                       /* share */      share.size()               + /* monitor */     sizeof(char)               +
+  size_t prefix_size = /* user key */   num_users / 8 * sizeof(char)    + /* encryption */  sizeof(char)                    +
+                       /* purpose */    num_purposes / 8 * sizeof(char) + /* objection */   num_purposes / 8 * sizeof(char) +
+                       /* origin */     num_origins / 8 * sizeof(char)  + /* expiration */  sizeof(int64_t)                 +
+                       /* share */      num_users / 8 * sizeof(char)    + /* monitor */     sizeof(char)                    +
                        /* delimiters */ delimiters;
 
   // Reserve space for the entire string
   m_new_value.reserve(prefix_size + new_query_value.size());
 
   // Construct the string directly
-  m_new_value.append(user_key).append(1, '|');
+  m_new_value.append(bitmap_to_string(user_key)).append(1, '|');
   m_new_value.append(encryption ? "1|" : "0|");
-  m_new_value.append(std::to_string(purpose.to_ullong())).append(1, '|');
-  m_new_value.append(std::to_string(objection.to_ullong())).append(1, '|');
-  m_new_value.append(origin).append(1, '|');
+  m_new_value.append(bitmap_to_string(purpose)).append(1, '|');
+  m_new_value.append(bitmap_to_string(objection)).append(1, '|');
+  m_new_value.append(bitmap_to_string(origin)).append(1, '|');
   m_new_value.append(std::to_string(get_expiration_time(expiration))).append(1, '|');
-  m_new_value.append(share).append(1, '|');
+  m_new_value.append(bitmap_to_string(share)).append(1, '|');
   m_new_value.append(monitor ? "1|" : "0|");
   m_new_value.append(new_query_value);
 }
@@ -79,27 +79,35 @@ query_rewriter::query_rewriter(std::string_view res,
 
     switch (count) {
       case usr:
-        new_value.append(query_args.user_key().value_or(token));
+        if (query_args.user_key().has_value()) {
+          new_value.append(bitmap_to_string(query_args.user_key().value()));
+        } else {
+          new_value.append(token);
+        }
         break;
       case encr:
         new_value.append(token);
         break;
       case pur:
         if (query_args.purpose().has_value()) {
-          new_value.append(std::to_string(query_args.purpose().value().to_ullong()));
+          new_value.append(bitmap_to_string(query_args.purpose().value()));
         } else {
           new_value.append(token);
         }
         break;
       case obj:
         if (query_args.objection().has_value()) {
-          new_value.append(std::to_string(query_args.objection().value().to_ullong()));
+          new_value.append(bitmap_to_string(query_args.objection().value()));
         } else {
           new_value.append(token);
         }
         break;
       case org:
-        new_value.append(query_args.origin().value_or(token));
+        if (query_args.origin().has_value()) {
+          new_value.append(bitmap_to_string(query_args.origin().value()));
+        } else {
+          new_value.append(token);
+        }
         break;
       case exp:
         if (query_args.expiration().has_value()) {
@@ -109,7 +117,11 @@ query_rewriter::query_rewriter(std::string_view res,
         }
         break;
       case shr:
-        new_value.append(query_args.share().value_or(token));
+        if (query_args.share().has_value()) {
+          new_value.append(bitmap_to_string(query_args.share().value()));
+        } else {
+          new_value.append(token);
+        }
         break;
       case log:
         if (query_args.monitor().has_value()) {
@@ -144,10 +156,6 @@ query_rewriter::query_rewriter(std::string_view res,
 
   m_new_value = std::move(new_value);
 }
-
-// query_rewriter::~query_rewriter()
-// {
-// }
 
 auto query_rewriter::new_value() const -> std::string
 {
