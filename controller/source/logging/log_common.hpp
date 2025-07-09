@@ -136,7 +136,7 @@ inline auto gdpr_metadata_fmt(std::string_view value_str) -> std::string {
       case org:
         {
           auto origins = std::bitset<num_origins>(std::stoull(std::string(token)));
-          res.append("Data origin: ").append(get_field_string<num_origins, org>(origins, "origin")).append(", ");
+          res.append("Data origin: ").append(get_field_string<num_origins, org>(origins, "src")).append(", ");
           break;
         }
       case exp:

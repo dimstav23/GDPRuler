@@ -48,7 +48,7 @@ static const std::unordered_map<std::string, std::size_t> pur_index =
 static const std::unordered_map<std::string, std::size_t> usr_index = 
   create_index_map<metadata_fields>("user", num_users);
 static const std::unordered_map<std::string, std::size_t> org_index = 
-  create_index_map<metadata_fields>("origin", num_origins);
+  create_index_map<metadata_fields>("src", num_origins);
 
 // Generic getter functions
 template<metadata_fields Field>

@@ -115,7 +115,7 @@ auto default_policy::objection_string() const -> std::string {
 }
 
 auto default_policy::origin_string() const -> std::string {
-  return get_field_string<num_origins, org>(const_cast<std::bitset<num_origins>&>(this->m_origin), "origin");
+  return get_field_string<num_origins, org>(const_cast<std::bitset<num_origins>&>(this->m_origin), "src");
 }
 
 auto default_policy::share_string() const -> std::string {
