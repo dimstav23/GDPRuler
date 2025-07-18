@@ -100,24 +100,7 @@ auto filter_and_monitor(const std::unique_ptr<kv_client>& client,
   auto filter = std::make_shared<gdpr_filter>(res);
   is_valid = filter->validate(query_args, def_policy);
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-  return {monitor, res};
-  
-}
-
-// Helper function to update cache with new metadata
-auto update_cache(std::string_view key, const std::string& value)
-{
-  #ifdef METADATA_CACHE
-  cache.cache_put(key, controller::preserve_only_gdpr_metadata(value));
-  #endif
-}
-
-// Helper function to remove a key from the cache
-auto remove_from_cache(std::string_view key)
-{
-  #ifdef METADATA_CACHE
-  cache.cache_remove(key);
-  #endif
+  return {monitor, std::move(res)};
 }
 
 auto handle_get(const std::unique_ptr<kv_client>& client,
@@ -128,12 +111,15 @@ auto handle_get(const std::unique_ptr<kv_client>& client,
   auto res = client->gdpr_get(query_args.key());
   auto filter = std::make_shared<gdpr_filter>(res);
   bool is_valid = filter->validate(query_args, def_policy);
-  
+
   // Create monitor and log
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
   monitor.monitor_query(is_valid);
 
   if (is_valid && res) {
+    #ifdef DEBUG
+    std::cout << "Get query: " << query_args.key() << " with value: " << hex_dump(res.value()) << std::endl;
+    #endif
     return controller::remove_gdpr_metadata(std::move(res.value()));
   }
 
@@ -150,13 +136,22 @@ auto handle_put(const std::unique_ptr<kv_client>& client,
   if (!res) {
     // Handle new key insertion
     query_rewriter rewriter(query_args, def_policy, query_args.value());
-    monitor.monitor_query(query_is_valid, rewriter.new_value());
-    auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
+    std::string new_value = std::move(rewriter).new_value();
+
+    // monitor.monitor_query(query_is_valid, new_value);
+    auto ret_val = client->gdpr_put(query_args.key(), new_value);
+   
+    #ifdef DEBUG
+    std::cout << "Put query: " << query_args.key() << " with value: " << hex_dump(new_value) << std::endl;
+    #endif
 
     if (ret_val) {
       #ifdef METADATA_CACHE
       // Extract and cache metadata - move to avoid copy
-      std::string metadata = controller::preserve_only_gdpr_metadata(rewriter.new_value());
+      std::string metadata = controller::preserve_only_gdpr_metadata(std::move(new_value));
+      #ifdef DEBUG
+      std::cout << "Caching metadata for key: " << query_args.key() << " in the following format:" << hex_dump(metadata) << std::endl;
+      #endif
       cache.cache_put(query_args.key(), std::move(metadata));
       #endif
       return PUT_SUCCESS;
@@ -164,13 +159,18 @@ auto handle_put(const std::unique_ptr<kv_client>& client,
   } else if (query_is_valid) {
     // Handle existing key update
     query_rewriter rewriter(res.value(), query_args.value());
-    monitor.monitor_query(query_is_valid, rewriter.new_value());
-    auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
+    std::string new_value = std::move(rewriter).new_value();
+    
+    monitor.monitor_query(query_is_valid, new_value);
+    auto ret_val = client->gdpr_put(query_args.key(), new_value);
 
     if (ret_val) {
       #ifdef METADATA_CACHE
       // Update cache with new metadata - move to avoid copy
-      std::string metadata = controller::preserve_only_gdpr_metadata(rewriter.new_value());
+      std::string metadata = controller::preserve_only_gdpr_metadata(std::move(new_value));
+      #ifdef DEBUG
+      std::cout << "Caching metadata for key: " << query_args.key() << " in the following format:" << hex_dump(metadata) << std::endl;
+      #endif
       cache.cache_put(query_args.key(), std::move(metadata));
       #endif
       return PUT_SUCCESS;
@@ -248,9 +248,11 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
     auto monitor = gdpr_monitor(filter, query_args, def_policy);
     // update the current value with the new one without modifying any metadata
     query_rewriter rewriter(res.value(), query_args);
+    std::string new_value = std::move(rewriter).new_value();
+
     // Perform the logging of the valid operation -- if needed
-    monitor.monitor_query(is_valid, rewriter.new_value());
-    auto ret_val = client->gdpr_putm(query_args.key(), rewriter.new_value());
+    monitor.monitor_query(is_valid, new_value);
+    auto ret_val = client->gdpr_putm(query_args.key(), new_value);
     if (ret_val) {
       return PUTM_SUCCESS;
     }

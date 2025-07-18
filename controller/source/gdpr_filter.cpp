@@ -28,51 +28,15 @@ gdpr_filter::gdpr_filter(std::optional<std::string_view> ret_value)
       m_share{0},
       m_monitor{false}
 {
-  if (ret_value) {
-    m_valid = true;
-    std::string_view value = *ret_value;
-    size_t start = 0;
-    size_t end = 0;
-    int count = 0;
-
-    // retrieve the metadata fields without the actual value
-    while (count < metadata_prefix_fields && (end = value.find('|', start)) != std::string_view::npos) {
-      std::string_view token = value.substr(start, end - start);
-
-      switch (count) {
-        case usr: 
-          m_user_key = std::bitset<num_users>(std::stoull(std::string(token)));
-          break;
-        case encr:
-          m_encryption = (token == "1");
-          break;
-        case pur:
-          m_purpose = std::bitset<num_purposes>(std::stoull(std::string(token)));
-          break;
-        case obj:
-          m_objection = std::bitset<num_purposes>(std::stoull(std::string(token)));
-          break;
-        case org:
-          m_origin = std::bitset<num_origins>(std::stoull(std::string(token)));;
-          break;
-        case exp:
-          m_expiration = std::stoll(std::string(token));
-          break;
-        case shr:
-          m_share = std::bitset<num_users>(std::stoull(std::string(token)));;
-          break;
-        case log:
-          m_monitor = (token == "1");
-          break;
-        default:
-          break;
-      }
-      start = end + 1;
-      count++;
-    }
-
-    if (count != metadata_prefix_fields) {
-      throw std::invalid_argument("Invalid GDPR metadata format");
+  if (ret_value && !ret_value->empty()) {
+    try {
+      deserialize_binary_metadata(*ret_value);
+      m_valid = true;
+    } catch (const std::exception& e) {
+      #ifdef DEBUG
+      std::cout << "Failed to deserialize binary data: " << e.what() << std::endl;
+      #endif
+      m_valid = false;
     }
   }
 }
@@ -111,12 +75,6 @@ auto gdpr_filter::validate(const controller::query &query_args,
     #endif
     return false;
   }
-  // if (!validate_org(query_args.cond_origin(), def_policy.origin())) {
-  //   #ifdef DEBUG
-  //   std::cout << "query origin requirement different than the KV pair" << std::endl;
-  //   #endif
-  //   return false;
-  // }
   if (!validate_exp_time()) {
     // value expired
     // TODO: delete the value from the DB
@@ -138,14 +96,9 @@ auto gdpr_filter::validate(const controller::query &query_args,
 auto gdpr_filter::validate_session_key(const std::optional<std::bitset<num_users>> &query_user_key,
                                        const std::bitset<num_users> &def_user_key) const -> bool
 {
-  std::bitset<num_users> user_key = query_user_key.value_or(def_user_key);
+  const std::bitset<num_users>& user_key = query_user_key.has_value() ? query_user_key.value() : def_user_key;
   // Check if the user that requests the data is the owner (likely)
   // or if the data is shared with the client-user
-  #ifdef DEBUG
-  std::cout << "Validating user key: " << user_key.to_string() << " with " << 
-      this->user_key().to_string() << " and " << this->share().to_string() << 
-      " with result " << (user_key & (this->user_key() | this->share())).to_string() << std::endl;
-  #endif
   return ((user_key & (this->user_key() | this->share())) == user_key);
 }
 
@@ -175,19 +128,6 @@ auto gdpr_filter::validate_obj(const std::bitset<num_purposes> &query_pur,
   return ((this->objection() & def_pur) == 0);
 }
 
-// /* Validate that the requested query origin is the same with the KV pair */
-// auto gdpr_filter::validate_org(const std::bitset<num_origins> &query_org,
-//                                const std::bitset<num_origins> &def_org) const -> bool
-// {
-//   if (query_org.any()) {
-//     // the query origin override the defaults
-//     return (this->origin() & query_org) == query_org;
-//   }
-  
-//   // if no query origins are given, use the defaults of the client session
-//   return (this->origin() & def_org) == def_org;
-// }
-
 /* Validate that the KV pair is not expired */
 auto gdpr_filter::validate_exp_time() const -> bool
 {
@@ -212,7 +152,7 @@ auto gdpr_filter::is_valid() const -> bool
   return this->m_valid;
 }
 
-auto gdpr_filter::user_key() const -> std::bitset<num_users>
+auto gdpr_filter::user_key() const -> const std::bitset<num_users>&
 {
   return this->m_user_key;
 }
@@ -222,17 +162,17 @@ auto gdpr_filter::encryption() const -> bool
   return this->m_encryption;
 }
 
-auto gdpr_filter::purpose() const -> std::bitset<num_purposes>
+auto gdpr_filter::purpose() const -> const std::bitset<num_purposes>&
 {
   return this->m_purpose;
 }
 
-auto gdpr_filter::objection() const -> std::bitset<num_purposes>
+auto gdpr_filter::objection() const -> const std::bitset<num_purposes>&
 {
   return this->m_objection;
 }
 
-auto gdpr_filter::origin() const -> std::bitset<num_origins>
+auto gdpr_filter::origin() const -> const std::bitset<num_origins>&
 {
   return this->m_origin;
 }
@@ -242,7 +182,7 @@ auto gdpr_filter::expiration() const -> int64_t
   return this->m_expiration;
 }
 
-auto gdpr_filter::share() const -> std::bitset<num_users>
+auto gdpr_filter::share() const -> const std::bitset<num_users>&
 {
   return this->m_share;
 }
@@ -250,6 +190,39 @@ auto gdpr_filter::share() const -> std::bitset<num_users>
 auto gdpr_filter::monitor() const -> bool
 {
   return this->m_monitor;
+}
+
+auto gdpr_filter::deserialize_binary_metadata(std::string_view data) -> void {
+  if (data.size() < sizeof(metadata_header)) {
+    throw std::invalid_argument("Invalid binary data size - too small for header");
+  }
+
+  size_t offset = 0;
+  
+  // Read header
+  const metadata_header* header = reinterpret_cast<const metadata_header*>(data.data());
+  offset += sizeof(metadata_header);
+  
+  // Validate we have enough data
+  size_t expected_size = sizeof(metadata_header) + header->user_bytes + 
+                          header->purpose_bytes + header->purpose_bytes + 
+                          header->origin_bytes + header->user_bytes;
+
+  if (data.size() < expected_size) {
+    throw std::invalid_argument("Invalid binary data size - insufficient metadata");
+  }
+  
+  // Extract flags and expiration time
+  m_encryption = (header->flags & 1) != 0;
+  m_monitor = (header->flags & 2) != 0;
+  m_expiration = header->expiration_time;
+  
+  // Convert metadata to bitsets
+  m_user_key = convert_to_bitset<num_users>(data, offset, header->user_bytes);
+  m_purpose = convert_to_bitset<num_purposes>(data, offset, header->purpose_bytes);
+  m_objection = convert_to_bitset<num_purposes>(data, offset, header->purpose_bytes);
+  m_origin = convert_to_bitset<num_origins>(data, offset, header->origin_bytes);
+  m_share = convert_to_bitset<num_users>(data, offset, header->user_bytes);
 }
 
 } // namespace controller

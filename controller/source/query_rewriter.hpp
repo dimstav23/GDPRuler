@@ -27,17 +27,16 @@ public:
                           const query &query_args);
   // ~query_rewriter();
 
-  [[nodiscard]] auto new_value() const -> std::string;
+  [[nodiscard]] auto new_value() && -> std::string;
 
 private:
   std::string m_new_value;
 
-  // Helper function to convert bitmap to string for serialization
-  template<std::size_t N>
-  auto bitmap_to_string(const std::bitset<N>& bitmap) const -> std::string {
-    return std::to_string(bitmap.to_ullong());
-    //return bitmap.to_string(); // Convert to string and limit to byte size
-  }
+  // Helper functions
+  template<size_t N>
+  auto append_bitset(const std::bitset<N>& bits) -> void;
+  auto append_header(const metadata_header& header) -> void;
+  auto decode_header(std::string_view new_value, size_t& offset) const -> metadata_header;
 };
 
 } // namespace controller

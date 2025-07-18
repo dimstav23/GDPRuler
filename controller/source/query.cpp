@@ -221,7 +221,7 @@ auto query::print() -> void
   std::cout << this->m_cmd << " " << this->m_key << " " << this->m_value << "\n";
 }
 
-auto query::cmd() const -> std::string
+auto query::cmd() const -> const std::string&
 {
   return this->m_cmd;
 }
@@ -236,22 +236,22 @@ auto query::value() const -> std::string_view
   return this->m_value;
 }
 
-auto query::user_key() const -> std::optional<std::bitset<num_users>>
+auto query::user_key() const -> const std::optional<std::bitset<num_users>>&
 {
   return this->m_user_key;
 }
 
-auto query::purpose() const -> std::optional<std::bitset<num_purposes>>
+auto query::purpose() const -> const std::optional<std::bitset<num_purposes>>&
 {
   return this->m_purpose;
 }
 
-auto query::objection() const -> std::optional<std::bitset<num_purposes>>
+auto query::objection() const -> const std::optional<std::bitset<num_purposes>>&
 {
   return this->m_objection;
 }
 
-auto query::origin() const -> std::optional<std::bitset<num_origins>>
+auto query::origin() const -> const std::optional<std::bitset<num_origins>>&
 {
   return this->m_origin;
 }
@@ -261,7 +261,7 @@ auto query::expiration() const -> std::optional<int64_t>
   return this->m_expiration;
 }
 
-auto query::share() const -> std::optional<std::bitset<num_users>>
+auto query::share() const -> const std::optional<std::bitset<num_users>>&
 {
   return this->m_share;
 }
@@ -271,17 +271,17 @@ auto query::monitor() const -> std::optional<bool>
   return this->m_monitor;
 }
 
-auto query::cond_purpose() const -> std::bitset<num_purposes>
+auto query::cond_purpose() const -> const std::bitset<num_purposes>&
 {
   return this->m_cond_purpose;
 }
 
-auto query::cond_objection() const -> std::bitset<num_purposes>
+auto query::cond_objection() const -> const std::bitset<num_purposes>&
 {
   return this->m_cond_objection;
 }
 
-auto query::cond_origin() const -> std::bitset<num_origins>
+auto query::cond_origin() const -> const std::bitset<num_origins>&
 {
   return this->m_cond_origin;
 }
@@ -291,7 +291,7 @@ auto query::cond_expiration() const -> int64_t
   return this->m_cond_expiration;
 }
 
-auto query::cond_share() const -> std::bitset<num_users>
+auto query::cond_share() const -> const std::bitset<num_users>&
 {
   return this->m_cond_share;
 }

@@ -20,11 +20,11 @@ public:
 
   [[nodiscard]] auto is_valid() const -> bool;
 
-  [[nodiscard]] auto user_key() const -> std::bitset<num_users>;
-  [[nodiscard]] auto purpose() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto objection() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto origin() const -> std::bitset<num_origins>;
-  [[nodiscard]] auto share() const -> std::bitset<num_users>;
+  [[nodiscard]] auto user_key() const -> const std::bitset<num_users>&;
+  [[nodiscard]] auto purpose() const -> const std::bitset<num_purposes>&;
+  [[nodiscard]] auto objection() const -> const std::bitset<num_purposes>&;
+  [[nodiscard]] auto origin() const -> const std::bitset<num_origins>&;
+  [[nodiscard]] auto share() const -> const std::bitset<num_users>&;
   [[nodiscard]] auto encryption() const -> bool;
   [[nodiscard]] auto expiration() const -> int64_t;
   [[nodiscard]] auto monitor() const -> bool;
@@ -59,6 +59,8 @@ private:
   bool m_encryption{false};
   int64_t m_expiration;
   bool m_monitor{false};
+
+  void deserialize_binary_metadata(std::string_view data);
 };
 
 } // namespace controller

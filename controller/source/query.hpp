@@ -57,21 +57,21 @@ public:
   // ~query();
 
   /* private members getters */
-  [[nodiscard]] auto cmd() const -> std::string;
+  [[nodiscard]] auto cmd() const -> const std::string&;
   [[nodiscard]] auto key() const -> std::string_view;
   [[nodiscard]] auto value() const -> std::string_view;
-  [[nodiscard]] auto user_key() const -> std::optional<std::bitset<num_users>>;
-  [[nodiscard]] auto purpose() const -> std::optional<std::bitset<num_purposes>>;
-  [[nodiscard]] auto objection() const -> std::optional<std::bitset<num_purposes>>;
-  [[nodiscard]] auto origin() const -> std::optional<std::bitset<num_origins>>;
+  [[nodiscard]] auto user_key() const -> const std::optional<std::bitset<num_users>>&;
+  [[nodiscard]] auto purpose() const -> const std::optional<std::bitset<num_purposes>>&;
+  [[nodiscard]] auto objection() const -> const std::optional<std::bitset<num_purposes>>&;
+  [[nodiscard]] auto origin() const -> const std::optional<std::bitset<num_origins>>&;
   [[nodiscard]] auto expiration() const -> std::optional<int64_t>;
-  [[nodiscard]] auto share() const -> std::optional<std::bitset<num_users>>;
+  [[nodiscard]] auto share() const -> const std::optional<std::bitset<num_users>>&;
   [[nodiscard]] auto monitor() const -> std::optional<bool>;
-  [[nodiscard]] auto cond_purpose() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto cond_objection() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto cond_origin() const -> std::bitset<num_origins>;
+  [[nodiscard]] auto cond_purpose() const -> const std::bitset<num_purposes>&;
+  [[nodiscard]] auto cond_objection() const -> const std::bitset<num_purposes>&;
+  [[nodiscard]] auto cond_origin() const -> const std::bitset<num_origins>&;
   [[nodiscard]] auto cond_expiration() const -> int64_t;
-  [[nodiscard]] auto cond_share() const -> std::bitset<num_users>;
+  [[nodiscard]] auto cond_share() const -> const std::bitset<num_users>&;
   [[nodiscard]] auto cond_monitor() const -> bool;
   [[nodiscard]] auto log_key() const -> std::string_view;
 
