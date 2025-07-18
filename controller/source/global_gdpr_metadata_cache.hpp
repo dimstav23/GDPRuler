@@ -20,8 +20,18 @@ private:
       std::shared_ptr<const T> data;
     };
     
+    // Add heterogeneous lookup support
+    struct string_hash {
+      using hash_type = std::hash<std::string_view>;
+      using is_transparent = void;
+      
+      size_t operator()(const char* str) const { return hash_type{}(str); }
+      size_t operator()(std::string_view str) const { return hash_type{}(str); }
+      size_t operator()(const std::string& str) const { return hash_type{}(str); }
+    };
+
     struct Shard {
-      std::unordered_map<std::string, CacheEntry> entries;
+      std::unordered_map<std::string, CacheEntry, string_hash, std::equal_to<>> entries;
       std::shared_mutex mutex;  // Fine-grained per-shard locking
       std::atomic<size_t> size{0};
       mutable std::mt19937 rng{std::random_device{}()};  // For random eviction
@@ -56,7 +66,7 @@ public:
       auto& shard = shards[get_shard_index(key)];
       std::shared_lock<std::shared_mutex> lock(shard.mutex);
       
-      auto it = shard.entries.find(std::string(key));
+      auto it = shard.entries.find(key);
       if (it != shard.entries.end()) {
         #ifdef CACHE_STATS
         m_hits.fetch_add(1, std::memory_order_relaxed);
@@ -72,17 +82,16 @@ public:
     }
     
     // Put metadata - moves data to avoid copying
-    void cache_put(std::string_view key, T&& metadata) {
+    template<typename U>
+    void cache_put(std::string_view key, U&& metadata) {
 
       auto& shard = shards[get_shard_index(key)];
       std::unique_lock<std::shared_mutex> lock(shard.mutex);
       
-      std::string key_str(key);
-      auto it = shard.entries.find(key_str);
-      
+      auto it = shard.entries.find(key);
       if (it != shard.entries.end()) {
         // Update existing entry
-        it->second.data = std::make_shared<const T>(std::move(metadata));
+        it->second.data = std::make_shared<const T>(std::forward<U>(metadata));
       } else {
         // Add new entry, evict if necessary
         if (shard.size.load(std::memory_order_relaxed) >= max_size_per_shard) {
@@ -90,9 +99,9 @@ public:
         }
         
         CacheEntry entry;
-        entry.data = std::make_shared<const T>(std::move(metadata));
+        entry.data = std::make_shared<const T>(std::forward<U>(metadata));
         
-        shard.entries.emplace(std::move(key_str), std::move(entry));
+        shard.entries.emplace(std::string(key), std::move(entry));
         shard.size.fetch_add(1, std::memory_order_relaxed);
       }
     }
@@ -103,7 +112,7 @@ public:
         auto& shard = shards[get_shard_index(key)];
         std::unique_lock<std::shared_mutex> lock(shard.mutex);  // Exclusive lock
         
-        auto it = shard.entries.find(std::string(key));
+        auto it = shard.entries.find(key);
         if (it != shard.entries.end()) {
             shard.entries.erase(it);
             shard.size.fetch_sub(1, std::memory_order_relaxed);
