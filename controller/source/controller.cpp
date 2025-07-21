@@ -88,8 +88,8 @@ auto filter_and_monitor(const std::unique_ptr<kv_client>& client,
   // Try to get metadata from cache
   auto cached_metadata = cache.cache_get(query_args.key());
   if (cached_metadata) {
-    auto filter = std::make_shared<gdpr_filter>(*cached_metadata);
-    is_valid = filter->validate(query_args, def_policy);
+    gdpr_filter filter(*cached_metadata);
+    is_valid = filter.validate(query_args, def_policy);
     auto monitor = gdpr_monitor(filter, query_args, def_policy);
     return {monitor, std::nullopt};  // Cache hit, no DB data returned
   }
@@ -97,8 +97,8 @@ auto filter_and_monitor(const std::unique_ptr<kv_client>& client,
 
   // Fetch data from client if not in cache
   auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
-  is_valid = filter->validate(query_args, def_policy);
+  gdpr_filter filter(res);
+  is_valid = filter.validate(query_args, def_policy);
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
   return {monitor, std::move(res)};
 }
@@ -109,8 +109,8 @@ auto handle_get(const std::unique_ptr<kv_client>& client,
 {
   // Always fetch from database as even in cache hit, we need to fetch the value
   auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
-  bool is_valid = filter->validate(query_args, def_policy);
+  gdpr_filter filter(res);
+  bool is_valid = filter.validate(query_args, def_policy);
 
   // Create monitor and log
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
@@ -212,11 +212,11 @@ auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
                 const default_policy &def_policy) -> std::string
 {
   auto res = client->gdpr_getm(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
+  gdpr_filter filter(res);
 
   // Check if the retrieved key requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-  bool is_valid = filter->validate(query_args, def_policy);
+  bool is_valid = filter.validate(query_args, def_policy);
   // Perform the logging of the (in)valid operation -- if needed
   monitor.monitor_query(is_valid);
   if (is_valid) {
@@ -240,8 +240,8 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
     return "PUTM_FAILED: The specified key does not exist";
   }
   // if the key exists and complies with the gdpr rules, perform the GDPR metadata update
-  auto filter = std::make_shared<gdpr_filter>(res);
-  if ((is_valid = filter->validate(query_args, def_policy))) {
+  gdpr_filter filter(res);
+  if ((is_valid = filter.validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the
     // gpdr metadata of the value -- only putm operations can
