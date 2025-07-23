@@ -4,7 +4,7 @@
 namespace controller {
 
 gdpr_filter::gdpr_filter()
-    : m_valid{false},
+    : m_valid{true},
       m_encryption{false},
       m_purpose{0},
       m_user_key{0},
@@ -18,7 +18,7 @@ gdpr_filter::gdpr_filter()
 
 /* deserialize the metadata from the retrieved value and place them in the fields of the filter class */
 gdpr_filter::gdpr_filter(std::optional<std::string_view> ret_value)
-    : m_valid{false},
+    : m_valid{true},
       m_encryption{false},
       m_purpose{0},
       m_user_key{0},

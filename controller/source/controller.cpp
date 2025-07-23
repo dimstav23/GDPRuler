@@ -102,7 +102,15 @@ auto filter_and_monitor(const std::unique_ptr<kv_client>& client,
   auto metadata_or_value = client->gdpr_get(query_args.key());
   #endif
 
-  // Create filter and monitor objects and validate the query
+  if (!metadata_or_value) {
+    // if the key does not exist in cache or DB
+    is_valid = true;
+    auto monitor = gdpr_monitor(query_args, def_policy);
+    return {std::move(monitor), std::nullopt};
+  }
+
+  // if the key exists in cache or DB
+  // Create a filter and monitor object and validate the query
   gdpr_filter filter(metadata_or_value);
   is_valid = filter.validate(query_args, def_policy);
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
@@ -193,6 +201,11 @@ inline auto handle_delete(const std::unique_ptr<kv_client>& client,
   bool cache_hit = false;
   auto [monitor, metadata_or_value] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
 
+  if (!metadata_or_value) {
+    // Key does not exist in cache or DB - try to delete non-existing key
+    monitor.monitor_query(false);
+    return DELETE_FAILED;
+  }
   // Log the operation (if needed)
   monitor.monitor_query(query_is_valid);
 
