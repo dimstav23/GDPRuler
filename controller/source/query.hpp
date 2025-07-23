@@ -5,6 +5,7 @@
 #include <optional>
 #include <sstream>
 #include <unordered_map>
+#include <bitset>
 
 #include "gdpr_metadata.hpp"
 
@@ -41,6 +42,7 @@ const std::vector<std::string> query_types = {
   "delete",
   "putm",
   "getm",
+  "putc",
   "getlogs"
 };
 // NOLINTEND(cert-err58-cpp)
@@ -56,21 +58,21 @@ public:
   // ~query();
 
   /* private members getters */
-  [[nodiscard]] auto cmd() const -> std::string;
+  [[nodiscard]] auto cmd() const -> const std::string&;
   [[nodiscard]] auto key() const -> std::string_view;
   [[nodiscard]] auto value() const -> std::string_view;
-  [[nodiscard]] auto user_key() const -> std::optional<std::string_view>;
-  [[nodiscard]] auto purpose() const -> std::optional<std::bitset<num_purposes>>;
-  [[nodiscard]] auto objection() const -> std::optional<std::bitset<num_purposes>>;
-  [[nodiscard]] auto origin() const -> std::optional<std::string_view>;
+  [[nodiscard]] auto user_key() const -> const std::optional<std::bitset<num_users>>&;
+  [[nodiscard]] auto purpose() const -> const std::optional<std::bitset<num_purposes>>&;
+  [[nodiscard]] auto objection() const -> const std::optional<std::bitset<num_purposes>>&;
+  [[nodiscard]] auto origin() const -> const std::optional<std::bitset<num_origins>>&;
   [[nodiscard]] auto expiration() const -> std::optional<int64_t>;
-  [[nodiscard]] auto share() const -> std::optional<std::string_view>;
+  [[nodiscard]] auto share() const -> const std::optional<std::bitset<num_users>>&;
   [[nodiscard]] auto monitor() const -> std::optional<bool>;
-  [[nodiscard]] auto cond_purpose() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto cond_objection() const -> std::bitset<num_purposes>;
-  [[nodiscard]] auto cond_origin() const -> std::string_view;
+  [[nodiscard]] auto cond_purpose() const -> const std::bitset<num_purposes>&;
+  [[nodiscard]] auto cond_objection() const -> const std::bitset<num_purposes>&;
+  [[nodiscard]] auto cond_origin() const -> const std::bitset<num_origins>&;
   [[nodiscard]] auto cond_expiration() const -> int64_t;
-  [[nodiscard]] auto cond_share() const -> std::string_view;
+  [[nodiscard]] auto cond_share() const -> const std::bitset<num_users>&;
   [[nodiscard]] auto cond_monitor() const -> bool;
   [[nodiscard]] auto log_key() const -> std::string_view;
 
@@ -88,20 +90,20 @@ private:
   std::string_view m_value;
 
   // metadata to set
-  std::optional<std::string_view> m_user_key;
+  std::optional<std::bitset<num_users>> m_user_key;
   std::optional<std::bitset<num_purposes>> m_purpose;
   std::optional<std::bitset<num_purposes>> m_objection;
-  std::optional<std::string> m_origin;
+  std::optional<std::bitset<num_origins>> m_origin;
   std::optional<int64_t> m_expiration;
-  std::optional<std::string_view> m_share;
+  std::optional<std::bitset<num_users>> m_share;
   std::optional<bool> m_monitor;
 
   // conditional metadata
   std::bitset<num_purposes> m_cond_purpose;
   std::bitset<num_purposes> m_cond_objection;
-  std::string_view m_cond_origin;
+  std::bitset<num_origins> m_cond_origin;
   int64_t m_cond_expiration;
-  std::string_view m_cond_share;
+  std::bitset<num_users> m_cond_share;
   bool m_cond_monitor;
 
   // log metadata

@@ -12,9 +12,20 @@
 
 namespace controller {
 
-constexpr int num_users = 64;
-constexpr int num_purposes = 64;
+constexpr int num_users = 128; // used for users and shared_with fields
+constexpr int num_purposes = 128; // used for purposes and objections
+constexpr int num_origins = 128; // used to map data origins sources
 constexpr int metadata_prefix_fields = 8;
+
+// Header structure for storing the metadata
+struct alignas(8) metadata_header {
+  uint16_t user_bytes = num_users / sizeof(uint64_t);
+  uint16_t purpose_bytes = num_purposes / sizeof(uint64_t);
+  uint16_t origin_bytes = num_origins / sizeof(uint64_t);
+  uint8_t flags = 0;  // encryption (bit 0), monitor (bit 1)
+  uint8_t padding[1];  // Explicit padding
+  int64_t expiration_time = 0;  
+};
 
 enum metadata_fields {
   usr,
@@ -29,50 +40,84 @@ enum metadata_fields {
   max_gdpr_field_guard
 };
 
-// NOLINTBEGIN(cert-err58-cpp)
-static const std::unordered_map<std::string, std::size_t> pur_index = []() {
+// Generic template for creating index maps
+template<typename T>
+auto create_index_map(const std::string& prefix, std::size_t count) -> std::unordered_map<std::string, std::size_t> {
   std::unordered_map<std::string, std::size_t> temp;
-  for (std::size_t i = 0; i < num_purposes; i++) {
-    std::string value = "purpose" + std::to_string(i);
+  for (std::size_t i = 0; i < count; i++) {
+    std::string value = prefix + std::to_string(i);
     temp[value] = i;
   }
   return temp;
-}();
-// NOLINTEND(cert-err58-cpp)
+}
 
-/* return the mapping between purposes and indexes in bitmap*/
-auto inline get_pur() -> std::unordered_map<std::string, std::size_t>
-{
+// Create static maps for core metadata field types (usr/shr and pur/obj are correlated)
+// NOLINTBEGIN(cert-err58-cpp)
+static const std::unordered_map<std::string, std::size_t> pur_index = 
+  create_index_map<metadata_fields>("purpose", num_purposes);
+static const std::unordered_map<std::string, std::size_t> usr_index = 
+  create_index_map<metadata_fields>("user", num_users);
+static const std::unordered_map<std::string, std::size_t> org_index = 
+  create_index_map<metadata_fields>("src", num_origins);
+
+// Generic getter functions
+template<metadata_fields Field>
+auto inline get_index_map() -> const std::unordered_map<std::string, std::size_t>&;
+
+template<>
+auto inline get_index_map<pur>() -> const std::unordered_map<std::string, std::size_t>& {
   return pur_index;
 }
 
+template<>
+auto inline get_index_map<obj>() -> const std::unordered_map<std::string, std::size_t>& {
+  return pur_index;
+}
+
+template<>
+auto inline get_index_map<usr>() -> const std::unordered_map<std::string, std::size_t>& {
+  return usr_index;
+}
+
+template<>
+auto inline get_index_map<shr>() -> const std::unordered_map<std::string, std::size_t>& {
+  return usr_index;
+}
+
+template<>
+auto inline get_index_map<org>() -> const std::unordered_map<std::string, std::size_t>& {
+  return org_index;
+}
+
+// Generic bitmap setter
 /* 
  *  takes as arguments a bitset and a vector of strings
- *  identifies the respective bit for each key based on the defined map of purposes
+ *  identifies the respective bit for each key based on the defined map of metadata fields
  *  and sets the appropriate bits
  */
-template<std::size_t N>
+template<std::size_t N, metadata_fields Field>
 auto inline set_bitmap(std::bitset<N> &bits, const std::vector<std::string> &bit_keys) -> void {
-  std::size_t index = 0;
+  const auto& index_map = get_index_map<Field>();
   for (const auto &bit_key : bit_keys) {
-    index = get_pur()[bit_key];
-    bits.set(index);
+    auto it = index_map.find(bit_key);
+    if (it != index_map.end()) {
+      bits.set(it->second);
+    }
   }
 }
 
+// Generic string generator
 /* 
  *  takes as arguments a bitset and
- *  identifies the respective set bits and, based on the defined map of purposes,
- *  returns a comma separated string with the appropriate set of purposes
+ *  identifies the respective set bits and, based on the defined map of metadata fields,
+ *  returns a comma separated string with the appropriate set of metadata fields
  */
-template<std::size_t N>
-auto inline get_purposes_string(std::bitset<N> &bits) -> std::string {
-  // Iterate over the bits and check each one
+template<std::size_t N, metadata_fields Field>
+auto inline get_field_string(const std::bitset<N> &bits, const std::string& prefix) -> std::string {
   std::stringstream res;
   for (size_t i = 0; i < bits.size(); i++) {
     if (bits.test(i)) {
-      // The i-th bit is set
-      res << "purpose" << i << ",";
+      res << prefix << i << ",";
     }
   }
   return res.str();
@@ -136,14 +181,29 @@ auto inline get_expiration_time(int64_t secs_from_now) -> int64_t {
  * @param value The string containing the GDPR metadata and actual value.
  * @return The actual value after removing the metadata.
  */
-auto inline remove_gdpr_metadata(std::string value) -> std::string {
-  size_t last_delimiter_idx = value.find_last_of('|');
-  if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
-  {
-    // Erase the metadata and return the actual value
-    value.erase(0, last_delimiter_idx + 1);
-  } 
-  return value;
+auto inline remove_gdpr_metadata(std::string&& value) -> std::string {
+  if (value.size() < sizeof(metadata_header)) {
+    return std::move(value);  // Not enough data for header, return as-is
+  }
+  
+  try {
+    // Read the header to determine metadata size
+    const metadata_header* header = reinterpret_cast<const metadata_header*>(value.data());
+    
+    // Calculate total metadata size
+    size_t metadata_size = sizeof(metadata_header) + header->user_bytes + 
+                            header->purpose_bytes + header->purpose_bytes + 
+                            header->origin_bytes + header->user_bytes;
+    
+    if (value.size() > metadata_size) {
+      // Erase the metadata and return the actual value
+      value.erase(0, metadata_size);
+    }
+  } catch (...) {
+    // If anything goes wrong, return original value
+    return std::move(value);
+  }  
+  return std::move(value);
 }
 
 /**
@@ -153,14 +213,69 @@ auto inline remove_gdpr_metadata(std::string value) -> std::string {
  * @param value The string containing the GDPR metadata and the value.
  * @return The GDPR metadata.
  */
-auto inline preserve_only_gdpr_metadata(std::string value) -> std::string {
-  size_t last_delimiter_idx = value.find_last_of('|');
-  if (last_delimiter_idx != std::string::npos && last_delimiter_idx + 1 < value.length())
-  {
-    // Erase the value and return only the GDPR metadata
-    value.erase(last_delimiter_idx + 1, value.length());
-  }  
-  return value;
+auto inline preserve_only_gdpr_metadata(std::string&& value) -> std::string {
+  if (value.size() < sizeof(metadata_header)) {
+    return std::move(value);  // Not enough data for header, return as-is
+  }
+  
+  try {
+    // Read the header to determine metadata size
+    const metadata_header* header = reinterpret_cast<const metadata_header*>(value.data());
+    
+    // Calculate total metadata size
+    size_t metadata_size = sizeof(metadata_header) + header->user_bytes + 
+                            header->purpose_bytes + header->purpose_bytes + 
+                            header->origin_bytes + header->user_bytes;
+    
+    if (value.size() > metadata_size) {
+      // Erase the value and return only the GDPR metadata
+      value.erase(metadata_size);
+    }
+  } catch (...) {
+    // If anything goes wrong, return original value
+    return std::move(value);
+  }
+  
+  return std::move(value);
+}
+
+// Optimized code for converting the binary data of a string to a bitset
+template<size_t N>
+std::bitset<N> convert_to_bitset(std::string_view data, size_t& offset, uint16_t num_bytes) {
+  static_assert((N & (N - 1)) == 0, "N must be power of 2");
+    
+  if (offset + num_bytes > data.size()) {
+    throw std::out_of_range("Offset exceeds data size");
+  }
+  
+  std::bitset<N> bits;
+  
+  // Loop over data in 8-byte chunks with direct casting
+  for (size_t i = 0; i < num_bytes; i += sizeof(uint64_t)) {
+    uint64_t word = 0;
+    size_t bytes_remaining = num_bytes - i;
+    
+    if (bytes_remaining >= sizeof(uint64_t)) {
+      // Direct cast for full 8-byte reads (now safe due to alignment)
+      word = *reinterpret_cast<const uint64_t*>(data.data() + offset + i);
+    } else {
+      // Handle partial reads at the end
+      std::memcpy(&word, data.data() + offset + i, bytes_remaining);
+    }
+    
+    // Create bitset from word
+    if (word != 0) {
+      size_t bit_offset = i * sizeof(uint64_t);
+      for (size_t bit = 0; bit < 64 && bit_offset + bit < N; ++bit) {
+          if (word & (1ULL << bit)) {
+              bits.set(bit_offset + bit);  // Direct bit setting
+          }
+      }
+    }
+  }
+  
+  offset += num_bytes;
+  return bits;  
 }
 
 } // namespace controller

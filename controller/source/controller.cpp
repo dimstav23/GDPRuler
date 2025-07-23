@@ -32,7 +32,7 @@ using controller::gdpr_regulator;
 
 #ifdef METADATA_CACHE
 // Define the cache size (in keys)
-static constexpr size_t GDPR_METADATA_CACHE_SIZE = (1 << 16); // 65536 cached keys / 1024 per shard
+static constexpr size_t GDPR_METADATA_CACHE_SIZE = (1 << 20); // 1048576 cached keys / 16384 per shard
 static auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
 #endif
 
@@ -74,122 +74,138 @@ auto receive_policy(int socket) -> std::optional<default_policy>
 
 // Possible cases:
 // 1. Key does not exist in cache or DB            (cache miss + DB miss) -> {monitor, ""}, is_valid = false
-// 2. Key is in cache, but validation fails        (cache hit, no DB lookup) -> {monitor, std::nullopt}, is_valid = false
-// 3. Key is in cache, validation succeeds         (cache hit, no DB lookup) -> {monitor, std::nullopt}, is_valid = true
-// 4. Key is not in cache, found in DB, invalid    (cache miss + DB hit) -> {monitor, res}, is_valid = false
-// 5. Key is not in cache, found in DB, valid      (cache miss + DB hit) -> {monitor, res}, is_valid = true
+// 2. Key is in cache, but validation fails        (cache hit, no DB lookup) -> {monitor, cached_metadata}, is_valid = false
+// 3. Key is in cache, validation succeeds         (cache hit, no DB lookup) -> {monitor, cached_metadata}, is_valid = true
+// 4. Key is not in cache, found in DB, invalid    (cache miss + DB hit) -> {monitor, complete_value}, is_valid = false
+// 5. Key is not in cache, found in DB, valid      (cache miss + DB hit) -> {monitor, complete_value}, is_valid = true
 auto filter_and_monitor(const std::unique_ptr<kv_client>& client,
   const query& query_args,
   const default_policy& def_policy,
-  bool& is_valid)
+  bool& is_valid,
+  bool& cache_hit)
   -> std::tuple<gdpr_monitor, std::optional<std::string>>
 {
   #ifdef METADATA_CACHE
-  // Try to get metadata from cache
+  // Check if the key is in the cache
+  std::optional<std::string> metadata_or_value;
   auto cached_metadata = cache.cache_get(query_args.key());
   if (cached_metadata) {
-    auto filter = std::make_shared<gdpr_filter>(*cached_metadata);
-    is_valid = filter->validate(query_args, def_policy);
-    auto monitor = gdpr_monitor(filter, query_args, def_policy);
-    return {monitor, std::nullopt};  // Cache hit, no DB data returned
+    metadata_or_value = std::make_optional(*cached_metadata);
+    cache_hit = true;
   }
+  else {
+    // Cache miss - fetch from DB
+    metadata_or_value = client->gdpr_get(query_args.key());
+  }
+  #else
+  // No cache - always fetch from DB
+  auto metadata_or_value = client->gdpr_get(query_args.key());
   #endif
 
-  // Fetch data from client if not in cache
-  auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
-  is_valid = filter->validate(query_args, def_policy);
+  if (!metadata_or_value) {
+    // if the key does not exist in cache or DB
+    is_valid = true;
+    auto monitor = gdpr_monitor(query_args, def_policy);
+    return {std::move(monitor), std::nullopt};
+  }
+
+  // if the key exists in cache or DB
+  // Create a filter and monitor object and validate the query
+  gdpr_filter filter(metadata_or_value);
+  is_valid = filter.validate(query_args, def_policy);
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-  return {monitor, res};
-  
+  return {std::move(monitor), std::move(metadata_or_value)};
 }
 
-// Helper function to update cache with new metadata
-auto update_cache(std::string_view key, const std::string& value)
-{
-  #ifdef METADATA_CACHE
-  cache.cache_put(key, controller::preserve_only_gdpr_metadata(value));
-  #endif
-}
-
-// Helper function to remove a key from the cache
-auto remove_from_cache(std::string_view key)
-{
-  #ifdef METADATA_CACHE
-  cache.cache_remove(key);
-  #endif
-}
-
-auto handle_get(const std::unique_ptr<kv_client>& client,
+/* Get the value associated with a key */
+inline auto handle_get(const std::unique_ptr<kv_client>& client,
                 const query& query_args,
                 const default_policy& def_policy) -> std::string
 {
   // Always fetch from database as even in cache hit, we need to fetch the value
   auto res = client->gdpr_get(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
-  bool is_valid = filter->validate(query_args, def_policy);
-  
+  gdpr_filter filter(res);
+  bool is_valid = filter.validate(query_args, def_policy);
+
   // Create monitor and log
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
   monitor.monitor_query(is_valid);
 
   if (is_valid && res) {
+    #ifdef DEBUG
+    std::cout << "Get query: " << query_args.key() << " with value: " << hex_dump(res.value()) << std::endl;
+    #endif
     return controller::remove_gdpr_metadata(std::move(res.value()));
   }
 
   return GET_FAILED;
 }
 
-auto handle_put(const std::unique_ptr<kv_client>& client,
+/* Insert a KV pair or update an existing value -- GDPR metadata is preserved */
+inline auto handle_put(const std::unique_ptr<kv_client>& client,
                 const query& query_args,
                 const default_policy& def_policy) -> std::string
 {
-  bool query_is_valid;
-  auto [monitor, res] = filter_and_monitor(client, query_args, def_policy, query_is_valid);
-  
-  if (!res) {
-    // Handle new key insertion
-    query_rewriter rewriter(query_args, def_policy, query_args.value());
-    monitor.monitor_query(query_is_valid, rewriter.new_value());
-    auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
+  bool query_is_valid = false;
+  bool cache_hit = false;
+  auto [monitor, metadata_or_value] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
 
-    if (ret_val) {
-      #ifdef METADATA_CACHE
-      // Extract and cache metadata - move to avoid copy
-      std::string metadata = controller::preserve_only_gdpr_metadata(rewriter.new_value());
-      cache.cache_put(query_args.key(), std::move(metadata));
-      #endif
-      return PUT_SUCCESS;
-    }
-  } else if (query_is_valid) {
-    // Handle existing key update
-    query_rewriter rewriter(res.value(), query_args.value());
-    monitor.monitor_query(query_is_valid, rewriter.new_value());
-    auto ret_val = client->gdpr_put(query_args.key(), rewriter.new_value());
-
-    if (ret_val) {
-      #ifdef METADATA_CACHE
-      // Update cache with new metadata - move to avoid copy
-      std::string metadata = controller::preserve_only_gdpr_metadata(rewriter.new_value());
-      cache.cache_put(query_args.key(), std::move(metadata));
-      #endif
-      return PUT_SUCCESS;
-    }
-  } else {
-    // Log invalid operation (if needed)
+  // Early exit for invalid operations
+  if (!query_is_valid) {
     monitor.monitor_query(query_is_valid);
+    return PUT_FAILED;
+  }
+
+  // Construct new value
+  std::string new_value;
+  if (!metadata_or_value) {
+    // New key insertion
+    query_rewriter rewriter(query_args, def_policy, query_args.value());
+    new_value = std::move(rewriter).new_value();
+  } else {
+    // Update existing key (works for both cache hit and DB hit as it needs only the metadata)
+    query_rewriter rewriter(metadata_or_value.value(), query_args.value());
+    new_value = std::move(rewriter).new_value();
+  }
+
+  // Monitor and execute the put operation
+  monitor.monitor_query(query_is_valid, new_value);
+  #ifdef DEBUG
+  std::cout << "Put query: " << query_args.key() << " with value: " << hex_dump(new_value) << std::endl;
+  #endif
+  auto ret_val = client->gdpr_put(query_args.key(), new_value);
+  
+  if (ret_val) {
+    #ifdef METADATA_CACHE
+    // Only update cache if it wasn't a cache hit
+    if (!cache_hit) {
+      std::string metadata = controller::preserve_only_gdpr_metadata(std::move(new_value));
+      #ifdef DEBUG
+      std::cout << "Caching metadata for key: " << query_args.key() << " in format:" << hex_dump(metadata) << std::endl;
+      #endif
+      cache.cache_put(query_args.key(), std::move(metadata));
+    }
+    #endif
+    return PUT_SUCCESS;
   }
 
   return PUT_FAILED;
 }
 
-auto handle_delete(const std::unique_ptr<kv_client>& client,
+/* Delete a KV pair */
+inline auto handle_delete(const std::unique_ptr<kv_client>& client,
                   const query& query_args,
                   const default_policy& def_policy) -> std::string
 {
-  bool query_is_valid;
-  auto [monitor, res] = filter_and_monitor(client, query_args, def_policy, query_is_valid);
+  bool query_is_valid = false;
+  bool cache_hit = false;
+  auto [monitor, metadata_or_value] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
 
+  if (!metadata_or_value) {
+    // Key does not exist in cache or DB - try to delete non-existing key
+    monitor.monitor_query(false);
+    return DELETE_FAILED;
+  }
   // Log the operation (if needed)
   monitor.monitor_query(query_is_valid);
 
@@ -207,16 +223,16 @@ auto handle_delete(const std::unique_ptr<kv_client>& client,
   return DELETE_FAILED;
 }
 
-auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
+inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
                 const query &query_args,
                 const default_policy &def_policy) -> std::string
 {
   auto res = client->gdpr_getm(query_args.key());
-  auto filter = std::make_shared<gdpr_filter>(res);
+  gdpr_filter filter(res);
 
   // Check if the retrieved key requires logging
   auto monitor = gdpr_monitor(filter, query_args, def_policy);
-  bool is_valid = filter->validate(query_args, def_policy);
+  bool is_valid = filter.validate(query_args, def_policy);
   // Perform the logging of the (in)valid operation -- if needed
   monitor.monitor_query(is_valid);
   if (is_valid) {
@@ -228,7 +244,7 @@ auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
   return GETM_FAILED; // GETM_FAILED: Invalid key or does not comply with GDPR rules
 }
 
-auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
+inline auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
                 const query &query_args,
                 const default_policy &def_policy) -> std::string
 {
@@ -240,17 +256,19 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
     return "PUTM_FAILED: The specified key does not exist";
   }
   // if the key exists and complies with the gdpr rules, perform the GDPR metadata update
-  auto filter = std::make_shared<gdpr_filter>(res);
-  if ((is_valid = filter->validate(query_args, def_policy))) {
+  gdpr_filter filter(res);
+  if ((is_valid = filter.validate(query_args, def_policy))) {
     // Check if the retrieved value requires logging
     // the query args do not need to be checked since they cannot update the
     // gpdr metadata of the value -- only putm operations can
     auto monitor = gdpr_monitor(filter, query_args, def_policy);
     // update the current value with the new one without modifying any metadata
-    query_rewriter rewriter(res.value(), query_args);
+    query_rewriter rewriter(query_args, res.value(), std::nullopt);
+    std::string new_value = std::move(rewriter).new_value();
+
     // Perform the logging of the valid operation -- if needed
-    monitor.monitor_query(is_valid, rewriter.new_value());
-    auto ret_val = client->gdpr_putm(query_args.key(), rewriter.new_value());
+    monitor.monitor_query(is_valid, new_value);
+    auto ret_val = client->gdpr_putm(query_args.key(), new_value);
     if (ret_val) {
       return PUTM_SUCCESS;
     }
@@ -262,6 +280,55 @@ auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
   monitor.monitor_query(is_valid);
 
   return PUTM_FAILED; // PUTM_FAILED: Invalid key or does not comply with GDPR rules
+}
+
+/* Insert a KV pair or update an existing value -- GDPR metadata can be altered */
+inline auto handle_put_combined(const std::unique_ptr<kv_client>& client,
+                const query& query_args,
+                const default_policy& def_policy) -> std::string
+{
+  bool query_is_valid = false;
+  bool cache_hit = false;
+  auto [monitor, metadata_or_value] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
+
+  // Early exit for invalid operations
+  if (!query_is_valid) {
+    monitor.monitor_query(query_is_valid);
+    return PUTC_FAILED;
+  }
+
+  // Construct new value with the new/updated metadata
+  std::string new_value;
+  if (!metadata_or_value) {
+    // New key insertion
+    query_rewriter rewriter(query_args, def_policy, query_args.value());
+    new_value = std::move(rewriter).new_value();
+  } else {
+    // Update the metadata of an existing key
+    query_rewriter rewriter(query_args, metadata_or_value.value(), query_args.value());
+    new_value = std::move(rewriter).new_value();
+  }
+
+  // Monitor and execute the put operation
+  monitor.monitor_query(query_is_valid, new_value);
+  #ifdef DEBUG
+  std::cout << "Put query: " << query_args.key() << " with value: " << hex_dump(new_value) << std::endl;
+  #endif
+  auto ret_val = client->gdpr_put(query_args.key(), new_value);
+  
+  if (ret_val) {
+    #ifdef METADATA_CACHE
+    // Update cache
+    std::string metadata = controller::preserve_only_gdpr_metadata(std::move(new_value));
+    #ifdef DEBUG
+    std::cout << "Caching metadata for key: " << query_args.key() << " in format:" << hex_dump(metadata) << std::endl;
+    #endif
+    cache.cache_put(query_args.key(), std::move(metadata));
+    #endif
+    return PUTC_SUCCESS;
+  }
+
+  return PUTC_FAILED;
 }
 
 auto handle_get_logs(const query &query_args,
@@ -378,6 +445,9 @@ auto handle_connection
       }
       else if (query_args.cmd() == "getm") { /* ignore for now */
         response = handle_get_metadata(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "putc") {
+        response = handle_put_combined(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "getlogs") {
         // current client resembles the regulator
