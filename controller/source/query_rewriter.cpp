@@ -44,11 +44,11 @@ query_rewriter::query_rewriter(const query &query_args,
 /* Constructor for put query operation rewriter in case of an UPDATE of a value */
 // To suppress bugprone-easily-swappable-parameters warning from clang-tidy
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-query_rewriter::query_rewriter(std::string_view res, std::string_view new_query_value)
+query_rewriter::query_rewriter(std::string_view value_or_metadata, std::string_view new_query_value)
 {
   // Decode the existing binary format
   size_t offset = 0;
-  metadata_header header = decode_header(res, offset);
+  metadata_header header = decode_header(value_or_metadata, offset);
 
   // Calculate where the old query value starts
   size_t metadata_size =  /* metadata header */   sizeof(metadata_header) + /* user key */    header.user_bytes     +
@@ -57,13 +57,16 @@ query_rewriter::query_rewriter(std::string_view res, std::string_view new_query_
   
   // Copy metadata prefix and append new query value
   m_new_value.reserve(metadata_size + new_query_value.size());
-  m_new_value.append(res.substr(0, metadata_size));
+  m_new_value.append(value_or_metadata.substr(0, metadata_size));
   m_new_value.append(new_query_value);
 }
 
-/* Constructor for PUTM query operation rewriter */
-query_rewriter::query_rewriter(std::string_view res,
-                               const query &query_args)
+/* Constructor for PUTM/PUTC query operation rewriter */
+/* create the new metadata fields based on the query arguments - the rest are left intact */
+/* in case of PUTC, also update the value based on the new_query_value provided parameter */
+query_rewriter::query_rewriter(const query &query_args,
+                               std::string_view res,
+                               std::optional<std::string_view> new_query_value = std::nullopt)
 {
   /* create the new metadata fields based on the query arguments - the rest are left intact */
   // Decode existing data
@@ -77,7 +80,8 @@ query_rewriter::query_rewriter(std::string_view res,
                       query_args.origin().has_value() ||
                       query_args.share().has_value() ||
                       query_args.expiration().has_value() ||
-                      query_args.monitor().has_value();
+                      query_args.monitor().has_value() ||
+                      new_query_value.has_value();
   
   if (!needs_update) {
     // No updates needed, just copy the original
@@ -95,10 +99,10 @@ query_rewriter::query_rewriter(std::string_view res,
 
   // Extract existing bitsets
   std::bitset<num_users> user_key;
-  std::bitset<num_purposes> purpose   = convert_to_bitset<num_purposes>(res, offset, header.purpose_bytes);
-  std::bitset<num_purposes> objection = convert_to_bitset<num_purposes>(res, offset, header.purpose_bytes);
-  std::bitset<num_origins> origin     = convert_to_bitset<num_origins>(res, offset, header.origin_bytes);
-  std::bitset<num_users> share        = convert_to_bitset<num_users>(res, offset, header.user_bytes);
+  std::bitset<num_purposes> purpose;
+  std::bitset<num_purposes> objection;
+  std::bitset<num_origins> origin;
+  std::bitset<num_users> share;
   
   size_t bitset_offset = offset;  // Save the current offset for bitsets
 
@@ -140,7 +144,12 @@ query_rewriter::query_rewriter(std::string_view res,
   }
 
   // Extract remaining query value
-  std::string_view query_value(res.data() + bitset_offset, res.size() - bitset_offset);
+  std::string_view query_value;
+  if (new_query_value.has_value()) {
+    query_value = new_query_value.value();
+  } else {
+    query_value = std::string_view(res.data() + bitset_offset, res.size() - bitset_offset);
+  }
 
   size_t total_size =  /* metadata header */  sizeof(metadata_header) + /* user key */    header.user_bytes     +
                       /* purpose */           header.purpose_bytes    + /* objection */   header.purpose_bytes  +
@@ -201,7 +210,7 @@ auto query_rewriter::decode_header(std::string_view new_value, size_t& offset) c
 }
 
 auto query_rewriter::new_value() && -> std::string {
-  return std::move(m_new_value);  // Transfer ownership via move
+  return std::move(m_new_value);  // Transfer ownership
 }
 
 } // namespace controller

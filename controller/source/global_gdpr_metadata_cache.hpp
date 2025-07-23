@@ -34,7 +34,7 @@ private:
       std::unordered_map<std::string, CacheEntry, string_hash, std::equal_to<>> entries;
       std::shared_mutex mutex;  // Fine-grained per-shard locking
       std::atomic<size_t> size{0};
-      mutable std::mt19937 rng{std::random_device{}()};  // For random eviction
+      mutable std::mt19937 rng{std::random_device{}()};
     };
     
     std::array<Shard, NUM_SHARDS> shards;
@@ -152,19 +152,18 @@ public:
     #endif
 
 private:
-    // O(1) random eviction - much faster than LFU
+    // random eviction
     void random_evict_from_shard(Shard& shard) {
-      
       if (shard.entries.empty()) return;
+
+      // Limit traversal to max 20 elements
+      const size_t max_advance = std::min(shard.entries.size(), size_t(20));
+      std::uniform_int_distribution<size_t> dist(0, max_advance - 1);
+      size_t advance_count = dist(shard.rng);
       
-      // Generate random index
-      std::uniform_int_distribution<size_t> dist(0, shard.entries.size() - 1);
-      size_t random_index = dist(shard.rng);
-      
-      // Find iterator at random position
       auto it = shard.entries.begin();
-      std::advance(it, random_index);
-      
+      std::advance(it, advance_count);  // Max 20 iterations
+
       shard.entries.erase(it);
       shard.size.fetch_sub(1, std::memory_order_relaxed);
     }

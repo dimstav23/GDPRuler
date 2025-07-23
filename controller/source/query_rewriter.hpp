@@ -22,9 +22,10 @@ public:
   /* Constructor for the PUT operation in case of an UPDATE of a value */
   explicit query_rewriter(std::string_view res,
                           std::string_view new_query_value);
-  /* Constructor for the PUTM operation */
-  explicit query_rewriter(std::string_view res,
-                          const query &query_args);
+  /* Constructor for the PUTM/PUTC operation */
+  explicit query_rewriter(const query &query_args,
+                          std::string_view res,
+                          std::optional<std::string_view> new_query_value);
   // ~query_rewriter();
 
   [[nodiscard]] auto new_value() && -> std::string;

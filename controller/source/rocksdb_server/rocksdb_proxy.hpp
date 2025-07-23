@@ -34,7 +34,7 @@ public:
     if (query.get_command() == "get" || query.get_command() == "getm" ) {
       return get(query.get_key());
     }
-    if (query.get_command() == "put" || query.get_command() == "putm") {
+    if (query.get_command() == "put" || query.get_command() == "putm" || query.get_command() == "putc") {
       return put(query.get_key(), query.get_value());
     }
     return del(query.get_key());

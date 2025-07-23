@@ -4,6 +4,7 @@ query_types = [
     "delete",
     "putm",
     "getm",
+    "putc",
     "getlogs"
 ]
 
@@ -41,6 +42,8 @@ def query_multiplexer(query, metadata):
         return putm(K, metadata) 
     elif query_cmd == "getm":
         return getm(K, metadata)
+    elif query_cmd == "putc":
+        return putc_filtered(K, V, metadata)
     elif query_cmd == "getlogs":
         return getLogs(K, metadata)
     else:
@@ -63,6 +66,12 @@ def put_filtered(K, V, metadata):
         return put(K, V)
     
     return (f"put {K} {V} {metadata}")
+
+def putc_filtered(K, V, metadata):
+    if metadata == "":
+        return put(K, V)
+    
+    return (f"putc {K} {V} {metadata}")
 
 def get_filtered(K, metadata):
     if metadata == "":

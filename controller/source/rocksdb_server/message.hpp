@@ -38,7 +38,7 @@ public:
   static auto deserialize(std::string_view raw_query) -> query_message
   {
     static const std::unordered_set<std::string_view> valid_query_types {
-      "get", "put", "del", "getm", "putm"
+      "get", "put", "del", "getm", "putm", "putc", "getlogs"
     };
 
     query_message request;
