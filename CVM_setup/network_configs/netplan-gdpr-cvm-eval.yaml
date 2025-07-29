@@ -1,0 +1,14 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s3:  # User-mode network interface
+      dhcp4: true  # Let QEMU handle this automatically
+    enp0s4:  # TAP/bridge interface
+      dhcp4: no
+      addresses: [172.44.0.2/24]
+      routes:
+        - to: 172.44.0.0/24
+          via: 172.44.0.1
+      nameservers:
+        addresses: [8.8.8.8, 8.8.4.4]

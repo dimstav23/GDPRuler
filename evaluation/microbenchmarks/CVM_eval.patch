@@ -1,0 +1,1149 @@
+diff --git a/benchmarks/network/justfile b/benchmarks/network/justfile
+index 04b5fe7..954e999 100644
+--- a/benchmarks/network/justfile
++++ b/benchmarks/network/justfile
+@@ -17,7 +17,7 @@ CA_CERT := join(SCRIPT_DIR, "tls/pki/ca.crt")
+ #config
+ THREADS := "4"
+ CONNECTIONS := "8"
+-PINGS := "20"
++PINGS := "300"
+ 
+ #ping
+ run-ping pkt_size:
+@@ -25,13 +25,13 @@ run-ping pkt_size:
+ 
+ #iperf
+ run-iperf-server:
+-  iperf -s -p {{IPERF_PORT}} -D
++  iperf3 -s -p {{IPERF_PORT}} -D
+ 
+ run-iperf-client-tcp pkt_size:
+-  iperf -c {{VM_IP}} -p {{IPERF_PORT}} -l {{pkt_size}} -P {{CONNECTIONS}}
++  iperf3 -c {{VM_IP}} -p {{IPERF_PORT}} -l {{pkt_size}} -P {{CONNECTIONS}}
+ 
+ run-iperf-client-udp pkt_size:
+-  iperf -c {{VM_IP}} -p {{IPERF_PORT}} -l {{pkt_size}} -P {{CONNECTIONS}} -b 0 -u
++  iperf3 -c {{VM_IP}} -p {{IPERF_PORT}} -l {{pkt_size}} -P {{CONNECTIONS}} -b 0 -u
+ 
+ #nginx
+ run-nginx:
+@@ -51,13 +51,15 @@ run-redis:
+   redis-server \
+   --protected-mode no \
+   --daemonize yes \
+-  --port {{STANDARD_MEMTIER_PORT}}
++  --port {{STANDARD_MEMTIER_PORT}} \
++  --bind 0.0.0.0
+ 
+ run-redis-tls:
+   redis-server \
+   --protected-mode no \
+   --daemonize yes \
+   --port {{STANDARD_MEMTIER_PORT}} \
++  --bind 0.0.0.0 \
+   --tls-port {{TLS_MEMTIER_PORT}} \
+   --tls-cert-file {{SERVER_CERT}} \
+   --tls-key-file {{SERVER_KEY}} \
+diff --git a/benchmarks/network/measure.sh b/benchmarks/network/measure.sh
+index f87cedc..d66b1c9 100644
+--- a/benchmarks/network/measure.sh
++++ b/benchmarks/network/measure.sh
+@@ -21,7 +21,7 @@ do
+     # -b 0 : no bandwidth limit
+     # -i 1 : report interval 1s
+     # -P 8 : 8 parallel streams
+-    iperf -c ${DESTIP} -p ${DESTPORT} -u -b 0 -i 1 -l ${pkt} -P ${PROCESS} > ${DIR}/iperf-udp-${pkt}.txt
++    iperf3 -c ${DESTIP} -p ${DESTPORT} -u -b 0 -i 1 -l ${pkt} -P ${PROCESS} > ${DIR}/iperf-udp-${pkt}.txt
+ done
+ 
+ for pkt in 64 128 256 512 1K 32K 128K
+@@ -29,7 +29,7 @@ do
+     # TCP
+     # -i 1 : report interval 1s
+     # -P 8 : 8 parallel streams
+-    iperf -c ${DESTIP} -p ${DESTPORT} -b 0 -i 1 -l ${pkt} -P ${PROCESS} > ${DIR}/iperf-tcp-${pkt}.txt
++    iperf3 -c ${DESTIP} -p ${DESTPORT} -b 0 -i 1 -l ${pkt} -P ${PROCESS} > ${DIR}/iperf-tcp-${pkt}.txt
+ done
+ 
+ DIR=${PROJECTPATH}/bench-result/network/ping/${VM}-direct-${SIZE}/${DATE}
+diff --git a/experiment/bench_network.sh b/experiment/bench_network.sh
+index 5b9e345..0476230 100755
+--- a/experiment/bench_network.sh
++++ b/experiment/bench_network.sh
+@@ -5,13 +5,13 @@ set -e
+ set -u
+ set -o pipefail
+ 
+-VM=${VM:-intel}
++VM=(amd snp)
+ 
+ for size in medium
+ do
+-    for type_ in $VM
++    for type_ in "${VM[@]}"
+     do
+-        for action in ping iperf iperf-udp nginx
++        for action in ping iperf iperf-udp
+         do
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm"
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm"  --virtio-nic-vhost
+@@ -21,12 +21,11 @@ do
+     done
+ done
+ 
+-
+ for size in medium
+ do
+-    for type_ in $VM
++    for type_ in "${VM[@]}"
+     do
+-        for action in memtier memtier-memcached
++        for action in memtier
+         do
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm"
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --tls
+@@ -38,4 +37,4 @@ do
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --tls --virtio-nic-vhost --virtio-nic-mq
+         done
+     done
+-done
++done
+\ No newline at end of file
+diff --git a/experiment/bench_storage.sh b/experiment/bench_storage.sh
+index 124181d..0691cde 100755
+--- a/experiment/bench_storage.sh
++++ b/experiment/bench_storage.sh
+@@ -2,19 +2,19 @@
+ 
+ set -x
+ 
+-VM=${VM:-intel}
++VM=(amd snp)
+ DISKS=${DISKS:-nvme1n1}
+ 
+ for size in medium
+ do
+-    for type_ in $VM
++    for type_ in "${VM[@]}"
+     do
+-        for action in sqlite fio
++        for action in fio
+         do
+             for disk in ${DISKS}
+             do
+                 inv vm.start --type ${type_} --size ${size} --virtio-blk /dev/${disk} --no-warn --action="run-${action}"  --fio-job "libaio" --name-extra $disk
+-                done
++            done
+         done
+     done
+ done
+diff --git a/experiment/bench_swiotlb.sh b/experiment/bench_swiotlb.sh
+index 0025df1..06d3e83 100755
+--- a/experiment/bench_swiotlb.sh
++++ b/experiment/bench_swiotlb.sh
+@@ -2,16 +2,16 @@
+ 
+ set -x
+ 
+-VM=${VM:-intel}
++VM=(amd snp)
+ DISKS=${DISKS:-nvme1n1}
+ 
+ SWIOTLB_OPTION=' --virtio-iommu --extra-cmdline "swiotlb=524288,force"'
+ 
+ for size in medium
+ do
+-    for type_ in $VM
++    for type_ in "${VM[@]}"
+     do
+-        for action in sqlite fio
++        for action in fio
+         do
+             for disk in $DISKS
+             do
+@@ -21,13 +21,11 @@ do
+     done
+ done
+ 
+-exit
+-
+ for size in medium
+ do
+-    for type_ in $VM
++    for type_ in "${VM[@]}"
+     do
+-        for action in ping iperf iperf-udp nginx
++        for action in ping iperf iperf-udp
+         do
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm"  --virtio-nic-vhost $SWIOTLB_OPTION
+@@ -39,9 +37,9 @@ done
+ 
+ for size in medium
+ do
+-    for type_ in $VM
++    for type_ in "${VM[@]}"
+     do
+-        for action in memtier memtier-memcached
++        for action in memtier
+         do
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
+             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --tls $SWIOTLB_OPTION
+diff --git a/experiment/run_unixbench.sh b/experiment/run_unixbench.sh
+index 958dba6..f26c7e6 100755
+--- a/experiment/run_unixbench.sh
++++ b/experiment/run_unixbench.sh
+@@ -1,8 +1,8 @@
+ 
+ # prepartion
+ # ```
+-# mkfs.ext4 /dev/vdb
+-# mount /dev/vdb /mnt
++# mkfs.ext4 /dev/vda
++# mount /dev/vda /mnt
+ # mkdir -p /mnt/application/unixbench
+ # cd /mnt/application/unixbench
+ # git clone https://github.com/kdlucas/byte-unixbench/
+@@ -22,7 +22,7 @@ do
+ 		inv vm.start --type $vm --size $size \
+ 		--virtio-blk /dev/$disk --no-warn \
+ 		--action ssh-cmd \
+-		--ssh-cmd "bash -c 'if ! mount /dev/vdb /mnt; then mkfs.ext4 /dev/vdb && mount /dev/vdb /mnt; fi'" \
++		--ssh-cmd "bash -c 'if ! mount /dev/vda /mnt; then mkfs.ext4 /dev/vda && mount /dev/vda /mnt; fi'" \
+ 		--ssh-cmd "bash -c 'if ! cd $dir; then mkdir -p /mnt/application/unixbench && git clone https://github.com/kdlucas/byte-unixbench /mnt/application/unixbench/byte-unixbench; fi'" \
+ 		--ssh-cmd "bash -c 'cd $dir; make; perl Run'" \
+ 		--ssh-cmd "mv $dir/results $dir/$vm-direct-$size-$disk" \
+diff --git a/justfile b/justfile
+index 2078fd4..6a01da6 100644
+--- a/justfile
++++ b/justfile
+@@ -2,17 +2,17 @@
+ 
+ PROJECT_ROOT := justfile_directory()
+ BUILD_DIR := join(PROJECT_ROOT, "build")
+-QEMU_SNP := join(BUILD_DIR, "qemu-amd-sev-snp/bin/qemu-system-x86_64")
+-OVMF_SNP := join(BUILD_DIR, "ovmf-amd-sev-snp-fd/FV/OVMF.fd")
+-OVMF_SNP_CODE := join(BUILD_DIR, "ovmf-amd-sev-snp-fd/FV/OVMF_CODE.fd")
+-OVMF_SNP_VARS := join(BUILD_DIR, "ovmf-amd-sev-snp-fd/FV/OVMF_VARS.fd")
++QEMU_SNP := "qemu-system-x86_64"
++OVMF_SNP := join(PROJECT_ROOT, "gdpr_setup/firmware/ovmf/OVMF.fd")
++OVMF_SNP_CODE := join(PROJECT_ROOT, "gdpr_setup/firmware/ovmf/OVMF_CODE.fd")
++OVMF_SNP_VARS := join(PROJECT_ROOT, "gdpr_setup/firmware/ovmf/OVMF_VARS.fd")
+ # qemu and ovmf for normal guest (use SNP version for now)
+ QEMU := QEMU_SNP
+ OVMF := OVMF_SNP
+ OVMF_CODE := OVMF_SNP_CODE
+ OVMF_VARS := OVMF_SNP_VARS
+-SNP_IMAGE := join(BUILD_DIR, "image/snp-guest-image.qcow2")
+-NORMAL_IMAGE := join(BUILD_DIR, "image/normal-guest-image.qcow2")
++SNP_IMAGE := join(PROJECT_ROOT, "gdpr_setup/images/gdpr.img")
++NORMAL_IMAGE := join(PROJECT_ROOT, "gdpr_setup/images/gdpr.img")
+ GUEST_FS := join(BUILD_DIR, "image/guest-fs.qcow2")
+ SSH_PORT := "2225"
+ smp := "4"
+@@ -56,52 +56,6 @@ start-vm-disk:
+         -device virtio-net-pci,netdev=en0 \
+         -drive if=pflash,format=raw,unit=0,file={{OVMF}},readonly=on
+ 
+-start-vm-direct:
+-    sudo {{QEMU}} \
+-        -cpu host \
+-        -smp {{smp}} \
+-        -m {{mem}} \
+-        -machine q35 \
+-        -enable-kvm \
+-        -nographic \
+-        -kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        -append "root=/dev/vda console=hvc0" \
+-        -blockdev qcow2,node-name=q2,file.driver=file,file.filename={{GUEST_FS}} \
+-        -device virtio-blk-pci,drive=q2 \
+-        -device virtio-net-pci,netdev=net0 \
+-        -netdev user,id=net0,hostfwd=tcp::{{SSH_PORT}}-:22 \
+-        -virtfs local,path={{PROJECT_ROOT}},security_model=none,mount_tag=share \
+-        -drive if=pflash,format=raw,unit=0,file={{OVMF}},readonly=on \
+-        -serial null \
+-        -device virtio-serial \
+-        -chardev stdio,mux=on,id=char0,signal=off \
+-        -mon chardev=char0,mode=readline \
+-        -device virtconsole,chardev=char0,id=vc0,nr=0
+-
+-start-vm-direct-vhost:
+-    sudo {{QEMU}} \
+-        -cpu host \
+-        -smp {{smp}} \
+-        -m {{mem}} \
+-        -machine q35 \
+-        -enable-kvm \
+-        -nographic \
+-        -kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        -append "root=/dev/vda console=hvc0" \
+-        -blockdev qcow2,node-name=q2,file.driver=file,file.filename={{GUEST_FS}} \
+-        -device virtio-blk-pci,drive=q2 \
+-        -device virtio-net-pci,netdev=net0 \
+-        -netdev user,id=net0,hostfwd=tcp::{{SSH_PORT}}-:22 \
+-        -virtfs local,path={{PROJECT_ROOT}},security_model=none,mount_tag=share \
+-        -drive if=pflash,format=raw,unit=0,file={{OVMF}},readonly=on \
+-        -netdev tap,id=en0,ifname={{TAP_NAME}},script=no,downscript=no,vhost=on,queues=2 \
+-        -device virtio-net-pci,netdev=en0,mq=on,vectors=18 \
+-        -serial null \
+-        -device virtio-serial \
+-        -chardev stdio,mux=on,id=char0,signal=off \
+-        -mon chardev=char0,mode=readline \
+-        -device virtconsole,chardev=char0,id=vc0,nr=0
+-
+ start-snp-disk:
+     sudo {{QEMU_SNP}} \
+         -cpu EPYC-v4,host-phys-bits=true \
+@@ -119,136 +73,6 @@ start-snp-disk:
+         -virtfs local,path={{PROJECT_ROOT}},security_model=none,mount_tag=share \
+         -bios {{OVMF_SNP}}
+ 
+-start-snp-direct:
+-    sudo {{QEMU_SNP}} \
+-        -cpu EPYC-v4,host-phys-bits=true \
+-        -smp {{smp}} \
+-        -m {{mem}} \
+-        -machine q35,memory-backend=ram1,memory-encryption=sev0,vmport=off \
+-        -enable-kvm \
+-        -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,policy=0x30000 \
+-        -object memory-backend-memfd,id=ram1,size={{mem}},share=true,prealloc=false \
+-        -nographic \
+-        -kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        -append "root=/dev/vda console=hvc0" \
+-        -blockdev qcow2,node-name=q2,file.driver=file,file.filename={{GUEST_FS}} \
+-        -device virtio-blk-pci,drive=q2 \
+-        -device virtio-net-pci,netdev=net0 \
+-        -netdev user,id=net0,hostfwd=tcp::{{SSH_PORT}}-:22 \
+-        -virtfs local,path={{PROJECT_ROOT}},security_model=none,mount_tag=share \
+-        -bios {{OVMF_SNP}} \
+-        -serial null \
+-        -device virtio-serial \
+-        -chardev stdio,mux=on,id=char0,signal=off \
+-        -mon chardev=char0,mode=readline \
+-        -device virtconsole,chardev=char0,id=vc0,nr=0
+-
+-# ------------------------------
+-# TDX machine
+-#
+-
+-#TDX_QEMU := "qemu-system-x86_64"
+-TDX_QEMU := join(BUILD_DIR, "qemu-tdx/bin/qemu-system-x86_64")
+-#TDVF_FIRMWARE := "/usr/share/ovmf/OVMF.fd"
+-TDVF_FIRMWARE := join(BUILD_DIR, "ovmf-tdx-fd/FV/OVMF.fd")
+-TDSHIM := "../td-shim/target/release/final.bin"
+-CLOUD_HYPERVISOR := "../cloud-hypervisor/target/release/cloud-hypervisor"
+-TD_IMG := join(BUILD_DIR, "image/tdx-guest-ubuntu-24.04-generic.qcow2")
+-QUOTE_ARGS := "-device vhost-vsock-pci,guest-cid=3"
+-
+-start-tdx-vm:
+-    {{TDX_QEMU}} \
+-        -cpu host \
+-        -smp {{smp}} \
+-        -m {{mem}} \
+-        -machine q35,hpet=off,kernel_irqchip=split,memory-encryption=tdx,memory-backend=ram1 \
+-        -enable-kvm \
+-        -object tdx-guest,id=tdx \
+-        -object memory-backend-ram,id=ram1,size={{mem}},private=on \
+-        -bios {{TDVF_FIRMWARE}} \
+-        -nographic \
+-        -nodefaults \
+-        -serial stdio \
+-        -device virtio-net-pci,netdev=nic0_td \
+-        -netdev user,id=nic0_td,hostfwd=tcp::{{SSH_PORT}}-:22 \
+-        -drive file={{TD_IMG}},if=none,id=virtio-disk0 \
+-        -device virtio-blk-pci,drive=virtio-disk0 \
+-        {{QUOTE_ARGS}}
+-
+-start-tdx-direct:
+-    {{TDX_QEMU}} \
+-        -cpu host \
+-        -smp {{smp}} \
+-        -m {{mem}} \
+-        -machine q35,hpet=off,kernel_irqchip=split,memory-encryption=tdx,memory-backend=ram1 \
+-        -enable-kvm \
+-        -object tdx-guest,id=tdx \
+-        -object memory-backend-ram,id=ram1,size={{mem}},private=on \
+-        -kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        -append "root=/dev/vda console=hvc0" \
+-        -bios {{TDVF_FIRMWARE}} \
+-        -nographic \
+-        -nodefaults \
+-        -device virtio-net-pci,netdev=nic0_td \
+-        -netdev user,id=nic0_td,hostfwd=tcp::{{SSH_PORT}}-:22 \
+-        -drive file={{GUEST_FS}},if=none,id=virtio-disk0 \
+-        -device virtio-blk-pci,drive=virtio-disk0 \
+-        -serial null \
+-        -device virtio-serial \
+-        -chardev stdio,mux=on,id=char0,signal=off \
+-        -mon chardev=char0,mode=readline \
+-        -device virtconsole,chardev=char0,id=vc0,nr=0 \
+-        {{QUOTE_ARGS}}
+-
+-start-ch:
+-   {{CLOUD_HYPERVISOR}} \
+-        --kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        --cmdline "console=hvc0 root=/dev/vda rw" \
+-        --cpus boot={{smp}} \
+-        --memory size={{mem}} \
+-        --disk path={{GUEST_FS}} 
+-
+-start-ch-tdvf:
+-   {{CLOUD_HYPERVISOR}} \
+-        --platform tdx=on \
+-        --firmware {{TDVF_FIRMWARE}} \
+-        --kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        --cmdline "console=hvc0 root=/dev/vda rw" \
+-        --cpus boot={{smp}} \
+-        --memory size={{mem}} \
+-        --disk path={{GUEST_FS}} 
+-
+-start-ch-tdshim:
+-   {{CLOUD_HYPERVISOR}} \
+-        --platform tdx=on \
+-        --firmware {{TDSHIM}} \
+-        --kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        --cmdline "console=hvc0 root=/dev/vda rw" \
+-        --cpus boot={{smp}} \
+-        --memory size={{mem}} \
+-        --disk path={{GUEST_FS}} 
+-
+-start-intel-direct:
+-    {{TDX_QEMU}} \
+-        -cpu host \
+-        -smp {{smp}} \
+-        -m {{mem}} \
+-        -enable-kvm \
+-        -kernel {{LINUX_DIR}}/arch/x86/boot/bzImage \
+-        -append "root=/dev/vda console=hvc0" \
+-        -bios {{TDVF_FIRMWARE}} \
+-        -nographic \
+-        -nodefaults \
+-        -device virtio-net-pci,netdev=nic0_td \
+-        -netdev user,id=nic0_td,hostfwd=tcp::{{SSH_PORT}}-:22 \
+-        -drive file={{GUEST_FS}},if=none,id=virtio-disk0 \
+-        -device virtio-blk-pci,drive=virtio-disk0 \
+-        -serial null \
+-        -device virtio-serial \
+-        -chardev stdio,mux=on,id=char0,signal=off \
+-        -mon chardev=char0,mode=readline \
+-        -device virtconsole,chardev=char0,id=vc0,nr=0
+-
+ # ------------------------------
+ # Utility commands
+ 
+diff --git a/scripts/mount.sh b/scripts/mount.sh
+index 3299134..3774df5 100755
+--- a/scripts/mount.sh
++++ b/scripts/mount.sh
+@@ -6,7 +6,7 @@
+ mkdir -p /share
+ mount -t 9p -o trans=virtio,version=9p2000.L share /share
+ 
+-if [ -e /dev/vdb ]; then
++if [ -e /dev/vda ]; then
+     mkdir -p /mnt
+-    mount /dev/vdb /mnt
++    mount /dev/vda /mnt
+ fi
+diff --git a/tasks/application.py b/tasks/application.py
+index 6d0e704..80ac420 100644
+--- a/tasks/application.py
++++ b/tasks/application.py
+@@ -12,11 +12,11 @@ from storage import mount_disk
+ 
+ 
+ def setup_disk(vm: QemuVm, fail_stop=True) -> bool:
+-    """Check if virtio-blk (/dev/vdb) is available. If so, prepare the disk for the evaluation"""
++    """Check if virtio-blk (/dev/vda) is available. If so, prepare the disk for the evaluation"""
+     if vm.config["virtio_blk"] is None:
+         return False
+ 
+-    r = mount_disk(vm, "/dev/vdb", "/mnt", format="auto")
++    r = mount_disk(vm, "/dev/vda", "/mnt", format="auto")
+     if not r:
+         if fail_stop:
+             raise Exception("Failed to mount virtio-blk")
+diff --git a/tasks/network.py b/tasks/network.py
+index 29d3157..ba71b7b 100644
+--- a/tasks/network.py
++++ b/tasks/network.py
+@@ -20,7 +20,7 @@ def run_ping(name: str, vm: QemuVm, pin_base=20):
+ 
+     for pkt_size in [64, 128, 256, 512, 1024]:
+         process = subprocess.Popen(
+-            f"taskset -c {pin_base} ping -c 30 -i0.1 -s {pkt_size} {VM_IP}".split(" "),
++            f"taskset -c {pin_base} ping -c 300 -i0.1 -s {pkt_size} {VM_IP}".split(" "),
+             stderr=subprocess.PIPE,
+             stdout=subprocess.PIPE,
+         )
+@@ -56,7 +56,7 @@ def run_iperf(
+         if parallel is None:
+             parallel = 8
+     else:
+-        pkt_sizes = ["128K"]
++        pkt_sizes = ["256", "4K", "32K", "128K"]
+         proto = "tcp"
+         if parallel is None:
+             parallel = 32
+@@ -69,7 +69,7 @@ def run_iperf(
+     outputdir_host.mkdir(parents=True, exist_ok=True)
+ 
+     # start server
+-    server_cmd = ["iperf", "-s", "-p", f"{port}", "-D"]
++    server_cmd = ["iperf3", "-s", "-p", f"{port}", "-D"]
+     vm.ssh_cmd(server_cmd)
+     time.sleep(1)
+ 
+@@ -79,7 +79,7 @@ def run_iperf(
+             "taskset",
+             "-c",
+             f"{pin_start}-{pin_end}",
+-            "iperf",
++            "iperf3",
+             "-c",
+             f"{VM_IP}",
+             "-p",
+diff --git a/tasks/qemu.py b/tasks/qemu.py
+index b620ff5..bc0eeab 100644
+--- a/tasks/qemu.py
++++ b/tasks/qemu.py
+@@ -166,6 +166,7 @@ class QemuVm:
+             ):
+                 break
+             time.sleep(0.1)
++        print(f"done with waiting for ssh on {self.ssh_port}")
+ 
+     def ssh_Popen(
+         self,
+diff --git a/tasks/storage.py b/tasks/storage.py
+index 70bc920..193551f 100644
+--- a/tasks/storage.py
++++ b/tasks/storage.py
+@@ -13,7 +13,7 @@ def run_fio(
+     name: str,
+     vm: QemuVm,
+     job: str = "test",
+-    filename: str = "/dev/vdb",
++    filename: str = "/dev/vda",
+ ):
+     date = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+     outputdir = Path(f"./bench-result/fio/{name}/{job}/")
+diff --git a/tasks/vm.py b/tasks/vm.py
+index ef52398..c2e7bd7 100644
+--- a/tasks/vm.py
++++ b/tasks/vm.py
+@@ -34,6 +34,7 @@ class VMConfig:
+     qemu: Path
+     image: Path
+     ovmf: Path
++    ovmf_vars: Optional[Path]
+     kernel: Optional[Path]
+     initrd: Optional[Path]
+     cmdline: Optional[str]
+@@ -94,87 +95,6 @@ VMRESOURCES["vislor"]["boot-cpu64"] = VMResource(
+     cpu=64, memory=8, numa_node=[0, 1], pin_base=0
+ )
+ 
+-VMRESOURCES["irene"] = deepcopy(VMRESOURCES["vislor"])
+-VMRESOURCES["irene"]["large"] = VMResource(
+-    cpu=32, memory=256, numa_node=[0], pin_base=8
+-)
+-VMRESOURCES["irene"]["xlarge"] = VMResource(
+-    cpu=64, memory=512, numa_node=[0], pin_base=8
+-)
+-del VMRESOURCES["irene"]["numa"]
+-
+-# Intel servers
+-VMRESOURCES["ian"] = {}
+-VMRESOURCES["ian"]["small"] = VMResource(cpu=1, memory=8, numa_node=[0], pin_base=8)
+-VMRESOURCES["ian"]["medium"] = VMResource(cpu=8, memory=64, numa_node=[0], pin_base=8)
+-VMRESOURCES["ian"]["large"] = VMResource(cpu=32, memory=128, numa_node=[0], pin_base=0)
+-VMRESOURCES["ian"]["numa"] = VMResource(
+-    cpu=64, memory=256, numa_node=[0, 1], pin_base=0
+-)
+-
+-# configuration when SNC (Sub Numa Clustering) enabled
+-# VMRESOURCES["sdp"]["large"] = VMResource(
+-#    cpu=28, memory=128, numa_node=[1], pin_base=28
+-# )
+-# VMRESOURCES["sdp"]["numa"] = VMResource(
+-#    cpu=56, memory=256, numa_node=[0, 1], pin_base=0
+-# )
+-# VMRESOURCES["sdp"]["vnuma"] = VMResource(
+-#    cpu=56,
+-#    memory=256,
+-#    numa_node=[0, 1],
+-#    pin_base=0,
+-#    vnuma=[
+-#        NodeInfo(cpus="0-27", mem=128, dist=[12]),
+-#        NodeInfo(cpus="28-55", mem=128, dist=[]),
+-#    ],
+-# )
+-
+-VMRESOURCES["ian"]["boot-mem8"] = VMResource(cpu=8, memory=8, numa_node=[0], pin_base=8)
+-VMRESOURCES["ian"]["boot-mem16"] = VMResource(
+-    cpu=8, memory=16, numa_node=[0], pin_base=8
+-)
+-VMRESOURCES["ian"]["boot-mem32"] = VMResource(
+-    cpu=8, memory=32, numa_node=[0], pin_base=8
+-)
+-VMRESOURCES["ian"]["boot-mem64"] = VMResource(
+-    cpu=8, memory=64, numa_node=[0], pin_base=8
+-)
+-VMRESOURCES["ian"]["boot-mem128"] = VMResource(
+-    cpu=8, memory=128, numa_node=[0], pin_base=8
+-)
+-VMRESOURCES["ian"]["boot-mem256"] = VMResource(
+-    cpu=8, memory=256, numa_node=[0], pin_base=8
+-)
+-# VMRESOURCES["ian"]["boot-mem256"] = VMResource(
+-#    cpu=8, memory=256, numa_node=[0, 1], pin_base=8
+-# )
+-
+-VMRESOURCES["ian"]["boot-cpu1"] = VMResource(cpu=1, memory=8, numa_node=[0], pin_base=8)
+-VMRESOURCES["ian"]["boot-cpu8"] = VMResource(cpu=8, memory=8, numa_node=[0], pin_base=8)
+-VMRESOURCES["ian"]["boot-cpu16"] = VMResource(
+-    cpu=16, memory=8, numa_node=[0], pin_base=0
+-)
+-VMRESOURCES["ian"]["boot-cpu32"] = VMResource(
+-    cpu=32, memory=8, numa_node=[0], pin_base=0
+-)
+-VMRESOURCES["ian"]["boot-cpu64"] = VMResource(
+-    cpu=64, memory=8, numa_node=[0, 1], pin_base=0
+-)
+-
+-VMRESOURCES["sdp"] = deepcopy(VMRESOURCES["ian"])
+-VMRESOURCES["sdp"]["large"] = VMResource(cpu=28, memory=128, numa_node=[0], pin_base=28)
+-VMRESOURCES["sdp"]["xlarge"] = VMResource(cpu=56, memory=256, numa_node=[0], pin_base=0)
+-VMRESOURCES["sdp"]["numa"] = VMResource(
+-    cpu=112, memory=512, numa_node=[0, 1], pin_base=0
+-)
+-VMRESOURCES["sdp"]["boot-cpu28"] = VMResource(
+-    cpu=28, memory=8, numa_node=[0], pin_base=0
+-)
+-VMRESOURCES["sdp"]["boot-cpu56"] = VMResource(
+-    cpu=56, memory=8, numa_node=[0, 1], pin_base=0
+-)
+-
+ 
+ def get_vm_resource(hostname: str, name: str) -> VMResource:
+     return VMRESOURCES[hostname][name]
+@@ -184,117 +104,30 @@ def get_vm_config(name: str) -> VMConfig:
+     if name == "amd":
+         # use kernel same for the "snp"
+         return VMConfig(
+-            qemu=BUILD_DIR / "qemu-amd-sev-snp/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/snp-guest-image.qcow2",
+-            ovmf=BUILD_DIR / "ovmf-amd-sev-snp-fd/FV/OVMF.fd",
++            qemu="qemu-system-x86_64",
++            image=PROJECT_ROOT / "gdpr_setup/images/gdpr.img",
++            ovmf=PROJECT_ROOT / "gdpr_setup/ovmf/OVMF_CODE.fd",
++            ovmf_vars= PROJECT_ROOT / "gdpr_setup/ovmf/OVMF_VARS.fd",
+             kernel=None,
+             initrd=None,
+             cmdline=None,
+         )
+     if name == "amd-normal":
+         return VMConfig(
+-            qemu=BUILD_DIR / "qemu-amd-sev-snp/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/normal-guest-image.qcow2",
+-            ovmf=BUILD_DIR / "ovmf-amd-sev-snp-fd/FV/OVMF.fd",
++            qemu="qemu-system-x86_64",
++            image=PROJECT_ROOT / "gdpr_setup/images/gdpr.img",
++            ovmf=PROJECT_ROOT / "gdpr_setup/ovmf/OVMF_CODE.fd",
++            ovmf_vars= PROJECT_ROOT / "gdpr_setup/ovmf/OVMF_VARS.fd",
+             kernel=None,
+             initrd=None,
+             cmdline=None,
+         )
+-    if name == "amd-direct":
+-        return VMConfig(
+-            qemu=BUILD_DIR / "qemu-amd-sev-snp/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/guest-fs.qcow2",
+-            ovmf=BUILD_DIR / "ovmf-amd-sev-snp-fd/FV/OVMF.fd",
+-            kernel=LINUX_DIR / "arch/x86/boot/bzImage",
+-            initrd=None,
+-            cmdline="root=/dev/vda console=hvc0",
+-        )
+     if name == "snp":
+         return VMConfig(
+-            qemu=BUILD_DIR / "qemu-amd-sev-snp/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/snp-guest-image.qcow2",
+-            ovmf=BUILD_DIR / "ovmf-amd-sev-snp-fd/FV/OVMF.fd",
+-            kernel=None,
+-            initrd=None,
+-            cmdline=None,
+-        )
+-    if name == "snp-direct":
+-        return VMConfig(
+-            qemu=BUILD_DIR / "qemu-amd-sev-snp/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/guest-fs.qcow2",
+-            ovmf=BUILD_DIR / "ovmf-amd-sev-snp-fd/FV/OVMF.fd",
+-            kernel=LINUX_DIR / "arch/x86/boot/bzImage",
+-            initrd=None,
+-            cmdline="root=/dev/vda console=hvc0",
+-        )
+-    if name == "intel":
+-        # use kernel same for the "tdx"
+-        return VMConfig(
+-            # qemu="/usr/bin/qemu-system-x86_64",
+-            # ovmf="/usr/share/ovmf/OVMF.fd",
+-            qemu=BUILD_DIR / "qemu-tdx/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/tdx-guest-image.qcow2",
+-            ovmf=BUILD_DIR / "ovmf-tdx-fd/FV/OVMF.fd",
+-            kernel=None,
+-            initrd=None,
+-            cmdline=None,
+-        )
+-    if name == "intel-normal":
+-        return VMConfig(
+-            qemu="/usr/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/normal-guest-image.qcow2",
+-            ovmf="/usr/share/ovmf/OVMF.fd",
+-            kernel=None,
+-            initrd=None,
+-            cmdline=None,
+-        )
+-    if name == "intel-direct":
+-        return VMConfig(
+-            # qemu="/usr/bin/qemu-system-x86_64",
+-            qemu=BUILD_DIR / "qemu-tdx/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/guest-fs.qcow2",
+-            # ovmf="/usr/share/ovmf/OVMF.fd",
+-            ovmf=BUILD_DIR / "ovmf-tdx-fd/FV/OVMF.fd",
+-            kernel=LINUX_DIR / "arch/x86/boot/bzImage",
+-            initrd=None,
+-            cmdline="root=/dev/vda console=hvc0",
+-        )
+-    if name == "intel-ubuntu":
+-        return VMConfig(
+-            qemu="/usr/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/tdx-guest-ubuntu-24.04-generic.qcow2",
+-            ovmf="/usr/share/ovmf/OVMF.fd",
+-            kernel=None,
+-            initrd=None,
+-            cmdline=None,
+-        )
+-    if name == "tdx":
+-        return VMConfig(
+-            # qemu="/usr/bin/qemu-system-x86_64",
+-            # ovmf="/usr/share/ovmf/OVMF.fd",
+-            qemu=BUILD_DIR / "qemu-tdx/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/tdx-guest-image.qcow2",
+-            ovmf=BUILD_DIR / "ovmf-tdx-fd/FV/OVMF.fd",
+-            kernel=None,
+-            initrd=None,
+-            cmdline=None,
+-        )
+-    if name == "tdx-direct":
+-        return VMConfig(
+-            # qemu="/usr/bin/qemu-system-x86_64",
+-            qemu=BUILD_DIR / "qemu-tdx/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/guest-fs.qcow2",
+-            # ovmf="/usr/share/ovmf/OVMF.fd",
+-            ovmf=BUILD_DIR / "ovmf-tdx-fd/FV/OVMF.fd",
+-            kernel=LINUX_DIR / "arch/x86/boot/bzImage",
+-            initrd=None,
+-            cmdline="root=/dev/vda console=hvc0",
+-        )
+-    if name == "tdx-ubuntu":
+-        return VMConfig(
+-            qemu="/usr/bin/qemu-system-x86_64",
+-            image=BUILD_DIR / "image/tdx-guest-ubuntu-24.04-generic.qcow2",
+-            ovmf="/usr/share/ovmf/OVMF.fd",
++            qemu="qemu-system-x86_64",
++            image=PROJECT_ROOT / "gdpr_setup/images/gdpr.img",
++            ovmf=PROJECT_ROOT / "gdpr_setup/ovmf/OVMF.fd",
++            ovmf_vars=None,
+             kernel=None,
+             initrd=None,
+             cmdline=None,
+@@ -309,53 +142,25 @@ def get_amd_vm_qemu_cmd(resource: VMResource, config: dict) -> List[str]:
+     qemu_cmd = f"""
+     {vmconfig.qemu}
+     -enable-kvm
+-    -cpu host
+-    -smp {resource.cpu}
+-    -m {resource.memory}G
++    -cpu host,+kvm_pv_unhalt,+kvm_pv_eoi
+     -machine q35
+-
+-    -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-    -device virtio-blk-pci,drive=q2,bootindex=0
+-    -device virtio-net-pci,netdev=net0
+-    -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+-    -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
+-    -drive if=pflash,format=raw,unit=0,file={vmconfig.ovmf},readonly=on
++    -smp {resource.cpu},maxcpus=64
++    -m {resource.memory * 1024}M,slots=5,maxmem={resource.memory * 1024 + 8192}M
++    -no-reboot
++    
++    -drive if=pflash,format=raw,unit=0,file={vmconfig.ovmf},readonly=on 
++    -drive if=pflash,format=raw,unit=1,file={vmconfig.ovmf_vars} 
++    -drive file={vmconfig.image},if=none,id=disk0,format=raw
++    -device virtio-scsi-pci,id=scsi0,disable-legacy=on,iommu_platform=true 
++    -device scsi-hd,drive=disk0 
+ 
+     -nographic
+-    """
+-
+-    return shlex.split(qemu_cmd)
+-
+-
+-def get_amd_vm_direct_qemu_cmd(resource: VMResource, config: dict) -> List[str]:
+-    vmconfig: VMConfig = get_vm_config("amd-direct")
+-    ssh_port = config.get("ssh_port", SSH_PORT)
+-    extra_cmdline = config.get("extra_cmdline", "")
+-
+-    qemu_cmd = f"""
+-    {vmconfig.qemu}
+-    -cpu host
+-    -enable-kvm
+-    -smp {resource.cpu}
+-    -m {resource.memory}G
+-    -machine q35
+-
+-    -kernel {vmconfig.kernel}
+-    -append "{vmconfig.cmdline} {extra_cmdline}"
+-
+-    -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-    -device virtio-blk-pci,drive=q2,
+-    -device virtio-net-pci,netdev=net0
++    -monitor pty
++    -monitor unix:monitor,server,nowait
++    
++    -device virtio-net-pci,netdev=net0,addr=0x6
+     -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+     -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
+-    -drive if=pflash,format=raw,unit=0,file={vmconfig.ovmf},readonly=on
+-
+-    -nographic
+-    -serial null
+-    -device virtio-serial
+-    -chardev stdio,mux=on,id=char0,signal=off
+-    -mon chardev=char0,mode=readline
+-    -device virtconsole,chardev=char0,id=vc0,nr=0
+     """
+ 
+     return shlex.split(qemu_cmd)
+@@ -372,238 +177,32 @@ def get_snp_qemu_cmd(resource: VMResource, config: dict) -> List[str]:
+     qemu_cmd = f"""
+     {vmconfig.qemu}
+     -enable-kvm
+-    -cpu EPYC-v4,host-phys-bits=true
+-    -smp {resource.cpu}
+-    -m {resource.memory}G
+-
+-    -machine q35,memory-backend=ram1,memory-encryption=sev0,vmport=off
+-    -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,policy=0x30000
+-    -object memory-backend-memfd,id=ram1,size={resource.memory}G,share=true,prealloc={prealloc}
+-
+-    -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-    -device virtio-blk-pci,drive=q2,bootindex=0
+-    -device virtio-net-pci,netdev=net0
+-    -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+-    -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
++    -cpu host,+kvm_pv_unhalt,+kvm_pv_eoi
++    -machine q35
++    -smp {resource.cpu},maxcpus=64
++    -m {resource.memory * 1024}M,slots=5,maxmem={resource.memory * 1024 + 8192}M
++    -no-reboot
+     -bios {vmconfig.ovmf}
++    -drive file={vmconfig.image},if=none,id=disk0,format=raw
++    -device virtio-scsi-pci,id=scsi0,disable-legacy=on,iommu_platform=true 
++    -device scsi-hd,drive=disk0 
++    
++    -machine memory-encryption=sev0,vmport=off 
++    -object memory-backend-memfd,id=ram1,size={resource.memory * 1024}M,share=true,prealloc={prealloc} 
++    -machine memory-backend=ram1 
++    -object sev-snp-guest,id=sev0,policy=0x30000,cbitpos=51,reduced-phys-bits=1
+ 
+     -nographic
+-    """
+-
+-    return shlex.split(qemu_cmd)
+-
+-
+-def get_snp_direct_qemu_cmd(resource: VMResource, config: dict) -> List[str]:
+-    vmconfig: VMConfig = get_vm_config("amd-direct")
+-    ssh_port = config.get("ssh_port", SSH_PORT)
+-    extra_cmdline = config.get("extra_cmdline", "")
+-    if config["boot_prealloc"]:
+-        prealloc = "on"
+-    else:
+-        prealloc = "off"
+-
+-    qemu_cmd = f"""
+-    {vmconfig.qemu}
+-    -enable-kvm
+-    -cpu EPYC-v4,host-phys-bits=true,+avx512f,+avx512dq,+avx512cd,+avx512bw,+avx512vl,+avx512ifma,+avx512vbmi,+avx512vbmi2,+avx512vnni,+avx512bitalg
+-    -smp {resource.cpu}
+-    -m {resource.memory}G
+-
+-    -machine q35,memory-backend=ram1,memory-encryption=sev0,vmport=off
+-    -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,policy=0x30000
+-    -object memory-backend-memfd,id=ram1,size={resource.memory}G,share=true,prealloc={prealloc}
+-
+-    -kernel {vmconfig.kernel}
+-    -append "{vmconfig.cmdline} {extra_cmdline}"
+-
+-    -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-    -device virtio-blk-pci,drive=q2,
+-    -device virtio-net-pci,netdev=net0
++    -monitor pty
++    -monitor unix:monitor,server,nowait
++    
++    -device virtio-net-pci,netdev=net0,addr=0x6
+     -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+     -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
+-    -bios {vmconfig.ovmf}
+-
+-    -nographic
+-    -serial null
+-    -device virtio-serial
+-    -chardev stdio,mux=on,id=char0,signal=off
+-    -mon chardev=char0,mode=readline
+-    -device virtconsole,chardev=char0,id=vc0,nr=0
+     """
+ 
+     return shlex.split(qemu_cmd)
+ 
+-
+-def get_intel_qemu_cmd(type: str, resource: VMResource, config: dict) -> List[str]:
+-    vmconfig: VMConfig = get_vm_config(type)
+-    ssh_port = config["ssh_port"]
+-
+-    qemu_cmd = f"""
+-    {vmconfig.qemu}
+-        -enable-kvm
+-        -cpu host,pmu=off
+-        -smp {resource.cpu}
+-        -m {resource.memory}G
+-        -machine q35,kernel_irqchip=split,hpet=off
+-
+-        -bios {vmconfig.ovmf}
+-        -nographic
+-        -nodefaults
+-        -serial stdio
+-
+-        -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-        -device virtio-blk-pci,drive=q2,bootindex=0
+-        -device virtio-net-pci,netdev=net0
+-        -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+-        -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
+-    """
+-
+-    return shlex.split(qemu_cmd)
+-
+-
+-def get_intel_direct_qemu_cmd(resource: VMResource, config: dict) -> List[str]:
+-    vmconfig: VMConfig = get_vm_config("intel-direct")
+-    ssh_port = config["ssh_port"]
+-    extra_cmdline = config.get("extra_cmdline", "")
+-
+-    if resource.vnuma is not None:
+-        # FIXME: the current vnuma config is static
+-        numa_config = f"""
+-        -object memory-backend-ram,size=128G,prealloc=yes,host-nodes=0,policy=bind,id=node0
+-        -numa node,nodeid=0,cpus=0-27,memdev=node0
+-        -object memory-backend-ram,size=128G,prealloc=yes,host-nodes=1,policy=bind,id=node1
+-        -numa node,nodeid=1,cpus=28-55,memdev=node1
+-        -numa dist,src=0,dst=1,val=12
+-        """
+-    else:
+-        numa_config = ""
+-
+-    qemu_cmd = f"""
+-    {vmconfig.qemu}
+-        -enable-kvm
+-        -cpu host,pmu=off
+-        -smp {resource.cpu}
+-
+-        -m {resource.memory}G
+-        -machine q35,kernel_irqchip=split,hpet=off
+-
+-        {numa_config}
+-
+-        -kernel {vmconfig.kernel}
+-        -append "{vmconfig.cmdline} {extra_cmdline}"
+-
+-        -bios {vmconfig.ovmf}
+-        -nographic
+-        -nodefaults
+-
+-        -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-        -device virtio-blk-pci,drive=q2
+-        -device virtio-net-pci,netdev=net0
+-        -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+-        -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
+-        -serial null
+-        -device virtio-serial
+-        -chardev stdio,mux=on,id=char0,signal=off
+-        -mon chardev=char0,mode=readline
+-        -device virtconsole,chardev=char0,id=vc0,nr=0
+-    """
+-
+-    return shlex.split(qemu_cmd)
+-
+-
+-def get_tdx_qemu_cmd(type, resource: VMResource, config: dict) -> List[str]:
+-    vmconfig: VMConfig = get_vm_config(type)
+-    ssh_port = config["ssh_port"]
+-    guest_cid = config["guest_cid"]
+-    if config["boot_prealloc"]:
+-        prealloc = "on"
+-    else:
+-        prealloc = "off"
+-
+-    qemu_cmd = f"""
+-    {vmconfig.qemu}
+-        -enable-kvm
+-        -cpu host,pmu=off
+-        -smp {resource.cpu}
+-        -m {resource.memory}G
+-        -machine q35,hpet=off,kernel_irqchip=split,confidential-guest-support=tdx,memory-backend=ram1
+-
+-        -object tdx-guest,id=tdx
+-        -object memory-backend-ram,id=ram1,size={resource.memory}G,prealloc={prealloc}
+-        -bios {vmconfig.ovmf}
+-        -nographic
+-        -nodefaults
+-        -serial stdio
+-
+-        -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-        -device virtio-blk-pci,drive=q2,bootindex=0
+-        -device virtio-net-pci,netdev=net0
+-        -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+-        -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
+-
+-        -device vhost-vsock-pci,guest-cid={guest_cid}
+-    """
+-
+-    return shlex.split(qemu_cmd)
+-
+-
+-def get_tdx_direct_qemu_cmd(resource: VMResource, config: dict) -> List[str]:
+-    vmconfig: VMConfig = get_vm_config("tdx-direct")
+-    ssh_port = config["ssh_port"]
+-    guest_cid = config["guest_cid"]
+-    extra_cmdline = config.get("extra_cmdline", "")
+-    if config["boot_prealloc"]:
+-        prealloc = "on"
+-    else:
+-        prealloc = "off"
+-
+-    if resource.vnuma is not None:
+-        memory = f"""
+-        -object memory-backend-ram,size={resource.memory//2}G,prealloc={prealloc},host-nodes=0,policy=bind,id=node0
+-        -numa node,nodeid=0,cpus=0-27,memdev=node0
+-        -object memory-backend-ram,size={resource.memory//2}G,prealloc={prealloc},host-nodes=1,policy=bind,id=node1
+-        -numa node,nodeid=1,cpus=28-55,memdev=node1
+-        -numa dist,src=0,dst=1,val=12
+-        """
+-    else:
+-        memory = f"-object memory-backend-ram,id=node0,size={resource.memory}G,prealloc={prealloc}"
+-
+-    qemu_cmd = f"""
+-    {vmconfig.qemu}
+-        -enable-kvm
+-        -cpu host,pmu=off
+-        -smp {resource.cpu}
+-        -m {resource.memory}G
+-        -machine q35,hpet=off,kernel_irqchip=split,confidential-guest-support=tdx
+-
+-        -object tdx-guest,id=tdx
+-        {memory}
+-
+-        -kernel {vmconfig.kernel}
+-        -append "{vmconfig.cmdline} {extra_cmdline}"
+-
+-        -bios {vmconfig.ovmf}
+-        -nographic
+-        -nodefaults
+-
+-        -blockdev qcow2,node-name=q2,file.driver=file,file.filename={vmconfig.image}
+-        -device virtio-blk-pci,drive=q2
+-        -device virtio-net-pci,netdev=net0
+-        -netdev user,id=net0,hostfwd=tcp::{ssh_port}-:22
+-        -virtfs local,path={PROJECT_ROOT},security_model=none,mount_tag=share
+-
+-        -serial null
+-        -device virtio-serial
+-        -chardev stdio,mux=on,id=char0,signal=off
+-        -mon chardev=char0,mode=readline
+-        -device virtconsole,chardev=char0,id=vc0,nr=0
+-
+-        -device vhost-vsock-pci,guest-cid={guest_cid}
+-    """
+-
+-    return shlex.split(qemu_cmd)
+-
+-
+ def qemu_option_virtio_blk(
+     file: Path,  # file or block device to be used as a backend of virtio-blk
+     aio: str = "native",  # either of threads, native (POSIX AIO), io_uring
+@@ -688,13 +287,13 @@ def qemu_option_virtio_nic(
+ 
+     if mq:
+         option = f"""
+-        -netdev tap,id=en0,ifname={mtap},script=no,downscript=no,vhost={vhost_option},queues={num_cpus}
+-        -device virtio-net-pci,netdev=en0,mq=on,vectors=18{iommu}
++        -netdev type=tap,script=no,downscript=no,id=net1,ifname={mtap},vhost={vhost_option},queues={num_cpus}
++        -device virtio-net-pci,netdev=net1,addr=0x7,mq=on,vectors=33{iommu}
+         """
+     else:
+         option = f"""
+-        -netdev tap,id=en0,ifname={tap},script=no,downscript=no,vhost={vhost_option}
+-        -device virtio-net-pci,netdev=en0,mq=off,vectors=18{iommu}
++        -netdev type=tap,script=no,downscript=no,id=net1,ifname={tap},vhost={vhost_option}
++        -device virtio-net-pci,netdev=net1,addr=0x7,mq=off,vectors=33{iommu}
+         """
+         # option = f"""
+         #     -netdev bridge,id=en0,br={bridge}
+@@ -1037,7 +636,7 @@ def run_sqlite(name: str, qemu_cmd: List[str], pin: bool, **kargs: Any) -> None:
+         if virtio_blk:
+             import storage
+ 
+-            storage.mount_disk(vm, "/dev/vdb", "/mnt", format="auto")
++            storage.mount_disk(vm, "/dev/vda", "/mnt", format="auto")
+             dbpath = "/mnt/test.db"
+ 
+             name += f"-{kargs['config']['virtio_blk_aio']}"
+@@ -1182,7 +781,7 @@ def start(
+     type: str = "amd",  # amd, snp, intel, tdx
+     size: str = "medium",  # small, medium, large, numa
+     hostname: str = None,  # by default use the local hostname
+-    direct: bool = True,  # if True, do direct boot. otherwise boot from the disk
++    direct: bool = False,  # if True, do direct boot. otherwise boot from the disk
+     action: str = "attach",
+     ssh_port: int = SSH_PORT,
+     guest_cid: int = 11,  # Guest CID for vsock (only for TDX)
+@@ -1232,25 +831,9 @@ def start(
+ 
+     qemu_cmd: str
+     if type == "amd":
+-        if direct:
+-            qemu_cmd = get_amd_vm_direct_qemu_cmd(resource, config)
+-        else:
+-            qemu_cmd = get_amd_vm_qemu_cmd(resource, config)
++        qemu_cmd = get_amd_vm_qemu_cmd(resource, config)
+     elif type == "snp":
+-        if direct:
+-            qemu_cmd = get_snp_direct_qemu_cmd(resource, config)
+-        else:
+-            qemu_cmd = get_snp_qemu_cmd(resource, config)
+-    elif type == "intel" or type == "intel-ubuntu":
+-        if direct:
+-            qemu_cmd = get_intel_direct_qemu_cmd(resource, config)
+-        else:
+-            qemu_cmd = get_intel_qemu_cmd(type, resource, config)
+-    elif type == "tdx" or type == "tdx-ubuntu":
+-        if direct:
+-            qemu_cmd = get_tdx_direct_qemu_cmd(resource, config)
+-        else:
+-            qemu_cmd = get_tdx_qemu_cmd(type, resource, config)
++        qemu_cmd = get_snp_qemu_cmd(resource, config)
+     else:
+         raise ValueError(f"Unknown VM type: {type}")
+ 
