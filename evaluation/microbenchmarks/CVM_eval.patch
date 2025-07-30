@@ -111,7 +111,7 @@ index 5b9e345..0476230 100755
 +done
 \ No newline at end of file
 diff --git a/experiment/bench_storage.sh b/experiment/bench_storage.sh
-index 124181d..0691cde 100755
+index 124181d..19d1d5d 100755
 --- a/experiment/bench_storage.sh
 +++ b/experiment/bench_storage.sh
 @@ -2,19 +2,19 @@
@@ -132,17 +132,18 @@ index 124181d..0691cde 100755
          do
              for disk in ${DISKS}
              do
-                 inv vm.start --type ${type_} --size ${size} --virtio-blk /dev/${disk} --no-warn --action="run-${action}"  --fio-job "libaio" --name-extra $disk
+-                inv vm.start --type ${type_} --size ${size} --virtio-blk /dev/${disk} --no-warn --action="run-${action}"  --fio-job "libaio" --name-extra $disk
 -                done
++                inv vm.start --type ${type_} --size ${size} --virtio-blk /dev/${disk} --no-warn --action="run-${action}"  --fio-job "libaio"
 +            done
          done
      done
  done
 diff --git a/experiment/bench_swiotlb.sh b/experiment/bench_swiotlb.sh
-index 0025df1..06d3e83 100755
+index 0025df1..604368c 100755
 --- a/experiment/bench_swiotlb.sh
 +++ b/experiment/bench_swiotlb.sh
-@@ -2,16 +2,16 @@
+@@ -2,55 +2,67 @@
  
  set -x
  
@@ -150,7 +151,13 @@ index 0025df1..06d3e83 100755
 +VM=(amd snp)
  DISKS=${DISKS:-nvme1n1}
  
- SWIOTLB_OPTION=' --virtio-iommu --extra-cmdline "swiotlb=524288,force"'
+-SWIOTLB_OPTION=' --virtio-iommu --extra-cmdline "swiotlb=524288,force"'
++# Options for SWIOTLB
++SWIOTLB_OPTIONS=(
++  '--virtio-iommu --extra-cmdline "swiotlb=524288,force"'
++  '--extra-cmdline "idle=poll" --name-extra -poll'
++  '--extra-cmdline "cpuidle_haltpoll.force=Y" --name-extra -haltpoll'
++)
  
  for size in medium
  do
@@ -162,7 +169,13 @@ index 0025df1..06d3e83 100755
          do
              for disk in $DISKS
              do
-@@ -21,13 +21,11 @@ do
+-            inv vm.start --type ${type_} --size ${size} --virtio-blk /dev/$disk --no-warn --action="run-${action}"  --fio-job "libaio" $SWIOTLB_OPTION --name-extra $disk
++                for SWIOTLB_OPTION in "${SWIOTLB_OPTIONS[@]}"
++                do
++                    inv vm.start --type ${type_} --size ${size} --virtio-blk /dev/$disk --no-warn --action="run-${action}"  --fio-job "libaio" $SWIOTLB_OPTION
++                done
+             done
+         done
      done
  done
  
@@ -176,9 +189,20 @@ index 0025df1..06d3e83 100755
 -        for action in ping iperf iperf-udp nginx
 +        for action in ping iperf iperf-udp
          do
-             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
-             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm"  --virtio-nic-vhost $SWIOTLB_OPTION
-@@ -39,9 +37,9 @@ done
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm"  --virtio-nic-vhost $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-vhost --virtio-nic-mq $SWIOTLB_OPTION --name-extra $NAME
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-mq $SWIOTLB_OPTION
++            for SWIOTLB_OPTION in "${SWIOTLB_OPTIONS[@]}"
++            do
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm"  --virtio-nic-vhost $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-vhost --virtio-nic-mq $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-mq $SWIOTLB_OPTION
++            done
+         done
+     done
+ done
  
  for size in medium
  do
@@ -188,8 +212,94 @@ index 0025df1..06d3e83 100755
 -        for action in memtier memtier-memcached
 +        for action in memtier
          do
-             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
-             inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --tls $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --tls $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --virtio-nic-vhost $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --tls --virtio-nic-vhost $SWIOTLB_OPTION 
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-mq $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --tls --virtio-nic-mq $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-vhost --virtio-nic-mq $SWIOTLB_OPTION
+-            inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --tls --virtio-nic-vhost --virtio-nic-mq $SWIOTLB_OPTION
++            for SWIOTLB_OPTION in "${SWIOTLB_OPTIONS[@]}"
++            do
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --tls $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --virtio-nic-vhost $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-tap="tap_cvm" --tls --virtio-nic-vhost $SWIOTLB_OPTION 
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-mq $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --tls --virtio-nic-mq $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --virtio-nic-vhost --virtio-nic-mq $SWIOTLB_OPTION
++              inv vm.start --type ${type_} --size ${size} --virtio-nic --action="run-${action}" --virtio-nic-mtap="mtap_cvm" --tls --virtio-nic-vhost --virtio-nic-mq $SWIOTLB_OPTION
++            done
+         done
+     done
+ done
+diff --git a/experiment/plot_all.sh b/experiment/plot_all.sh
+index e2f8f89..c32abc6 100755
+--- a/experiment/plot_all.sh
++++ b/experiment/plot_all.sh
+@@ -10,50 +10,13 @@ else
+     CVM=${CVM:-"tdx"}
+ fi
+ 
+-RESULTDIR=${RESULTDIR:-"bench-results"}
++RESULTDIR=${RESULTDIR:-"bench-result"}
+ OUT=${OUT:-"plot"}
+ 
+ set -e
+ set -u
+ set -o pipefail
+ 
+-#inv boottime.plot-boottime --cvm $CVM --outdir $OUT --result-dir $RESULTDIR
+-#inv boottime.plot-boottime --cvm $CVM --no-prealloc --outdir $OUT --result-dir $RESULTDIR
+-#inv boottime.plot-boottime2 --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/boottime
+-#inv boottime.plot-boottime2 --cvm $CVM --cpu --outdir $OUT --result-dir $RESULTDIR/boottime
+-inv boottime.plot-boottime2 --cvm $CVM --no-prealloc --outdir $OUT --result-dir $RESULTDIR/boottime
+-inv boottime.plot-boottime2 --cvm $CVM --no-prealloc --cpu --outdir $OUT --result-dir $RESULTDIR/boottime
+-#inv boottime.plot-boottime3 --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/boottime
+-#inv boottime.plot-boottime3 --cvm $CVM --cpu --outdir $OUT --result-dir $RESULTDIR/boottime
+-
+-if [ "$CVM" = "snp" ]; then
+-    inv boottime.plot-boottime-snp --cvm $CVM --cpu --outdir $OUT --result-dir $RESULTDIR/boottime
+-    inv boottime.plot-boottime-snp --cvm $CVM --cpu --outdir $OUT --result-dir $RESULTDIR/boottime --version 6.9_gmem_2m
+-    inv boottime.plot-boottime-snp --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/boottime
+-    inv boottime.plot-boottime-snp --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/boottime --version 6.9_gmem_2m
+-fi
+-
+-inv vmexit.plot-vmexit --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/vmexit
+-
+-inv phoronix.plot-phoronix-memory --cvm $CVM --size medium --outdir $OUT --result-dir $RESULTDIR/phoronix
+-#inv phoronix.plot-phoronix-memory --cvm $CVM --size large --outdir $OUT --result-dir $RESULTDIR/phoronix
+-#inv npb.plot-npb --cvm $CVM --size medium --outdir $OUT --result-dir $RESULTDIR/phoronix
+-#inv npb.plot-npb --cvm $CVM --size medium --no-rel --outdir $OUT --result-dir $RESULTDIR/phoronix
+-#inv npb.plot-npb --cvm $CVM --size large --outdir $OUT --result-dir $RESULTDIR/phoronix
+-#inv npb.plot-npb --cvm $CVM --size large --no-rel --outdir $OUT --result-dir $RESULTDIR/phoronix
+-#inv npb.plot-npb --cvm $CVM --size numa --outdir $OUT --result-dir $RESULTDIR/phoronix
+-#inv npb.plot-npb --cvm $CVM --size numa --no-rel --outdir $OUT --result-dir $RESULTDIR/phoronix
+-inv npb.plot-npb-omp --cvm $CVM --size medium --outdir $OUT --result-dir $RESULTDIR/npb-omp
+-inv npb.plot-npb-omp --cvm $CVM --size large --outdir $OUT --result-dir $RESULTDIR/npb-omp
+-inv npb.plot-npb-omp --cvm $CVM --size xlarge --outdir $OUT --result-dir $RESULTDIR/npb-omp
+-inv unixbench.plot-unixbench --cvm $CVM --size medium --outdir $OUT --result-dir $RESULTDIR/unixbench
+-inv unixbench.plot-unixbench --cvm $CVM --size medium --poll --outdir $OUT --result-dir $RESULTDIR/unixbench
+-inv unixbench.plot-unixbench --cvm $CVM --size medium --no-rel --outdir $OUT --result-dir $RESULTDIR/unixbench
+-
+-inv app.plot-application --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/application
+-inv app.plot-application --cvm $CVM --poll --outdir $OUT --result-dir $RESULTDIR/application
+-inv app.plot-application --cvm $CVM --no-rel --outdir $OUT --result-dir $RESULTDIR/application
+-#inv app.plot-sqlite --cvm $CVM --device nvme1n1 --outdir $OUT --result-dir $RESULTDIR/application
+ inv storage.plot-fio --cvm $CVM --device nvme1n1 --outdir $OUT --result-dir $RESULTDIR/fio
+ inv storage.plot-fio --cvm $CVM --device nvme1n1 --outdir $OUT --result-dir $RESULTDIR/fio --all
+ #inv storage.plot-fio --cvm $CVM --device nvme1n1 --poll --outdir $OUT --result-dir $RESULTDIR/fio
+@@ -72,9 +35,5 @@ inv network.plot-iperf --cvm $CVM --mode udp --mq --plot-all --outdir $OUT --res
+ inv network.plot-iperf --cvm $CVM --mode tcp --pkt 128K --plot-all --outdir $OUT --result-dir $RESULTDIR/network
+ #inv network.plot-iperf --cvm $CVM --mode tcp --mq --pkt 128K --plot-all --outdir $OUT --result-dir $RESULTDIR/network
+ 
+-inv network.plot-nginx --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/network
+-inv network.plot-nginx --cvm $CVM --mq --outdir $OUT --result-dir $RESULTDIR/network
+ inv network.plot-redis --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/network
+ inv network.plot-redis --cvm $CVM --mq --outdir $OUT --result-dir $RESULTDIR/network
+-inv network.plot-memcached --cvm $CVM --outdir $OUT --result-dir $RESULTDIR/network
+-inv network.plot-memcached --cvm $CVM --mq --outdir $OUT --result-dir $RESULTDIR/network
 diff --git a/experiment/run_unixbench.sh b/experiment/run_unixbench.sh
 index 958dba6..f26c7e6 100755
 --- a/experiment/run_unixbench.sh
@@ -465,9 +575,18 @@ index 6d0e704..80ac420 100644
          if fail_stop:
              raise Exception("Failed to mount virtio-blk")
 diff --git a/tasks/network.py b/tasks/network.py
-index 29d3157..ba71b7b 100644
+index 29d3157..41f1dfb 100644
 --- a/tasks/network.py
 +++ b/tasks/network.py
+@@ -11,7 +11,7 @@ from qemu import QemuVm
+ 
+ def run_ping(name: str, vm: QemuVm, pin_base=20):
+     """Ping the VM.
+-    The results are saved in ./bench-results/network/ping/{name}/{date}
++    The results are saved in ./bench-result/network/ping/{name}/{date}
+     """
+     date = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+     outputdir = Path(f"./bench-result/network/ping/{name}/{date}/")
 @@ -20,7 +20,7 @@ def run_ping(name: str, vm: QemuVm, pin_base=20):
  
      for pkt_size in [64, 128, 256, 512, 1024]:
@@ -504,6 +623,127 @@ index 29d3157..ba71b7b 100644
              "-c",
              f"{VM_IP}",
              "-p",
+diff --git a/tasks/plot_network.py b/tasks/plot_network.py
+index 5c96f63..eb6ff5b 100644
+--- a/tasks/plot_network.py
++++ b/tasks/plot_network.py
+@@ -327,7 +327,7 @@ def plot_iperf(
+         pcvm += "-poll"
+ 
+     def get_name(name, p, vhost=False, mq=mq, swiotlb=False):
+-        n = f"{name}-direct-{size}{p}"
++        n = f"{name}-disk-{size}{p}"
+         if vhost:
+             n += "-vhost"
+         if mq:
+@@ -523,7 +523,7 @@ def plot_ping(
+         pcvm += "-poll"
+ 
+     def get_name(name, p, vhost=False, mq=mq, swiotlb=False):
+-        n = f"{name}-direct-{size}{p}"
++        n = f"{name}-disk-{size}{p}"
+         if vhost:
+             n += "-vhost"
+         if mq:
+@@ -659,7 +659,7 @@ def plot_redis(
+         cvm_label = "td"
+ 
+     def get_name(name, vhost=False, p="", mq=mq):
+-        n = f"{name}-direct-{size}{p}"
++        n = f"{name}-disk-{size}{p}"
+         if vhost:
+             n += "-vhost"
+         if mq:
+@@ -778,7 +778,7 @@ def plot_memcached(
+         cvm_label = "td"
+ 
+     def get_name(name, vhost=False, p="", mq=mq):
+-        n = f"{name}-direct-{size}{p}"
++        n = f"{name}-disk-{size}{p}"
+         if vhost:
+             n += "-vhost"
+         if mq:
+@@ -905,7 +905,7 @@ def plot_nginx(
+         cvm_label = "td"
+ 
+     def get_name(name, vhost=False, p="", mq=mq):
+-        n = f"{name}-direct-{size}{p}"
++        n = f"{name}-disk-{size}{p}"
+         if vhost:
+             n += "-vhost"
+         if mq:
+diff --git a/tasks/plot_storage.py b/tasks/plot_storage.py
+index e6f6f8b..e650b7e 100644
+--- a/tasks/plot_storage.py
++++ b/tasks/plot_storage.py
+@@ -697,42 +697,43 @@ def plot_fio(
+ 
+     dfs = []
+     dfs.append(
+-        read_result(f"{vm}-direct-{size}-{device}{pvm}-{aio}", vm_label, jobfile)
++        read_result(f"{vm}-disk-{size}{pvm}-{aio}", vm_label, jobfile)
+     )
+     if swiotlb and not poll:
+         dfs.append(
+             read_result(
+-                f"{vm}-direct-{size}-{device}-{aio}{pvm}-swiotlb", "swiotlb", jobfile
++                f"{vm}-disk-{size}-{aio}{pvm}-swiotlb", "swiotlb", jobfile
+             )
+         )
+     dfs.append(
+-        read_result(f"{cvm}-direct-{size}-{device}{pcvm}-{aio}", cvm_label, jobfile)
++        read_result(f"{cvm}-disk-{size}{pcvm}-{aio}", cvm_label, jobfile)
+     )
+     if all:
+         dfs.append(
+             read_result(
+-                f"{cvm}-direct-{size}-{device}-poll-{aio}", f"{cvm_label}-poll", jobfile
++                f"{cvm}-disk-{size}-poll-{aio}", f"{cvm_label}-poll", jobfile
+             )
+         )
+         #dfs.append(
+         #    read_result(
+-        #        f"{vm}-direct-{size}-{device}-poll-{aio}", f"{vm_label}-poll", jobfile
++        #        f"{vm}-disk-{size}-poll-{aio}", f"{vm_label}-poll", jobfile
+         #    )
+         #)
+ 
+     df = pd.concat(dfs)
+     print(df)
+-    # save df
+-    df.to_csv(Path(outdir) / f"fio_{device}{pvm}.csv", index=False)
+-
++    
+     outdir = Path(outdir)
+     outdir.mkdir(parents=True, exist_ok=True)
++    
++    # save df
++    df.to_csv(Path(outdir) / f"fio_{pvm}.csv", index=False)    
+ 
+     if all:
+         pvm += "-all"
+-    plot_bw(df, outdir, f"fio_bw_{device}{pvm}.pdf", legend=True)
+-    plot_iops(df, outdir, f"fio_iops_{device}{pvm}.pdf", legend=False)
+-    plot_latency(df, outdir, f"fio_latency_{device}{pvm}.pdf", legend=False)
++    plot_bw(df, outdir, f"fio_bw_{pvm}.pdf", legend=True)
++    plot_iops(df, outdir, f"fio_iops_{pvm}.pdf", legend=False)
++    plot_latency(df, outdir, f"fio_latency_{pvm}.pdf", legend=False)
+ 
+ 
+ @task
+@@ -770,10 +771,10 @@ def analyze_fio(
+         pcvm += "-poll"
+ 
+     df = read_result(
+-        f"{vm}-direct-{size}-{device}{pvm}-{aio}", vm_label, jobfile, max_num=10
++        f"{vm}-disk-{size}-{pvm}-{aio}", vm_label, jobfile, max_num=10
+     )
+     cdf = read_result(
+-        f"{cvm}-direct-{size}-{device}{pcvm}-{aio}", cvm_label, jobfile, max_num=10
++        f"{cvm}-disk-{size}-{pcvm}-{aio}", cvm_label, jobfile, max_num=10
+     )
+ 
+     print(df[(df["jobname"] == "bw read")]["read_bw_mean"])
 diff --git a/tasks/qemu.py b/tasks/qemu.py
 index b620ff5..bc0eeab 100644
 --- a/tasks/qemu.py
