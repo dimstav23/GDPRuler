@@ -11,6 +11,13 @@ class gdpr_monitor {
 public:
   /* Tags for tag dispatching to enable putm behaviour */
   struct putm_monitor_t {};
+
+  /* Static shared default filter instance to preserve filter reference*/
+  static const gdpr_filter& get_default_filter() {
+    static const gdpr_filter default_filter{};
+    return default_filter;
+  }
+
   /* 
    * Generic query operation (e.g., get, delete, getm, put (on existing value))
    * Generic constructor when a value is retrieved
@@ -27,7 +34,7 @@ public:
    * Action: Check the query args & then the default policy
    */ 
   gdpr_monitor(const query& query_args, const default_policy& def_policy): 
-    m_filter{}, m_query_args{query_args}, m_def_policy{def_policy}, 
+    m_filter{get_default_filter()}, m_query_args{query_args}, m_def_policy{def_policy},
     m_history_logger{logger::get_instance()}
   {
     m_monitor_needed = m_query_args.monitor().value_or(m_def_policy.monitor());

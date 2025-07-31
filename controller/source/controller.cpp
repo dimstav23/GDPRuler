@@ -312,7 +312,7 @@ inline auto handle_put_combined(const std::unique_ptr<kv_client>& client,
   // Monitor and execute the put operation
   monitor.monitor_query(query_is_valid, new_value);
   #ifdef DEBUG
-  std::cout << "Put query: " << query_args.key() << " with value: " << hex_dump(new_value) << std::endl;
+  std::cout << "Putc query: " << query_args.key() << " with value: " << hex_dump(new_value) << std::endl;
   #endif
   auto ret_val = client->gdpr_put(query_args.key(), new_value);
   

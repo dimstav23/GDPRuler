@@ -13,3 +13,6 @@
 [submodule "evaluation/microbenchmarks/ipc-bench"]
 	path = evaluation/microbenchmarks/ipc-bench
 	url = https://github.com/dimstav23/ipc-bench.git
+[submodule "evaluation/microbenchmarks/CVM_eval"]
+	path = evaluation/microbenchmarks/CVM_eval
+	url = https://github.com/dimstav23/CVM_eval.git
