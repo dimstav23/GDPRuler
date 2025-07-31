@@ -624,7 +624,7 @@ index 29d3157..41f1dfb 100644
              f"{VM_IP}",
              "-p",
 diff --git a/tasks/plot_network.py b/tasks/plot_network.py
-index 5c96f63..eb6ff5b 100644
+index 5c96f63..6511925 100644
 --- a/tasks/plot_network.py
 +++ b/tasks/plot_network.py
 @@ -327,7 +327,7 @@ def plot_iperf(
@@ -636,7 +636,25 @@ index 5c96f63..eb6ff5b 100644
          if vhost:
              n += "-vhost"
          if mq:
-@@ -523,7 +523,7 @@ def plot_ping(
+@@ -484,9 +484,14 @@ def plot_iperf(
+ 
+     outdir = Path(outdir)
+     outdir.mkdir(parents=True, exist_ok=True)
+-    save_path = outdir / outname
+-    plt.savefig(save_path, bbox_inches="tight")
+-    print(f"Plot saved in {save_path}")
++    # Save as PDF
++    save_path_pdf = outdir / outname
++    plt.savefig(save_path_pdf, format="pdf", bbox_inches="tight", dpi=300)
++    print(f"PDF plot saved in {save_path_pdf}")
++    # Save as PNG
++    save_path_png = outdir / outname.replace('.pdf', '.png')
++    plt.savefig(save_path_png, format="png", bbox_inches="tight", dpi=300)
++    print(f"PNG plot saved in {save_path_png}")
+ 
+ 
+ @task
+@@ -523,7 +528,7 @@ def plot_ping(
          pcvm += "-poll"
  
      def get_name(name, p, vhost=False, mq=mq, swiotlb=False):
@@ -645,7 +663,25 @@ index 5c96f63..eb6ff5b 100644
          if vhost:
              n += "-vhost"
          if mq:
-@@ -659,7 +659,7 @@ def plot_redis(
+@@ -630,9 +635,14 @@ def plot_ping(
+ 
+     outdir = Path(outdir)
+     outdir.mkdir(parents=True, exist_ok=True)
+-    save_path = outdir / outname
+-    plt.savefig(save_path, bbox_inches="tight")
+-    print(f"Plot saved in {save_path}")
++    # Save as PDF
++    save_path_pdf = outdir / outname
++    plt.savefig(save_path_pdf, format="pdf", bbox_inches="tight", dpi=300)
++    print(f"PDF plot saved in {save_path_pdf}")
++    # Save as PNG
++    save_path_png = outdir / outname.replace('.pdf', '.png')
++    plt.savefig(save_path_png, format="png", bbox_inches="tight", dpi=300)
++    print(f"PNG plot saved in {save_path_png}")
+ 
+ 
+ @task
+@@ -659,7 +669,7 @@ def plot_redis(
          cvm_label = "td"
  
      def get_name(name, vhost=False, p="", mq=mq):
@@ -654,7 +690,25 @@ index 5c96f63..eb6ff5b 100644
          if vhost:
              n += "-vhost"
          if mq:
-@@ -778,7 +778,7 @@ def plot_memcached(
+@@ -749,9 +759,14 @@ def plot_redis(
+ 
+     outdir = Path(outdir)
+     outdir.mkdir(parents=True, exist_ok=True)
+-    save_path = outdir / outname
+-    plt.savefig(save_path, bbox_inches="tight")
+-    print(f"Plot saved in {save_path}")
++    # Save as PDF
++    save_path_pdf = outdir / outname
++    plt.savefig(save_path_pdf, format="pdf", bbox_inches="tight", dpi=300)
++    print(f"PDF plot saved in {save_path_pdf}")
++    # Save as PNG
++    save_path_png = outdir / outname.replace('.pdf', '.png')
++    plt.savefig(save_path_png, format="png", bbox_inches="tight", dpi=300)
++    print(f"PNG plot saved in {save_path_png}")
+ 
+ 
+ @task
+@@ -778,7 +793,7 @@ def plot_memcached(
          cvm_label = "td"
  
      def get_name(name, vhost=False, p="", mq=mq):
@@ -663,7 +717,25 @@ index 5c96f63..eb6ff5b 100644
          if vhost:
              n += "-vhost"
          if mq:
-@@ -905,7 +905,7 @@ def plot_nginx(
+@@ -875,9 +890,14 @@ def plot_memcached(
+ 
+     outdir = Path(outdir)
+     outdir.mkdir(parents=True, exist_ok=True)
+-    save_path = outdir / outname
+-    plt.savefig(save_path, bbox_inches="tight")
+-    print(f"Plot saved in {save_path}")
++    # Save as PDF
++    save_path_pdf = outdir / outname
++    plt.savefig(save_path_pdf, format="pdf", bbox_inches="tight", dpi=300)
++    print(f"PDF plot saved in {save_path_pdf}")
++    # Save as PNG
++    save_path_png = outdir / outname.replace('.pdf', '.png')
++    plt.savefig(save_path_png, format="png", bbox_inches="tight", dpi=300)
++    print(f"PNG plot saved in {save_path_png}")
+ 
+ 
+ @task
+@@ -905,7 +925,7 @@ def plot_nginx(
          cvm_label = "td"
  
      def get_name(name, vhost=False, p="", mq=mq):
@@ -672,11 +744,80 @@ index 5c96f63..eb6ff5b 100644
          if vhost:
              n += "-vhost"
          if mq:
+@@ -987,6 +1007,11 @@ def plot_nginx(
+ 
+     outdir = Path(outdir)
+     outdir.mkdir(parents=True, exist_ok=True)
+-    save_path = outdir / outname
+-    plt.savefig(save_path, bbox_inches="tight")
+-    print(f"Plot saved in {save_path}")
++    # Save as PDF
++    save_path_pdf = outdir / outname
++    plt.savefig(save_path_pdf, format="pdf", bbox_inches="tight", dpi=300)
++    print(f"PDF plot saved in {save_path_pdf}")
++    # Save as PNG
++    save_path_png = outdir / outname.replace('.pdf', '.png')
++    plt.savefig(save_path_png, format="png", bbox_inches="tight", dpi=300)
++    print(f"PNG plot saved in {save_path_png}")
 diff --git a/tasks/plot_storage.py b/tasks/plot_storage.py
-index e6f6f8b..e650b7e 100644
+index e6f6f8b..7666d21 100644
 --- a/tasks/plot_storage.py
 +++ b/tasks/plot_storage.py
-@@ -697,42 +697,43 @@ def plot_fio(
+@@ -244,9 +244,14 @@ def plot_bw(df, outdir, outname, legend=True):
+     plt.title("Higher is better ↑", fontsize=9, color="navy", weight="bold")
+     sns.despine(top = True)
+     plt.tight_layout()
+-    outfile = Path(outdir) / outname
+-    plt.savefig(outfile, format="pdf", pad_inches=0, bbox_inches="tight")
+-    print(f"saved to {outfile}")
++    # Save as PDF
++    outfile_pdf = Path(outdir) / outname
++    plt.savefig(outfile_pdf, format="pdf", pad_inches=0, bbox_inches="tight")
++    print(f"PDF saved to {outfile_pdf}")
++    # Save as PNG
++    outfile_png = Path(outdir) / outname.replace('.pdf', '.png')
++    plt.savefig(outfile_png, format="png", pad_inches=0, bbox_inches="tight", dpi=300)
++    print(f"PNG saved to {outfile_png}")
+     plt.clf()
+ 
+ 
+@@ -469,9 +474,14 @@ def plot_iops(df, outdir, outname="", legend=True):
+     plt.title("Higher is better ↑", fontsize=9, color="navy", weight="bold")
+     sns.despine(top = True)
+     plt.tight_layout()
+-    outfile = Path(outdir) / outname
+-    plt.savefig(outfile, format="pdf", pad_inches=0, bbox_inches="tight")
+-    print(f"saved to {outfile}")
++    # Save as PDF
++    outfile_pdf = Path(outdir) / outname
++    plt.savefig(outfile_pdf, format="pdf", pad_inches=0, bbox_inches="tight")
++    print(f"PDF saved to {outfile_pdf}")
++    # Save as PNG
++    outfile_png = Path(outdir) / outname.replace('.pdf', '.png')
++    plt.savefig(outfile_png, format="png", pad_inches=0, bbox_inches="tight", dpi=300)
++    print(f"PNG saved to {outfile_png}")
+     plt.clf()
+ 
+ 
+@@ -654,9 +664,14 @@ def plot_latency(df, outdir, outname, legend=True):
+     plt.title("Lower is better ↓", fontsize=9, color="navy", weight="bold")
+     sns.despine(top = True)
+     plt.tight_layout()
+-    outfile = Path(outdir) / outname
+-    plt.savefig(outfile, format="pdf", pad_inches=0, bbox_inches="tight")
+-    print(f"saved to {outfile}")
++    # Save as PDF
++    outfile_pdf = Path(outdir) / outname
++    plt.savefig(outfile_pdf, format="pdf", pad_inches=0, bbox_inches="tight")
++    print(f"PDF saved to {outfile_pdf}")
++    # Save as PNG
++    outfile_png = Path(outdir) / outname.replace('.pdf', '.png')
++    plt.savefig(outfile_png, format="png", pad_inches=0, bbox_inches="tight", dpi=300)
++    print(f"PNG saved to {outfile_png}")
+     plt.clf()
+ 
+ 
+@@ -697,42 +712,43 @@ def plot_fio(
  
      dfs = []
      dfs.append(
@@ -731,7 +872,7 @@ index e6f6f8b..e650b7e 100644
  
  
  @task
-@@ -770,10 +771,10 @@ def analyze_fio(
+@@ -770,10 +786,10 @@ def analyze_fio(
          pcvm += "-poll"
  
      df = read_result(
