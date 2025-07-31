@@ -1,13 +1,14 @@
 #!/bin/sh
 
-# CVM GDPRuler + bare metal DB server
-./self_hosted_db.sh --encryption OFF --logging OFF
-./self_hosted_db.sh --encryption ON --logging OFF
+# DB server in CVM
+./direct.sh --encryption OFF --logging OFF --server_connection TCP
 
-# CVM GDPRuler + VM DB server
-./cloud_hosted_db.sh --encryption OFF --logging OFF
-./cloud_hosted_db.sh --encryption ON --logging OFF
+# passthrough controller + DB server in CVM
+./passthrough.sh --encryption OFF --logging OFF --server_connection UNIX
+./passthrough.sh --encryption ON --logging OFF --server_connection UNIX
+# ./passthrough.sh --encryption ON --logging ON
 
-# CVM GDPRuler + CVM DB server
-./confidential_cloud_hosted_db.sh --encryption OFF --logging OFF
-./confidential_cloud_hosted_db.sh --encryption ON --logging OFF
+# GDPRuler + DB server in CVM
+./gdpr.sh --encryption OFF --logging OFF --server_connection UNIX
+./gdpr.sh --encryption ON --logging OFF --server_connection UNIX
+# ./gdpr.sh --encryption ON --logging ON

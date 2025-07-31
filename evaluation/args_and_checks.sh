@@ -34,8 +34,9 @@ parse_args_and_checks() {
               ;;
           esac
         else
-            echo "Value for --encryption is missing. Please provide 'ON' or 'OFF'."
-            exit 1
+            echo "Value for --encryption is missing. Using default: 'OFF'."
+            encryption="OFF"
+            shift
         fi
         ;;
       --logging)
@@ -56,12 +57,36 @@ parse_args_and_checks() {
               ;;
           esac
         else
-            echo "Value for --logging is missing. Please provide 'ON' or 'OFF'."
-            exit 1
+            echo "Value for --logging is missing. Using default: 'OFF'."
+            logging="OFF"
+            shift
+        fi
+        ;;
+      --server_connection)
+        # Check if the next argument is provided
+        if [ $# -gt 1 ]; then
+          case "$2" in
+            TCP)
+              server_connection="TCP"
+              shift
+              ;;
+            UNIX)
+              server_connection="UNIX"
+              shift
+              ;;
+            *)
+              echo "Invalid value for --server_connection. Please use 'TCP' or 'UNIX'."
+              exit 1
+              ;;
+          esac
+        else
+            echo "Value for --server_connection is missing. Using default: 'TCP'."
+            server_connection="TCP"
+            shift
         fi
         ;;
       *)
-        echo "Invalid option: $1. Usage: $0 --encryption [ON|OFF] --logging [ON|OFF]"
+        echo "Invalid option: $1. Usage: $0 --encryption [ON|OFF] --logging [ON|OFF] --server_connection [TCP|UNIX]"
         exit 1
         ;;
     esac
@@ -71,7 +96,7 @@ parse_args_and_checks() {
   # Build the controller
   echo "Building controller with encryption set to $encryption"
   pushd ${project_root}/controller
-  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D ENCRYPTION_ENABLED=$encryption;
+  cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ASAN_ENABLED=OFF -D ENCRYPTION_ENABLED=$encryption;
   cmake --build build -j$(nproc)
   popd
 }

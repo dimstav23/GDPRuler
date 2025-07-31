@@ -12,20 +12,18 @@ workload_size = {
 }
 
 variant_mapping = {
-    "direct": "Direct client/server",
-    "native_ctl": "Native passthrough proxy",
-    "gdpr_ctl": "Native GDPRuler",
-    "gdpr_self_hosted": "GDPRuler - bare-metal DB",
-    "gdpr_cloud_hosted": "GDPRuler - VM DB",
-    "gdpr_confidential_cloud_hosted": "GDPRuler - Confidential DB"
+    "direct_bare_metal"           : "Native",
+    "passthrough_bare_metal"      : "Native passthrough",
+    "gdpr_bare_metal"             : "Native GDPRuler",
+    "direct_CVM"                  : "CVM",
+    "passthrough_CVM"             : "CVM passthrough",
+    "gdpr_CVM"                    : "CVM GDPRuler",
 }
-
-variant_order = ["direct", "native_ctl", "gdpr_ctl", "gdpr_self_hosted", "gdpr_cloud_hosted", "gdpr_confidential_cloud_hosted"]
 
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
 def load_data_from_directory(input_dir):
-    pattern = r"(?P<controller>\w+(?:_\w+)?)-(?P<workload_type>[\w_]+)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)\.csv"
+    pattern = r"(?P<controller>\w+(?:_\w+)?)-(?P<workload_type>[\w_]+)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)-connection_(?P<connection>\w+)\.csv"
     data = []
     
     for filename in os.listdir(input_dir):
@@ -35,7 +33,6 @@ def load_data_from_directory(input_dir):
                 df = pd.read_csv(os.path.join(input_dir, filename))
                 df = process_dataframe(df, match, input_dir)
                 data.append(df)
-    
     return pd.concat(data, ignore_index=True)
 
 def process_dataframe(df, match, input_dir):
@@ -43,6 +40,7 @@ def process_dataframe(df, match, input_dir):
     workload_type = match.group("workload_type")
     encryption = match.group("encryption")
     logging = match.group("logging")
+    connection = match.group("connection")
     
     operation_count = workload_size[workload_type.split("_")[-1]]
     df['throughput'] = operation_count / df['elapsed_time (s)']
@@ -51,10 +49,11 @@ def process_dataframe(df, match, input_dir):
     df['workload_type'] = workload_type
     df['encryption'] = encryption
     df['logging'] = logging
+    df['connection'] = connection
     df['operation_count'] = operation_count
     df['workload'] = df.iloc[:, 0].str.extract(r'^(workload[a-f])')[0]
     df['environment'] = 'bare_metal' if 'bare_metal' in input_dir else 'VM'
-    df['variant'] = controller
+    df['variant'] = f"{controller}{'-encr' if encryption == 'ON' else '-no_encr'}{'-logging' if logging == 'ON' else '-no_logging'}{'-tcp' if connection == 'TCP' else '-unix'}"
     
     return df
 
@@ -65,6 +64,38 @@ def prepare_plot_data(df_subset, metric, group_by):
     elif metric == 'throughput':
         values /= 1000  # Convert to kops
     return values
+
+def sort_variants(unique_variants):
+    variant_order = [
+        "direct_bare_metal", "passthrough_bare_metal", "gdpr_bare_metal",
+        "direct_CVM", "passthrough_CVM", "gdpr_CVM"
+    ]
+    # Priority mappings for nested sorting
+    encryption_priority = {"no_encr": 0, "encr": 1}
+    logging_priority = {"no_logging": 0, "logging": 1}
+    connection_priority = {"tcp": 0, "unix": 1}
+
+    # Extract prefix and flags from variant
+    def extract_parts(variant: str):
+        # Find the longest matching prefix from variant_order
+        prefix = next((vo for vo in variant_order if variant.startswith(vo)), None)
+        if prefix is None:
+            prefix = variant.split('-')[0]
+        flags = variant[len(prefix):].strip('-').split('-') if len(variant) > len(prefix) else []
+        # Get flags or default values
+        enc_flag = next((f for f in flags if f in encryption_priority), "no_encr")
+        log_flag = next((f for f in flags if f in logging_priority), "no_logging")
+        conn_flag = next((f for f in flags if f in connection_priority), "tcp")
+        return (
+            variant_order.index(prefix) if prefix in variant_order else float('inf'),
+            encryption_priority[enc_flag],
+            logging_priority[log_flag],
+            connection_priority[conn_flag]
+        )
+
+    # Sort variants by all criteria
+    sorted_variants = sorted(unique_variants, key=extract_parts)
+    return sorted_variants
 
 def create_bar_plot(ax, x, values, width, offset, label, color, hatch):
     ax.bar([xi + offset for xi in x], values, width, label=label, color=color, alpha=0.8, hatch=hatch)
@@ -89,21 +120,23 @@ def create_workload_plots(data, db, metric, output_dir):
         
         df_subset = data[(data['db'] == db) & (data['workload'] == workload)]
         
-        variants = [v for v in variant_order if v in df_subset['variant'].unique()]
+        variants = sort_variants(df_subset['variant'].unique())
         thread_counts = sorted(df_subset['n_clients'].unique())
         
         x = range(len(thread_counts))
         width = 0.8 / len(variants)
         
         colors = sns.color_palette("pastel", n_colors=len(variants))
-        
         for i, variant in enumerate(variants):
             variant_data = df_subset[df_subset['variant'] == variant]
+            baseline_type = variant.split('-')[0]
             if not variant_data.empty:
                 values = prepare_plot_data(variant_data, metric, 'n_clients')
                 offset = width * i - 0.4 + width / 2
-                label = f"{variant_mapping[variant]} ({'w/ Encryption' if variant_data['encryption'].iloc[0] == 'on' else 'w/o Encryption'})"
-                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i])
+                label = f"{variant_mapping[baseline_type]} ({'w/ Encryption' if variant_data['encryption'].iloc[0] == 'ON' else 'w/o Encryption'}"
+                label = f"{label}{'-UNIX' if variant_data['connection'].iloc[0] == 'UNIX' else '-TCP'}"
+                label = f"{label}{'-w/ Logging' if variant_data['logging'].iloc[0] == 'ON)' else ')'}"
+                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i%len(hatches)])
         
         set_plot_properties(ax, 'Thread Count', 
                             f'Average {metric.capitalize()} {"(µs)" if metric == "latency" else "(kops)"}',
@@ -118,7 +151,7 @@ def create_thread_count_plots(data, db, metric, output_dir):
         
         df_subset = data[(data['db'] == db) & (data['n_clients'] == thread_count)]
         
-        variants = [v for v in variant_order if v in df_subset['variant'].unique()]
+        variants = sort_variants(df_subset['variant'].unique())
         workloads = sorted(df_subset['workload'].unique())
         
         x = range(len(workloads))
@@ -128,11 +161,14 @@ def create_thread_count_plots(data, db, metric, output_dir):
         
         for i, variant in enumerate(variants):
             variant_data = df_subset[df_subset['variant'] == variant]
+            baseline_type = variant.split('-')[0]
             if not variant_data.empty:
                 values = prepare_plot_data(variant_data, metric, 'workload')
                 offset = width * i - 0.4 + width / 2
-                label = f"{variant_mapping[variant]} ({'w/ Encryption' if variant_data['encryption'].iloc[0] == 'on' else 'w/o Encryption'})"
-                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i])
+                label = f"{variant_mapping[baseline_type]} ({'w/ Encryption' if variant_data['encryption'].iloc[0] == 'ON' else 'w/o Encryption'}"
+                label = f"{label}{'-UNIX' if variant_data['connection'].iloc[0] == 'UNIX' else '-TCP'}"
+                label = f"{label}{'-w/ Logging' if variant_data['logging'].iloc[0] == 'ON)' else ')'}"
+                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i%len(hatches)])
         
         set_plot_properties(ax, 'Workload', 
                             f'Average {metric.capitalize()} {"(µs)" if metric == "latency" else "(kops)"}',

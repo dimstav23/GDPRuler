@@ -22,15 +22,22 @@ public:
   /* Constructor for the PUT operation in case of an UPDATE of a value */
   explicit query_rewriter(std::string_view res,
                           std::string_view new_query_value);
-  /* Constructor for the PUTM operation */
-  explicit query_rewriter(std::string_view res,
-                          const query &query_args);
+  /* Constructor for the PUTM/PUTC operation */
+  explicit query_rewriter(const query &query_args,
+                          std::string_view res,
+                          std::optional<std::string_view> new_query_value);
   // ~query_rewriter();
 
-  [[nodiscard]] auto new_value() const -> std::string;
+  [[nodiscard]] auto new_value() && -> std::string;
 
 private:
   std::string m_new_value;
+
+  // Helper functions
+  template<size_t N>
+  auto append_bitset(const std::bitset<N>& bits) -> void;
+  auto append_header(const metadata_header& header) -> void;
+  auto decode_header(std::string_view new_value, size_t& offset) const -> metadata_header;
 };
 
 } // namespace controller

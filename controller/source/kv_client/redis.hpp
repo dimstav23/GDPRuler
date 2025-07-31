@@ -9,7 +9,7 @@ class redis_client : public kv_client
   sw::redis::Redis m_redis;
 
 public:
-  explicit redis_client(const std::string& addr)
+  explicit redis_client(const std::string& addr = "unix:///tmp/redis.sock") // use default Unix socket path
       : m_redis(addr)
   {
   }
@@ -19,7 +19,7 @@ public:
     auto result = m_redis.get(key);
     // if (result) {
     //   // Key exists. Dereference val to get the string result.
-    //   // #ifndef NDEBUG
+    //   // #ifdef DEBUG
     //   // std::cout << "GET operation done with key: " << key
     //   //           << " and value: " << *result << std::endl;
     //   // #endif

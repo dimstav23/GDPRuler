@@ -1,16 +1,20 @@
 #!/bin/sh
 
 # direct execution
-./native_direct.sh --encryption OFF --logging OFF
+./direct.sh --encryption OFF --logging OFF --server_connection TCP
 
 # native controller execution
-./native_ctl.sh --encryption OFF --logging OFF
-# ./native_ctl.sh --encryption OFF --logging ON
-./native_ctl.sh --encryption ON --logging OFF
-# ./native_ctl.sh --encryption ON --logging ON
+./passthrough.sh --encryption OFF --logging OFF --server_connection UNIX
+./passthrough.sh --encryption OFF --logging OFF --server_connection TCP
+# ./passthrough.sh --encryption OFF --logging ON
+./passthrough.sh --encryption ON --logging OFF --server_connection UNIX
+./passthrough.sh --encryption ON --logging OFF --server_connection TCP
+# ./passthrough.sh --encryption ON --logging ON
 
 # gdpr controller execution
-./gdpr_ctl.sh --encryption OFF --logging OFF
-# ./gdpr_ctl.sh --encryption OFF --logging ON
-./gdpr_ctl.sh --encryption ON --logging OFF
-# ./gdpr_ctl.sh --encryption ON --logging ON
+./gdpr.sh --encryption OFF --logging OFF --server_connection UNIX
+./gdpr.sh --encryption OFF --logging OFF --server_connection TCP
+# ./gdpr.sh --encryption OFF --logging ON
+./gdpr.sh --encryption ON --logging OFF --server_connection UNIX
+./gdpr.sh --encryption ON --logging OFF --server_connection TCP
+# ./gdpr.sh --encryption ON --logging ON

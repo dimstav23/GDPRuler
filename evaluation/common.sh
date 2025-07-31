@@ -1,575 +1,609 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
-# Find the root directory of the repository
-project_root=$(git rev-parse --show-toplevel 2>/dev/null)
+# Configuration
+declare -A CONFIG=(
+    [PROJECT_ROOT]="$(git rev-parse --show-toplevel 2>/dev/null)"
+    [VM_CORES]="16"
+    [VM_MEMORY]="16384"
+    [MAX_WAIT_ATTEMPTS]="60"
+    [TMP_DIR]="/tmp"
+    [DB_DUMP_DIR]="/scratch/$(whoami)/db_data"
+    [CTL_DUMP_DIR]="/scratch/$(whoami)/controller_data"
+    [NODE_BIND]="numactl --cpunodebind=0 --membind=0"
+    [CVM_IP]="192.168.122.48"
+    [SSH_OPTS]="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+)
 
-# Server executables
-rocksdb_server_bin="$project_root/controller/build/rocksdb_server"
-redis_server_bin="$project_root/KVs/redis/src/redis-server"
+declare -A PATHS=(
+    [ROCKSDB_BIN]="${CONFIG[PROJECT_ROOT]}/controller/build/rocksdb_server"
+    [ROCKSDB_SOCKET]="/tmp/rocksdb.sock"
+    [REDIS_BIN]="${CONFIG[PROJECT_ROOT]}/KVs/redis/src/redis-server"
+    [REDIS_SOCKET]="/tmp/redis.sock"
+    [CLIENT]="${CONFIG[PROJECT_ROOT]}/scripts/client.py"
+    [DIRECT_CLIENT]="${CONFIG[PROJECT_ROOT]}/scripts/direct_client.py"
+    [GDPR_CONTROLLER]="${CONFIG[PROJECT_ROOT]}/scripts/GDPRuler.py"
+    [PASSTHROUGH_CONTROLLER]="${CONFIG[PROJECT_ROOT]}/scripts/passthrough.py"
+)
 
-# Expect scripts
-controller_expect_script="$project_root/evaluation/VM/CVM_GDPRuler.expect"
-server_expect_script="$project_root/evaluation/VM/VM_server.expect"
-
-# Directory for storing temporary files for each experiment
-tmp_dir=/tmp
-
-# Directory for storing the DB files and the log files
-db_dump_and_logs_dir="/scratch/$(whoami)/data"
-
-# List of tests that failed
+# Global variables
 failed_tests=""
+server_connection=""
+CVM_EXPECT_PID=""
+CVM_READY=false
+CVM_IP="${CONFIG[CVM_IP]}"
 
-# Universal (C)VM settings
-VM_cores="16"
-VM_memory="16384"
+# Function to start the CVM using the listed expect script
+boot_cvm() {
+    local curr_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+        
+    expect -c "
+        log_user 0
+        set timeout -1
+        spawn sudo LD_LIBRARY_PATH=$::env(LD_LIBRARY_PATH) numactl ${CONFIG[NODE_BIND]} \
+            bash ${curr_dir}/../CVM_setup/AMDSEV/launch-qemu.sh \
+            -hda ${curr_dir}/../CVM_setup/images/gdpr.img \
+            -sev-snp \
+            -bridge virbr0 \
+            -bios ${curr_dir}/../CVM_setup/firmware/gdpr \
+            -smp ${CONFIG[VM_CORES]} \
+            -mem ${CONFIG[VM_MEMORY]} \
+            -log ${curr_dir}/cvm_boot.out
 
-NODE_BIND="numactl --cpunodebind=0 --membind=0"
-
-# Helper functions for the evaluation and workload execution
-
-# Function to run RocksDB server in a specified environment
-# Args:
-#   1: server_type   (type of server execution: bare-metal, VM or CVM)
-#   2: db_address    (database IP address)
-#   3: port          (port for the server)
-#   4: log_dir       (directory for logs)
-#   5: output_file   (temporary output file)
-function run_rocksdb() {
-  local server_type="$1"
-  local db_address="$2"
-  local port="$3"
-  local log_dir="$4"
-  local output_file="$5"
-
-  # Run the rocksDB server
-  if [[ $server_type == "bare-metal" ]]; then
-
-    if [ ! -f $rocksdb_server_bin ]; then
-      echo "Rocksdb server not found. Please compile the rocksdb server available with the controller."
-      exit
-    fi
-    echo "Starting rocksdb server"
-    # run rocksdb server
-    $NODE_BIND $rocksdb_server_bin $port $log_dir > $output_file &
-    # wait for the server to be initialized and listen to connections
-    wait_for_activation "localhost" $port
-
-  elif [[ $server_type == "VM" ]] || [[ $server_type == "CVM" ]]; then
-
-    echo "Starting rocksdb server in a ${server_type}"
-    expect $server_expect_script $server_type "rocksdb" $VM_cores $VM_memory $port $log_dir $output_file &
-
-    # wait for the server to be initialized and listen to connections
-    wait_for_activation $db_address $port
-
-  fi
-  
-}
-
-# Function to run Redis server in a specified environment
-# Args:
-#   1: server_type   (type of server execution: bare-metal, VM or CVM)
-#   2: db_address    (database IP address)
-#   3: port          (port for the server)
-#   4: log_dir       (directory for logs)
-#   5: output_file   (temporary output file)
-function run_redis() {
-  local server_type="$1"
-  local db_address="$2"
-  local port="$3"
-  local log_dir="$4"
-  local output_file="$5"
-
-  # Run the redis server
-  if [[ $server_type == "bare-metal" ]]; then
-
-      if [ ! -f $redis_server_bin ]; then
-        echo "Redis server not found. Please compile the redis version of the provided submodule."
-        exit
-      fi
-      echo "Starting redis server"
-      # run redis server
-      $NODE_BIND $redis_server_bin --port $port --dir $log_dir --protected-mode no > $output_file &
-      # wait for the server to be initialized and listen to connections
-      wait_for_activation "localhost" $port
-
-  elif [[ $server_type == "VM" ]] || [[ $server_type == "CVM" ]]; then
-
-    echo "Starting redis server in a ${server_type}"
-    expect $server_expect_script $server_type "redis" $VM_cores $VM_memory $port $log_dir $output_file &
-
-    # wait for the server to be initialized and listen to connections
-    # for redis: remove the tcp:// in front of the address
-    wait_for_activation "${db_address#tcp://}" $port
-
-  fi
-}
-
-# Function to run GDPR controller
-# Args:
-#   1: controller         (controller executable)
-#   2: controller_address (address for the controller)
-#   3: controller_port    (port for the controller)
-#   4: db                 (database type)
-#   5: db_address         (database address and port)
-#   6: config             (configuration file)
-#   7: log_path           (directory for logs)
-#   8: output_file        (temporary output file)
-function run_gdpr_controller() {
-  local controller="$1"
-  local controller_address="$2"
-  local controller_port="$3"
-  local db="$4"
-  local db_address="$5"
-  local log_path="$6"
-  local output_file="$7"
-
-  if [ ! -f $controller ]; then
-    echo "Controller not found in $controller. Exiting..."
-    exit
-  fi
-  ctl="$controller --db $db --logpath $log_path --db_address $db_address \
-  --controller_address $controller_address --controller_port $controller_port"
-
-  echo "Starting the GDPR controller"
-  $NODE_BIND python3 $ctl > $output_file &
-  wait_for_activation "localhost" $controller_port
-}
-
-# Function to run GDPR controller in a CVM environment
-# Args:
-#   1: controller_address (address for the controller)
-#   2: controller_port    (port for the controller)
-#   3: db                 (database type)
-#   4: db_address         (database address and port)
-#   5: output_file        (temporary output file)
-#   6: log_path           (directory for logs)
-
-function run_gdpr_controller_CVM() {
-  local controller_address="$1"
-  local controller_port="$2"
-  local db="$3"
-  local db_address="$4"
-  local output_file="$5"
-  local log_path="$6"
-
-  echo "Starting the GDPR controller in a CVM"
-  echo $(pwd)
-  expect $controller_expect_script $VM_cores $VM_memory $db $db_address $controller_address $controller_port $output_file $log_path &
-
-  wait_for_activation $controller_address $controller_port
-}
-
-# Function to run native controller
-# Args:
-#   1: controller         (controller executable)
-#   2: controller_address (address for the controller)
-#   3: controller_port    (port for the controller)
-#   4: db                 (database type)
-#   5: db_address         (database address and port)
-#   6: output_file        (temporary output file)
-function run_native_controller() {
-  local controller="$1"
-  local controller_address="$2"
-  local controller_port="$3"
-  local db="$4"
-  local db_address="$5"
-  local output_file="$6"
-
-  if [ ! -f $controller ]; then
-    echo "Controller not found in $controller. Exiting..."
-    exit
-  fi
-  ctl="$controller --db $db --db_address $db_address \
-  --controller_address $controller_address --controller_port $controller_port"
-
-  echo "Starting the native controller"
-  $NODE_BIND python3 $ctl > $output_file &
-  wait_for_activation "localhost" $controller_port
-}
-
-# Function to run client(s) directly connected to the server
-# Args:
-#   1: client             (client executable)
-#   2: db                 (database type)
-#   3: db_address         (database address and port)
-#   4: workload           (workload file)
-#   5: n_clients          (number of clients)
-#   6: output_file        (temporary output file)
-function run_direct_client() {
-  local client="$1"
-  local db="$2"
-  local db_address="$3"
-  local workload="$4"
-  local n_clients="$5"
-  local output_file="$6"
-
-  if [ ! -f $client ]; then
-    echo "Client not found in $client. Exiting..."
-    exit
-  fi
-
-  client="$client_path --db $db --db_address $db_address --workload $workload --clients $n_clients"
-  echo "Starting the client(s): $client"
-  $NODE_BIND python3 ${client} > $output_file
-  status=$?
-  return $status
-}
-
-# Function to run client(s) connected to the controller
-# Args:
-#   1: client             (client executable)
-#   2: workload           (workload file)
-#   3: n_clients          (number of clients)
-#   4: controller_address (controller IP address)
-#   5: controller_port    (controller port)
-#   6: output_file        (temporary output file)
-#   7: config directory   (directory where the client default policies reside)
-function run_client() {
-  local client="$1"
-  local workload="$2"
-  local n_clients="$3"
-  local controller_address="$4"
-  local controller_port="$5"
-  local output_file="$6"
-  local config="$7"
-
-  if [ ! -f $client ]; then
-    echo "Client not found in $client. Exiting..."
-    exit
-  fi
-
-  client="$client --workload $workload --clients $n_clients --address $controller_address --port $controller_port --config $config"
-  echo "Starting the client(s): $client"
-  $NODE_BIND python3 ${client} > $output_file
-  status=$?
-  return $status
-}
-
-# Function to wait for a port activation
-# Args:
-#   1: IP Address    (IP address)
-#   2: Port          (port to wait for)
-wait_for_activation() {
-  local ip_address="$1"
-  local port="$2"
-  local max_attempts=60
-
-  for ((attempt=1; attempt<=$max_attempts; attempt++)); do
-    if nc -z "$ip_address" "$port" &> /dev/null; then
-      return
-    else
-      sleep 1
-    fi
-  done
-
-  echo "Timeout: $ip_address:$port did not become active within $max_attempts seconds."
-  exit 1
-}
-
-# Function to wait for a port shutdown
-# Args:
-#   1: IP Address    (IP address)
-#   2: Port          (port to wait for)
-wait_for_shutdown() {
-  local ip_address="$1"
-  local port="$2"
-  local max_attempts=60
-  for ((attempt=1; attempt<=$max_attempts; attempt++)); do
-    if ! nc -z "$ip_address" "$port" &> /dev/null; then
-      return
-    else
-      sleep 1
-    fi
-  done
-
-  echo "Timeout: $ip_address:$portdid not become inactive within $max_attempts seconds."
-  exit 1
-}
-
-# Function to prepare experiment directories and result file
-# Args:
-#   1: result_file   (result file path)
-prepare_experiment() {
-  local result_file="$1"
-
-  # Make sure that the tmp directory is created
-  mkdir -p $tmp_dir
-  # Delete and recreate the folder for the db files and logs
-  rm -rf $db_dump_and_logs_dir
-  mkdir -p $db_dump_and_logs_dir
-
-  # Create the result file, if it doesn't exist
-  # and add its first line with the csv columns
-  if [ ! -f "${result_file}" ]; then
-    install -D -m 644 /dev/null ${result_file}
-    echo -e "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s)" >> ${result_file}
-  fi
-}
-
-# Function to cleanup after the experiment
-# It terminates the server and controller processes,
-# waits till their port becomes inactive
-# and deletes the files generated by the experiment.
-# Args:
-#   1: controller_address (controller IP address)
-#   2: controller_port    (controller port)
-#   3: db                 (database type)
-#   4: db_address         (database IP address)
-#   5: db_port            (database port)
-cleanup() {
-  local controller_address="$1"
-  local controller_port="$2"
-  local db="$3"
-  local db_address="$4"
-  local db_port="$5"
-
-  # Attempt to stop all relevant processes
-  echo "Stopping all relevant processes"
-  sudo kill -SIGINT $(pgrep -f qemu) 2>/dev/null || true
-  kill $(pgrep -f native_controller) 2>/dev/null || true
-  kill $(pgrep -f gdpr_controller) 2>/dev/null || true
-  kill $(pgrep -f rocksdb_server) 2>/dev/null || true
-  kill $(pgrep -f redis-server) 2>/dev/null || true
-
-  # Wait for ports to become inactive
-  echo "Waiting for ports to become inactive"
-  wait_for_shutdown "$controller_address" "$controller_port"
-  wait_for_shutdown "${db_address#tcp://}" "$db_port"
-
-  # Remove all potentially generated files
-  echo "Cleaning up files"
-  rm -f "${tmp_dir}"/server.txt "${tmp_dir}"/controller.txt "${tmp_dir}"/clients.txt
-  rm -rf "${db_dump_and_logs_dir}"
-
-  # Final check and cleanup for any remaining QEMU processes
-  sleep 3  # Buffer time for QEMU cleanup
-  if pgrep -f qemu > /dev/null; then
-    echo "Forcefully terminating remaining QEMU processes..."
-    sudo kill -SIGKILL $(pgrep -f qemu) 2>/dev/null || true
-  fi
-
-  # Verify all QEMU processes are terminated
-  if pgrep -f qemu > /dev/null; then
-    echo "Warning: Some QEMU processes may still be running."
-  else
-    echo "All cleanup operations completed."
-  fi
-}
-
-# Function to print summary of test results
-print_summary() {
-  # Summary of the performed tests
-  if [ -n "$failed_tests" ]; then
-    echo -e "\e[31mThe following tests failed:\e[0m"
-    for test in $failed_tests; do
-      echo -e "\e[31m$test\e[0m"
+        expect \"login: \"
+        send \"root\\r\"
+        expect \"Password: \"
+        send \"123456\\r\"
+        expect \"# \"
+        
+        expect eof
+    " &
+    
+    CVM_EXPECT_PID=$!
+    echo "CVM started with PID: $CVM_EXPECT_PID"
+    
+    # Wait for CVM to be ready
+    echo "Waiting for CVM to be ready..."
+    sleep 5
+    
+    for ((attempt=1; attempt<=${CONFIG[MAX_WAIT_ATTEMPTS]}; attempt++)); do
+        if ssh ${CONFIG[SSH_OPTS]} root@${CONFIG[CVM_IP]} "echo 'ready'" >/dev/null 2>&1; then
+            CVM_READY=true
+            echo "CVM is ready and accessible via SSH"
+            return 0
+        fi
+        sleep 2
     done
-  else
-    echo -e "\e[32mAll tests were successful :)\e[0m"
-  fi
+    
+    echo "Failed to connect to CVM"
+    return 1
 }
 
-# Start a test by running the server and the clients natively
-# Args:
-#   1: n_clients          (number of clients to run concurrently)
-#   2: workload           (workload file name)
-#   3: db                 (db to be used in controller. one of {rocksdb, redis})
-#   4: db_address         (address for the DB)
-#   5: db_port            (port for the DB)
-#   6: results_csv_file   (result file path -- must exist beforehand)
-run_native_direct_experiment() {
-  local n_clients="$1"
-  local workload="$2"
-  local db="$3"
-  local db_address="$4"
-  local db_port="$5"
-  local results_csv_file="${6}"
+# Function that shuts down the CVM and cleans up the qemu processes
+shutdown_cvm() {
+    echo -e "\e[31mShutting down CVM...\e[0m"
 
-  local db_address_formatted="${db_address}:${db_port}"
-
-  local controller="direct"
-
-  prepare_experiment $results_csv_file
-
-  # Run the db server
-  if [[ $db == "rocksdb" ]]; then
-    run_rocksdb "bare-metal" "" $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
-  elif [[ $db == "redis" ]]; then
-    run_redis "bare-metal" "" $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
-  fi
-
-  # Run the client and gather the results
-  client_path="$project_root/scripts/direct_client.py"
-  # workload_path=${project_root}/workload_traces/${workload}
-  run_direct_client $client_path $db $db_address_formatted $workload $n_clients ${tmp_dir}/clients.txt
-  status=$?
-  if [ $status -ne 0 ]; then
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
-    exit 1
-  else
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" finished successfully. Output:"
-    # Direct client output to stdout for better observability
-    cat ${tmp_dir}/clients.txt
-    # Retrieve the client results from the temp files
-    elapsed_time=$(grep "Elapsed time: " ${tmp_dir}/clients.txt | awk '{print $3}')
-    avg_latency=$(grep "Average Latency: " ${tmp_dir}/clients.txt | awk '{print $3}')
-  fi
-
-  cleanup $controller_address $controller_port $db $db_address $db_port
-
-  if [ -z $avg_latency ]; then
-    # Case of a failed test
-    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
-  else
-    # Write the total elapsed time for all the threads and the average latency
-    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
-  fi
+    # Kill the expect process
+    if [ -n "$CVM_EXPECT_PID" ] && ps -p $CVM_EXPECT_PID > /dev/null 2>&1; then
+        kill $CVM_EXPECT_PID 2>/dev/null || true
+        sleep 2
+        kill -9 $CVM_EXPECT_PID 2>/dev/null || true
+    fi
+    
+    sudo pkill -f "launch-qemu.sh" 2>/dev/null || true
+    sudo pkill -f qemu-system 2>/dev/null || true
+    CVM_READY=false
 }
 
-# Start a test by running the server, the controller and the clients natively
-# Args:
-#   1: n_clients          (number of clients to run concurrently)
-#   2: workload           (workload file name)
-#   3: db                 (db to be used in controller. one of {rocksdb, redis})
-#   4: db_address         (address for the DB)
-#   5: db_port            (port for the DB)
-#   6: controller         (controller type. one of {gdpr, native})
-#   7: controller_address (address of the controller)
-#   8: controller_port    (port of the controller)
-#   9: config             (configuration file/directory for the client)
-#  10: results_csv_file   (result file path -- must exist beforehand)
-run_native_ctl_experiment() {
-  local n_clients="$1"
-  local workload="$2"
-  local db="$3"
-  local db_address="$4"
-  local db_port="$5"
-  local controller="$6"
-  local controller_address="$7"
-  local controller_port="$8"
-  local config="$9"
-  local results_csv_file="${10}"
-
-  local db_address_formatted="${db_address}:${db_port}"
-
-  prepare_experiment $results_csv_file
-
-  # Run the db server
-  if [[ $db == "rocksdb" ]]; then
-    run_rocksdb "bare-metal" "" $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
-  elif [[ $db == "redis" ]]; then
-    run_redis "bare-metal" "" $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
-  fi
-
-  # Run the controller
-  if [[ $controller == "gdpr" ]]; then
-    controller_path="$project_root/scripts/GDPRuler.py"
-    run_gdpr_controller $controller_path $controller_address $controller_port \
-    $db $db_address_formatted $db_dump_and_logs_dir ${tmp_dir}/controller.txt
-  elif [[ $controller == "native" ]]; then
-    controller_path="$project_root/scripts/native_ctl.py"
-    run_native_controller $controller_path $controller_address $controller_port \
-    $db $db_address_formatted ${tmp_dir}/controller.txt
-  fi
-
-  # Run the client and gather the results
-  client_path="$project_root/scripts/client.py"
-  # workload_path=${project_root}/workload_traces/${workload}
-  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt $config
-  status=$?
-  if [ $status -ne 0 ]; then
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
-    exit 1
-  else
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" finished successfully. Output:"
-    # Direct client output to stdout for better observability
-    cat ${tmp_dir}/clients.txt
-    # Retrieve the client results from the temp files
-    elapsed_time=$(grep "Elapsed time: " ${tmp_dir}/clients.txt | awk '{print $3}')
-    avg_latency=$(grep "Average Latency: " ${tmp_dir}/clients.txt | awk '{print $3}')
-  fi
-
-  cleanup $controller_address $controller_port $db $db_address $db_port
-
-  if [ -z $avg_latency ]; then
-    # Case of a failed test
-    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
-  else
-    # Write the total elapsed time for all the threads and the average latency
-    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
-  fi
+# Helper function to execute a command within the CVM
+execute_in_cvm() {
+    local command="$1"
+    local output_file="$2"
+    
+    if [ "$CVM_READY" != true ]; then
+        echo "Error: CVM is not ready"
+        return 1
+    fi
+    
+    if [ -n "$output_file" ]; then
+        ssh ${CONFIG[SSH_OPTS]} root@${CONFIG[CVM_IP]} "$command" > "$output_file" 2>&1
+    else
+        ssh ${CONFIG[SSH_OPTS]} root@${CONFIG[CVM_IP]} "$command"
+    fi
 }
 
-# Start a test by running the server in a bare-metal or within a (C)VM, 
-# the controller in a CVM and the clients natively
-# Args:
-#   1: server_type        (type of the server deployment)
-#   2: n_clients          (number of clients to run concurrently)
-#   3: workload           (workload file name)
-#   4: db                 (db to be used in controller. one of {rocksdb, redis})
-#   5: db_address         (address for the DB)
-#   6: db_port            (port for the DB)
-#   7: controller_address (address of the controller)
-#   8: controller_port    (port of the controller)
-#   9: config             (configuration file for the client)
-#  10: results_csv_file   (result file path -- must exist beforehand)
-run_VM_ctl_experiment() {
-  local server_type="$1"
-  local n_clients="$2"
-  local workload="$3"
-  local db="$4"
-  local db_address="$5"
-  local db_port="$6"
-  local controller_address="$7"
-  local controller_port="$8"
-  local config="${9}"
-  local results_csv_file="${10}"
+# Helper function to execute a command within the CVM in the background
+execute_in_cvm_background() {
+    local command="$1"
+    local output_file="$2"
+    
+    if [ "$CVM_READY" != true ]; then
+        echo "Error: CVM is not ready"
+        return 1
+    fi
+    
+    echo "Executing in CVM background: $command"
+    ssh ${CONFIG[SSH_OPTS]} root@${CONFIG[CVM_IP]} "nohup bash -c '$command' > $output_file 2>&1 &"
+}
 
-  local db_address_formatted="${db_address}:${db_port}"
+# Utility function to validate if an executable exists
+validate_executable() {
+    local executable="$1"
+    local description="$2"
+    
+    if [ ! -f "$executable" ]; then
+        echo "$description not found in $executable. Exiting..."
+        exit 1
+    fi
+}
 
-  local controller="gdpr"
+# Function to wait for TCP activation
+wait_for_tcp_activation() {
+    local ip_address="$1"
+    local port="$2"
 
-  prepare_experiment $results_csv_file
-
-  # Run the db server
-  if [[ $db == "rocksdb" ]]; then
-    run_rocksdb $server_type $db_address $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
-  elif [[ $db == "redis" ]]; then
-    run_redis $server_type $db_address $db_port $db_dump_and_logs_dir ${tmp_dir}/server.txt
-  fi
-
-  # Run the GDPR controller in a CVM
-  run_gdpr_controller_CVM $controller_address $controller_port \
-    $db $db_address_formatted ${tmp_dir}/controller.txt $db_dump_and_logs_dir
-
-  # Run the client and gather the results
-  client_path="$project_root/scripts/client.py"
-  # workload_path=${project_root}/workload_traces/${workload}
-  run_client $client_path $workload $n_clients $controller_address $controller_port ${tmp_dir}/clients.txt $config
-  status=$?
-  if [ $status -ne 0 ]; then
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" exited with non-zero status code: $?" >&2
+    for ((attempt=1; attempt<=${CONFIG[MAX_WAIT_ATTEMPTS]}; attempt++)); do
+        if nc -z "$ip_address" "$port" &> /dev/null; then
+            return 0
+        fi
+        sleep 1
+    done
+    
+    echo "Timeout: $ip_address:$port did not become active within ${CONFIG[MAX_WAIT_ATTEMPTS]} seconds."
     exit 1
-  else
-    echo "Client(s) with the following config \"${workload},${db},${controller},${n_clients}\" finished successfully. Output:"
-    # Direct client output to stdout for better observability
-    cat ${tmp_dir}/clients.txt
-    # Retrieve the client results from the temp files
-    elapsed_time=$(grep "Elapsed time: " ${tmp_dir}/clients.txt | awk '{print $3}')
-    avg_latency=$(grep "Average Latency: " ${tmp_dir}/clients.txt | awk '{print $3}')
-  fi
+}
 
-  cleanup $controller_address $controller_port $db $db_address $db_port
+# Function to wait for UNIX socket activation
+wait_for_unix_socket_activation() {
+    local socket_path="$1"
+    
+    for ((attempt=1; attempt<=${CONFIG[MAX_WAIT_ATTEMPTS]}; attempt++)); do
+        if [ -S "$socket_path" ]; then
+            return 0
+        fi
+        sleep 1
+    done
+    
+    echo "Timeout: $socket_path did not become active within ${CONFIG[MAX_WAIT_ATTEMPTS]} seconds."
+    exit 1
+}
 
-  if [ -z $avg_latency ]; then
-    # Case of a failed test
-    failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
-  else
-    # Write the total elapsed time for all the threads and the average latency
-    echo -e "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> ${results_csv_file}
-  fi
+# Function to select the server type and run it
+run_server() {
+    local db="$1"
+    local environment="$2"  # "native" or "CVM"
+    local db_address="$3"
+    local port="$4"
+    local db_dir="$5"
+    local output_file="$6"
+    
+    case "$environment" in
+        "native")
+            case "$db" in
+                "rocksdb") run_rocksdb_native "$db_address" "$port" "$db_dir" "$output_file" ;;
+                "redis") run_redis_native "$db_address" "$port" "$db_dir" "$output_file" ;;
+            esac
+            ;;
+        "CVM")
+            run_server_CVM_direct "$db" "$db_address" "$port" "$db_dir" "$output_file"
+            ;;
+    esac
+}
+
+# Function that runs a DB server inside the CVM - the connection is ALWAYS via TCP socket
+run_server_CVM_direct() {
+    local db="$1"
+    local db_address="$2"
+    local port="$3"
+    local db_dir="$4"
+    local output_file="$5"
+
+    echo "Starting $db server in CVM"
+    
+    case "$db" in
+        "rocksdb")
+            local server_cmd="/root/GDPRuler/controller/build/rocksdb_server $port $db_dir"
+            execute_in_cvm_background "$server_cmd" "$output_file"
+            ;;
+        "redis")
+            local server_cmd="/root/GDPRuler/KVs/redis/src/redis-server --port $port --dir $db_dir --protected-mode no"
+            execute_in_cvm_background "$server_cmd" "$output_file"
+            ;;
+    esac
+    
+    # Wait for server to be ready
+    for ((attempt=1; attempt<=${CONFIG[MAX_WAIT_ATTEMPTS]}; attempt++)); do
+        # Check for TCP port
+        if execute_in_cvm "netstat -ln | grep :$port" > /dev/null 2>&1; then
+            echo "Database server $db started successfully on port $port in CVM"
+            return 0
+        fi
+        sleep 2
+    done
+    
+    echo "Failed to start database server $db in CVM"
+    return 1
+}
+
+# Function that runs a RocksDB server natively
+run_rocksdb_native() {
+    local db_address="$1"
+    local port="$2"
+    local db_dir="$3"
+    local output_file="$4"
+    
+    validate_executable "${PATHS[ROCKSDB_BIN]}" "RocksDB server"
+    
+    if [[ $port == "0" ]]; then
+        echo "Starting rocksdb server: ${CONFIG[NODE_BIND]} ${PATHS[ROCKSDB_BIN]} --unix ${PATHS[ROCKSDB_SOCKET]} $db_dir > $output_file"
+        ${CONFIG[NODE_BIND]} "${PATHS[ROCKSDB_BIN]}" --unix "${PATHS[ROCKSDB_SOCKET]}" "$db_dir" > "$output_file" &
+        wait_for_unix_socket_activation "${PATHS[ROCKSDB_SOCKET]}"
+    else
+        echo "Starting rocksdb server: ${CONFIG[NODE_BIND]} ${PATHS[ROCKSDB_BIN]} $port $db_dir > $output_file"
+        ${CONFIG[NODE_BIND]} "${PATHS[ROCKSDB_BIN]}" "$port" "$db_dir" > "$output_file" &
+        wait_for_tcp_activation "localhost" "$port"
+    fi
+}
+
+# Function that runs a Redis server natively
+run_redis_native() {
+    local db_address="$1"
+    local port="$2"
+    local db_dir="$3"
+    local output_file="$4"
+    
+    validate_executable "${PATHS[REDIS_BIN]}" "Redis server"
+    
+    if [[ $port == "0" ]]; then
+        echo "Starting redis server: ${CONFIG[NODE_BIND]} ${PATHS[REDIS_BIN]} --port $port --unixsocket ${PATHS[REDIS_SOCKET]} --unixsocketperm 700 --dir $db_dir --protected-mode no > $output_file"
+        ${CONFIG[NODE_BIND]} "${PATHS[REDIS_BIN]}" --port "$port" --unixsocket "${PATHS[REDIS_SOCKET]}" --unixsocketperm 700 --dir "$db_dir" --protected-mode no > "$output_file" &
+        wait_for_unix_socket_activation "${PATHS[REDIS_SOCKET]}"
+    else
+        echo "Starting redis server: ${CONFIG[NODE_BIND]} ${PATHS[REDIS_BIN]} --port $port --dir $db_dir --protected-mode no > $output_file"
+        ${CONFIG[NODE_BIND]} "${PATHS[REDIS_BIN]}" --port "$port" --dir "$db_dir" --protected-mode no > "$output_file" &
+        wait_for_tcp_activation "localhost" "$port"
+    fi
+}
+
+# Function to select the controller type and run it
+run_controller() {
+    local controller_type="$1"  # "gdpr", "passthrough"
+    local environment="$2"      # "native", "CVM"
+    local controller_address="$3"
+    local controller_port="$4"
+    local db="$5"
+    local db_address="$6"
+    local db_dir="$7"
+    local ctl_dir="$8"
+    local ctl_output_file="$9"
+    local server_output_file="${10}"
+
+    case "$environment" in
+        "native")
+            run_controller_native "$controller_type" "$controller_address" "$controller_port" "$db" "$db_address" "$db_dir" "$ctl_dir" "$ctl_output_file"
+            ;;
+        "CVM")
+            run_controller_CVM "$controller_type" "$controller_address" "$controller_port" "$db" "$db_address" "$db_dir" "$ctl_dir" "$ctl_output_file" "$server_output_file"
+            ;;
+    esac
+}
+
+# Function to run the controller natively
+run_controller_native() {
+    local controller_type="$1"
+    local controller_address="$2"
+    local controller_port="$3"
+    local db="$4"
+    local db_address="$5"
+    local db_dir="$6"
+    local ctl_dir="$7"
+    local output_file="$8"
+    
+    local controller_bin=""
+    case "$controller_type" in
+        "gdpr") controller_bin="${PATHS[GDPR_CONTROLLER]}" ;;
+        "passthrough") controller_bin="${PATHS[PASSTHROUGH_CONTROLLER]}" ;;
+    esac
+    
+    validate_executable "$controller_bin" "Controller"
+    
+    local ctl_cmd="$controller_bin --db $db --controller_address $controller_address --controller_port $controller_port"
+    
+    if [[ $controller_type == "gdpr" ]]; then
+        ctl_cmd="$ctl_cmd --logpath $ctl_dir"
+    fi
+    
+    if [[ $server_connection != "UNIX" ]]; then
+        ctl_cmd="$ctl_cmd --db_address $db_address"
+    fi
+    
+    echo "Starting the $controller_type controller: ${CONFIG[NODE_BIND]} python3 $ctl_cmd > $output_file"
+    ${CONFIG[NODE_BIND]} python3 $ctl_cmd > "$output_file" &
+    wait_for_tcp_activation "localhost" "$controller_port"
+}
+
+# Starts the DB inside the CVM and runs the controller - the connection is ALWAYS via Unix socket
+run_controller_CVM() {
+    local controller_type="$1"
+    local controller_address="$2"
+    local controller_port="$3"
+    local db="$4"
+    local db_address="$5"
+    local db_dir="$6"
+    local ctl_dir="$7"
+    local ctl_output_file="$8"
+    local server_output_file="$9"
+
+    echo "Starting the $controller_type controller in CVM"
+    
+    # Start database server in CVM
+    case "$db" in
+        "rocksdb")
+            local db_socket=${PATHS[ROCKSDB_SOCKET]}
+            local server_cmd="/root/GDPRuler/controller/build/rocksdb_server --unix $db_socket $db_dir"
+            execute_in_cvm_background "$server_cmd" "$server_output_file"
+            ;;
+        "redis")
+            local db_socket=${PATHS[REDIS_SOCKET]}
+            local server_cmd="/root/GDPRuler/KVs/redis/src/redis-server --port 0 --unixsocket $db_socket --unixsocketperm 700 --dir $db_dir --protected-mode no"
+            execute_in_cvm_background "$server_cmd" "$server_output_file"
+            ;;
+    esac
+    
+    # Wait for database socket
+    for ((attempt=1; attempt<=${CONFIG[MAX_WAIT_ATTEMPTS]}; attempt++)); do
+        # Check for socket file
+        if execute_in_cvm "[ -S $db_socket ]"; then
+            echo "Database server $db started successfully with UNIX socket in CVM"
+            break
+        fi
+        sleep 1
+    done
+
+    if [[ $attempt -gt ${CONFIG[MAX_WAIT_ATTEMPTS]} ]]; then
+        echo "Error: Database server $db failed to start within the expected time."
+        return 1
+    fi
+
+    # Start controller in CVM
+    local controller_script=""
+    case "$controller_type" in
+        "gdpr") controller_script="/root/GDPRuler/scripts/GDPRuler.py" ;;
+        "passthrough") controller_script="/root/GDPRuler/scripts/passthrough.py" ;;
+    esac
+    
+    local controller_cmd="python3 $controller_script --db $db --controller_address $controller_address --controller_port $controller_port"
+    if [[ $controller_type == "gdpr" ]]; then
+        controller_cmd="$controller_cmd --logpath $ctl_dir"
+    fi
+
+    echo "Starting $controller_type controller in CVM: $controller_cmd"
+    execute_in_cvm_background "$controller_cmd" "$ctl_output_file"
+    wait_for_tcp_activation "$controller_address" "$controller_port"
+}
+
+# Function that runs a client with the given configurationW
+run_client() {
+    local client_type="$1"  # "direct" or "controller"
+    local workload="$2"
+    local n_clients="$3"
+    local address="$4"
+    local port="$5"
+    local output_file="$6"
+    local extra_args="$7"
+    
+    local client_bin=""
+    local client_cmd=""
+    
+    case "$client_type" in
+        "direct")
+            client_bin="${PATHS[DIRECT_CLIENT]}"
+            validate_executable "$client_bin" "Direct client"
+            client_cmd="$client_bin --db $extra_args --db_address $address --workload $workload --clients $n_clients"
+            ;;
+        "controller")
+            client_bin="${PATHS[CLIENT]}"
+            validate_executable "$client_bin" "Client"
+            client_cmd="$client_bin --workload $workload --clients $n_clients --address $address --port $port --config $extra_args"
+            ;;
+    esac
+    
+    echo "Starting the client(s): ${CONFIG[NODE_BIND]} $client_cmd > $output_file"
+    ${CONFIG[NODE_BIND]} python3 $client_cmd > "$output_file"
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        echo -e "\e[32m✓ Client process completed successfully\e[0m"
+    else
+        echo -e "\e[31m✗ Client process failed with exit code $exit_code\e[0m"
+    fi
+    
+    return $exit_code
+}
+
+# Function to prepare the experiment environment
+prepare_experiment() {
+    local result_file="$1"
+
+    mkdir -p "${CONFIG[TMP_DIR]}"
+    rm -rf "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}"
+    mkdir -p "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}"
+    
+    if [ ! -f "$result_file" ]; then
+        install -D -m 644 /dev/null "$result_file"
+        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s)" >> "$result_file"
+    fi
+}
+
+# Function to collect results from the client output
+collect_results() {
+    local workload="$1"
+    local controller="$2"
+    local db="$3"
+    local n_clients="$4"
+    local results_file="$5"
+    
+    local elapsed_time=$(grep "Elapsed time: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
+    local avg_latency=$(grep "Average Latency: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
+    
+    if [ -z "$avg_latency" ]; then
+        failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
+    else
+        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> "$results_file"
+        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency\e[0m"
+    fi
+}
+
+# Function that cleans up processes and files from previous experiments in CVM via SSH
+cleanup_cvm_previous_experiment() {
+    if [ "$CVM_READY" = true ]; then
+        echo "Stopping processes from previous experiments in the CVM..."
+        set +e
+        execute_in_cvm "kill \$(pgrep -f native_controller) 2>/dev/null || true"
+        execute_in_cvm "kill \$(pgrep -f gdpr_controller) 2>/dev/null || true"
+        execute_in_cvm "kill \$(pgrep -f rocksdb_server) 2>/dev/null || true"
+        execute_in_cvm "kill \$(pgrep -f redis-server) 2>/dev/null || true"
+
+        for ((attempt=1; attempt<=${CONFIG[MAX_WAIT_ATTEMPTS]}; attempt++)); do
+            local remaining_processes=$(execute_in_cvm "ps aux | grep -E '(rocksdb_server|redis-server|native_controller|gdpr_controller)' | grep -v grep | grep -v ssh | wc -l")
+            if [ "$remaining_processes" = "0" ]; then
+                echo "All processes terminated successfully"
+                break
+            fi
+            echo $remaining_processes "process(es) still running in CVM, waiting..."       
+            sleep 1
+        done
+
+        if [ "$attempt" -gt "${CONFIG[MAX_WAIT_ATTEMPTS]}" ]; then
+            echo "Warning: Some processes may still be running after ${CONFIG[MAX_WAIT_ATTEMPTS]} seconds"
+            execute_in_cvm "ps aux | grep -E '(rocksdb|redis|native_controller|gdpr_controller)' | grep -v grep || true"
+            exit 1
+        fi
+
+        echo "Cleaning up files in CVM..."
+        execute_in_cvm "rm -rf ${PATHS[REDIS_SOCKET]} ${PATHS[ROCKSDB_SOCKET]}"
+        execute_in_cvm "rm -rf ${CONFIG[TMP_DIR]}/server.txt ${CONFIG[TMP_DIR]}/controller.txt"
+        execute_in_cvm "rm -rf ${CONFIG[DB_DUMP_DIR]}/* && mkdir -p ${CONFIG[DB_DUMP_DIR]}"
+        execute_in_cvm "rm -rf ${CONFIG[CTL_DUMP_DIR]}/* && mkdir -p ${CONFIG[CTL_DUMP_DIR]}"
+        set -e
+        echo "All cleanup operations completed."
+    fi
+}
+
+# Function to clean up processes and files on the host
+cleanup_host() {
+    local controller_address="$1"
+    local controller_port="$2"
+    local db="$3"
+    local db_address="$4"
+    local db_port="$5"
+    
+    echo "Stopping processes from previous experiments on the host..."
+    kill $(pgrep -f native_controller) 2>/dev/null || true
+    kill $(pgrep -f gdpr_controller) 2>/dev/null || true
+    kill $(pgrep -f rocksdb_server) 2>/dev/null || true
+    kill $(pgrep -f redis-server) 2>/dev/null || true
+    
+    for ((attempt=1; attempt<=${CONFIG[MAX_WAIT_ATTEMPTS]}; attempt++)); do
+        local remaining_processes=$(ps aux | grep -E '(rocksdb_server|redis-server|native_controller|gdpr_controller)' | grep -v grep | grep -v ssh | wc -l)
+        if [ "$remaining_processes" = "0" ]; then
+            echo "All processes terminated successfully"
+            break
+        fi
+        echo $remaining_processes "processes still running on the host, waiting..."       
+        sleep 1
+    done
+    
+    echo "Cleaning up files on the host..."
+    rm -rf "${PATHS[REDIS_SOCKET]}" "${PATHS[ROCKSDB_SOCKET]}"
+    rm -rf "${CONFIG[TMP_DIR]}"/server.txt "${CONFIG[TMP_DIR]}"/controller.txt "${CONFIG[TMP_DIR]}"/clients.txt
+    rm -rf "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}"
+    
+    echo "All cleanup operations completed."
+}
+
+# Function to clean up processes and files after an experiment
+cleanup() {
+    local controller_address="$1"
+    local controller_port="$2"
+    local db="$3"
+    local db_address="$4"
+    local db_port="$5"
+    
+    if [ "$CVM_READY" = true ]; then
+        # Clean up processes in CVM
+        cleanup_cvm_previous_experiment
+    else
+        # Clean up processes and files on the host
+        cleanup_host "$controller_address" "$controller_port" "$db" "$db_address" "$db_port"
+    fi
+}
+
+# Unified experiment function
+run_experiment() {
+    local experiment_type="$1"  # "native_direct", "native_ctl", "CVM_direct", "CVM_passthrough", "CVM_gdpr"
+    local n_clients="$2"
+    local workload="$3"
+    local db="$4"
+    local db_address="$5"
+    local db_port="$6"
+    local results_csv_file="$7"
+    shift 7
+        
+    local db_address_formatted="${db_address}:${db_port}"
+    if [[ $db == "redis" ]]; then
+        db_address_formatted="tcp://${db_address_formatted}"
+    fi
+    
+    # Cleanup to get rid of leftovers from previous experiments
+    cleanup "$controller_address" "$controller_port" "$db" "$db_address" "$db_port"
+    # And prepare the experiment environment
+    prepare_experiment "$results_csv_file"
+
+    case "$experiment_type" in
+        "native_direct")
+            run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
+            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
+            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file"
+            ;;
+        "native_ctl")
+            local controller="$1"
+            local controller_address="$2"
+            local controller_port="$3"
+            local config="$4"
+            
+            run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
+            run_controller "$controller" "native" "$controller_address" "$controller_port" "$db" "$db_address_formatted" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" ""
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config"
+            collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file"
+            ;;
+        "CVM_direct")
+            run_server "$db" "CVM" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
+            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
+            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file"
+            ;;
+        "CVM_passthrough"|"CVM_gdpr")
+            local controller_type="${experiment_type#CVM_}"
+            local controller_address="$1"
+            local controller_port="$2"
+            local config="$3"
+            
+            run_controller "$controller_type" "CVM" "$controller_address" "$controller_port" "$db" "$db_address" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "${CONFIG[TMP_DIR]}/server.txt"
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config"
+            collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file"
+            ;;
+    esac
+}
+
+# Function to print a summary of the results
+print_summary() {
+    if [ -n "$failed_tests" ]; then
+        echo -e "\e[31mThe following tests failed:\e[0m"
+        for test in $failed_tests; do
+            echo -e "\e[31m$test\e[0m"
+        done
+    else
+        echo -e "\e[32mAll tests were successful :)\e[0m"
+    fi
 }

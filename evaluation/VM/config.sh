@@ -1,13 +1,18 @@
 # Variables for the end-to-end test configuration
-redis_address="tcp://192.168.122.48"
-redis_port=6379
-rocksdb_address="192.168.122.48"
-rocksdb_port=15001
-controller_address="192.168.122.23"
-controller_port=1312
 
-bare_metal_redis_address="tcp://192.168.122.1"
-bare_metal_rocksdb_address="192.168.122.1"
+# Variables for Direct client-server communication in the CVM
+direct_redis_address="192.168.122.48"
+direct_redis_port=6379
+direct_rocksdb_address="192.168.122.48"
+direct_rocksdb_port=15001
+
+# Variables for GDPR & Passthrough controller in the CVM
+ctl_redis_address="/tmp/redis.sock"
+ctl_redis_port=0
+ctl_rocksdb_address="/tmp/rocksdb.sock"
+ctl_rocksdb_port=0
+controller_address="192.168.122.48"
+controller_port=1312
 
 config_dir=$(dirname "$(readlink -f "$0")")
 images_dir=${config_dir}/../../CVM_setup/images

@@ -74,14 +74,14 @@ $ ./rocksdb_server [port] [db_file_location]
 ### 3. Run the controller.
 For the native passthrough controller:
 ```
-$ python3 scripts/native_ctl.py --db [redis/rocksdb]
+$ python3 scripts/passthrough.py --db [redis/rocksdb]
 ```
 For the native GDPR controller:
 ```
 $ python3 scripts/GDPRuler.py --db [redis/rocksdb]
 ```
 
-For more command line options, please consult [`scripts/native_ctl.py`](scripts/native_ctl.py) and [`scripts/GDPRuler.py`](scripts/GDPRuler.py).
+For more command line options, please consult [`scripts/passthrough.py`](scripts/passthrough.py) and [`scripts/GDPRuler.py`](scripts/GDPRuler.py).
 
 ### 4. Run the client(s) with a desired workload:
 ```

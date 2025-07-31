@@ -31,8 +31,9 @@ The script expects a directory containing CSV files that adhere to the following
 ```
 
 **Example:**
-- `gdpr_ctl-query_mgmt_mediume-encryption_OFF-logging_ON.csv`
-- `native_ctl-query_mgmt_medium-encryption_ON-logging_ON.csv`
+- `direct_bare_metal-query_mgmt_mediume-encryption_OFF-logging_ON.csv`
+- `gdpr_bare_metal-query_mgmt_mediume-encryption_OFF-logging_ON.csv`
+- `passthrough_bare_metal-query_mgmt_medium-encryption_ON-logging_ON.csv`
 
 Each CSV file should have the following columns:
 - `elapsed_time (s)`: The time taken to complete the operations.

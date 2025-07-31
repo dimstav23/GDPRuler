@@ -13,6 +13,35 @@ project(
 include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
 
+# Set the default value for DEBUG_FLAG to OFF
+option(DEBUG_FLAG "Debug flag" OFF)
+
+# Add a preprocessor definition based on the DEBUG_FLAG option
+if(DEBUG_FLAG)
+  add_definitions(-DDEBUG)
+  message(STATUS "Debug flag enabled: ON")
+else()
+  message(STATUS "Debug flag enabled: OFF")
+endif()
+
+# Set the default value for METADATA_CACHE to ON
+option(METADATA_CACHE "Global metadata cache" ON)
+
+# Add a preprocessor definition based on the DEBUG_FLAG option
+if(METADATA_CACHE)
+  add_definitions(-DMETADATA_CACHE)
+  message(STATUS "Global metadata cache enabled: ON")
+
+  if(CACHE_STATS)
+    add_definitions(-DCACHE_STATS)
+    message(STATUS "Global metadata cache stats enabled: ON")
+  else ()
+    message(STATUS "Global metadata cache stats enabled: OFF")
+  endif()
+else()
+  message(STATUS "Global metadata cache enabled: OFF")
+endif()
+
 # Set the default value for ENCRYPTION_ENABLED to ON
 option(ENCRYPTION_ENABLED "Enable encryption" ON)
 

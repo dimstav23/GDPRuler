@@ -6,6 +6,7 @@ import os
 import sys
 import glob
 import json
+from contextlib import contextmanager
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
@@ -56,6 +57,7 @@ def get_workload_options():
   return [os.path.basename(f).replace('_run', '') for f in workload_files]
 
 def load_workload(server_address, server_port, workload_name, value_size, config_path):
+  """Load workload phase - start server and run load queries"""
   load_file = os.path.join(workload_trace_dir, f"{workload_name}_load")
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect((server_address, server_port))
@@ -84,6 +86,7 @@ def load_workload(server_address, server_port, workload_name, value_size, config
   exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
   client_socket.sendall(exit_msg_size + exit_query.encode())
   client_socket.close()
+  print(f"Workload {workload_name} loaded successfully.")
 
 def safe_receive(socket, size):
     """
@@ -105,68 +108,85 @@ def safe_receive(socket, size):
       total_bytes_received += len(chunk)
     return data
 
-def send_queries(server_address, server_port, queries, latency_results, config_path, client_num):
-    # Open a connection to the server
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    client_socket.connect((server_address, server_port))
+@contextmanager
+def timer(time_dict, stage, breakdown):
+  """Context manager to time a section of code, conditional on 'breakdown'."""
+  if breakdown:
+    start_time = time.perf_counter()
+    yield
+    end_time = time.perf_counter()
+    time_dict[stage] += end_time - start_time
+  else:
+    yield  # If not breakdown, execute the code but don't measure time
 
-    # Load and send default policy
-    if config_path != "no_cfg":
-      default_policy = load_config(config_path, client_num)
-      if not send_default_policy(client_socket, default_policy):
-        print(f"Failed to set default policy for client {client_num}")
-        client_socket.close()
-        return
+def send_queries(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown):
+  # Open a connection to the server
+  client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+  client_socket.connect((server_address, server_port))
 
-    # Read the contents of the workload file line by line
-    total_latency = 0
-    request_count = 0
+  # Load and send default policy
+  if config_path != "no_cfg":
+    default_policy = load_config(config_path, client_num)
+    if not send_default_policy(client_socket, default_policy):
+      print(f"Failed to set default policy for client {client_num}")
+      client_socket.close()
+      return
 
-    for query in queries:
-      start_time = time.perf_counter()  # Start the timer
-      # Send each line to the server with message size header
+  total_latency = 0
+  request_count = 0
+  breakdown_dict = {'prep': 0, 'send': 0, 'wait': 0}
+
+  # Read the contents of the workload file line by line
+  for query in queries:
+    start_time = time.perf_counter() # Start the timer
+
+    # Send each line to the server with message size header
+    with timer(breakdown_dict, 'prep', breakdown):
       query_encoded = query.encode()
       msg_size = len(query_encoded).to_bytes(msg_header_size, 'big')
+    with timer(breakdown_dict, 'send', breakdown):
       client_socket.sendall(msg_size + query_encoded)
-
+    with timer(breakdown_dict, 'wait', breakdown):
       # Receive the server's response with message size header
       response_size_data = safe_receive(client_socket, msg_header_size)
       response_size = int.from_bytes(response_size_data, 'big')
       response = safe_receive(client_socket, response_size)
+      
+    end_time = time.perf_counter() # End the timer
+    # Calculate and accumulate the latency
+    latency = end_time - start_time
+    total_latency += latency
+    request_count += 1
 
-      end_time = time.perf_counter()  # End the timer
+  # Send exit query to the server
+  exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
+  client_socket.sendall(exit_msg_size + exit_query.encode())
+  # Close the connection
+  client_socket.close()
+  
+  # Save the average latency
+  if request_count > 0:
+    average_latency = total_latency / request_count
+    latency_results.append(average_latency)
 
-      # Calculate and accumulate the latency
-      latency = end_time - start_time
-      total_latency += latency
-      request_count += 1
+  if breakdown:
+    time_breakdowns.append((breakdown_dict['prep'], breakdown_dict['send'], breakdown_dict['wait']))
 
-    # Send exit query to the server
-    exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
-    client_socket.sendall(exit_msg_size + exit_query.encode())
-
-    # Close the connection
-    client_socket.close()
-
-    # Save the average latency
-    if request_count > 0:
-      average_latency = total_latency / request_count
-      latency_results.append(average_latency)
-
-def create_client_process(server_address, server_port, queries, latency_results, config_path, client_num):
-  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, queries, latency_results, config_path, client_num))
+def create_client_process(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown):
+  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown))
   process.start()
   return process
 
 def main():
   parser = argparse.ArgumentParser(description='Start a client.')
-  parser.add_argument('--config', help='Path to config file or directory containing client configs for the GDPR case. Leave empty for passthrough case', required=True, type=str)
+  parser.add_argument('--config', help='Path to config file or directory containing client configs for the GDPR case. Provide "no_cfg" for passthrough case', required=True, type=str)
   parser.add_argument('--workload', help='Name of the workload trace', required=True, type=str, choices=get_workload_options())
   parser.add_argument('--address', help='IP address of the server to connect', default="127.0.0.1", required=False, type=str)
   parser.add_argument('--port', help='Port of the running server to connect', default=1312, required=False, type=int)
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
-  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=64, type=int)
+  parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=1024, type=int)
+  parser.add_argument('--breakdown', help='Enable breakdown measurements', action='store_true')
   args = parser.parse_args()
 
   # Perform the load phase of the workload
@@ -188,9 +208,10 @@ def main():
 
   manager = multiprocessing.Manager()
   latency_results = manager.list()
+  time_breakdowns = manager.list()
   processes = []
   for i, client_queries in enumerate(queries_per_client):
-    process = create_client_process(args.address, args.port, client_queries, latency_results, args.config, i)
+    process = create_client_process(args.address, args.port, client_queries, latency_results, time_breakdowns, args.config, i, args.breakdown)
     processes.append(process)
 
   # Wait for all client processes to finish
@@ -206,10 +227,18 @@ def main():
     average_latency = sum(latency_results) / len(latency_results)
     print(f"Average Latency: {average_latency:.6f} seconds")
   else:
-    print("Did not gathered latency statistics --- experiment failed.")
+    print("Did not gather latency statistics --- experiment failed.")
 
-  # Print the overall elapsed time
-  print(f"Elapsed time: {elapsed_time:.3f} seconds")
+  # Calculate and print the time breakdown
+  if args.breakdown and len(time_breakdowns) > 0:
+    total_prep_time = sum(breakdown[0] for breakdown in time_breakdowns)
+    total_send_time = sum(breakdown[1] for breakdown in time_breakdowns)
+    total_wait_time = sum(breakdown[2] for breakdown in time_breakdowns)
+    print(f"Query preparation time: {total_prep_time:.3f} seconds ({total_prep_time/elapsed_time*100:.2f}%)")
+    print(f"Network send time: {total_send_time:.3f} seconds ({total_send_time/elapsed_time*100:.2f}%)")
+    print(f"Wait and receive time: {total_wait_time:.3f} seconds ({total_wait_time/elapsed_time*100:.2f}%)")
+
+  print(f"Elapsed time: {elapsed_time:.3f} seconds (100%)")
 
 if __name__ == "__main__":
   main()

@@ -61,18 +61,18 @@ $ wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64
 
 $ mkdir images
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH qemu-img convert noble-server-cloudimg-amd64.img ./images/controller.img
+$ LD_LIBRARY_PATH=$LD_LIBRARY_PATH qemu-img convert noble-server-cloudimg-amd64.img ./images/gdpr.img
 
-$ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH qemu-img resize ./images/controller.img +20G
+$ LD_LIBRARY_PATH=$LD_LIBRARY_PATH qemu-img resize ./images/gdpr.img +20G
 
-$ bash prepare_net_cfg.sh -br virbr0 -cfg ./network_configs/netplan-controller.yml
+$ bash prepare_net_cfg.sh -br virbr0 -cfg ./network_configs/netplan-gdpr.yaml
 
-$ mkdir -p firmware/controller
+$ mkdir -p firmware/gdpr
 
-$ cp ./AMDSEV/usr/local/share/qemu/OVMF.fd ./firmware/controller/OVMF.fd
+$ cp ./AMDSEV/usr/local/share/qemu/OVMF.fd ./firmware/gdpr/OVMF.fd
 ```
 
-For convenience, we wrap these operations in a single script ([GDPRuler_VMs_setup.sh](./GDPRuler_VMs_setup.sh))to setup a controller, a server and a client image.
+For convenience, we wrap these operations in a single script ([GDPRuler_VMs_setup.sh](./GDPRuler_VMs_setup.sh)) to setup a gdpr and passthrough controller image.
 
 **Important note:** 
 - Each VM requires a separate `.img` and `OVMF.fd` files.
@@ -81,10 +81,10 @@ For convenience, we wrap these operations in a single script ([GDPRuler_VMs_setu
 ### 5. Launch an AMD SEV-SNP guest.
 ```
 $ sudo LD_LIBRARY_PATH=$LD_LIBRARY_PATH bash AMDSEV/launch-qemu.sh \
--hda images/controller.img \
+-hda images/gdpr.img \
 -sev-snp \
 -bridge virbr0 \
--bios firmware/controller
+-bios firmware/gdpr
 ```
 
 **IMPORTANT:** 

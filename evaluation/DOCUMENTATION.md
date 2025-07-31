@@ -35,11 +35,11 @@ Example:
 2. [common.sh](./common.sh)
 
 **Overview:**
-This script is designed to facilitate the execution of experiments involving running server processes, controllers, and clients for workload testing. It supports both native execution and execution within a virtual machine (VM) environment.
+This script is designed to facilitate the execution of experiments involving running server processes, controllers, and clients for workload testing. It supports both bare metal execution and execution within a confidential virtual machine (CVM) environment.
 
 **Features:**
-- Server Processes: The script supports running server processes such as RocksDB and Redis, both natively and within a VM.
-- Controller Execution: It enables the execution of (native & GDPR) controllers, both native and within a VM.
+- Server Processes: The script supports running server processes such as RocksDB and Redis.
+- Controller Execution: It enables the execution of (passthrough & GDPR) controllers, both native and within a VM.
 - Client Execution: Clients can be run concurrently to simulate workloads and gather performance metrics.
 - Results Logging: Experiment results, including elapsed time and average latency, are logged for analysis.
 
@@ -144,62 +144,3 @@ This script is designed to facilitate the end-to-end testing of a GDPR-compliant
 
 ---
 
-6. [VM/CVM_GDPRuler.expect](./VM/CVM_GDPRuler.expect)
-
-**Overview:**
-This Expect script automates the deployment and execution of a controller confidential virtual machine (CVM) for a GDPR-compliant data management system. It launches the CVM, configures the controller, and initiates GDPR controller based on user-defined parameters.
-
-**Requirements:**
-- Linux environment
-- Expect package installed (expect)
-- Necessary permissions to execute commands with sudo
-
-**Usage:**
-- Setup: Ensure the script is executable (`chmod +x CVM_GDPRuler.expect`) and Expect is installed.
-- Configuration: Modify the script variables according to your environment and requirements, such as VM settings, database details, controller type, and output file path.
-- Execution: Run the script with appropriate arguments:
-```
-./script_name <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_log_path>
-```
-to deploy the VM and start the controller.
-- Functionality:
-  - The script launches a VM using QEMU and enters the necessary login credentials.
-  - It navigates to the controller directory and starts the GDPR controller based on user input.
-  - For the GDPR controller, it creates a log directory and configures logging.
-  - Output from the controller is redirected to a specified file for analysis.
-
-**Notes:**
-- Ensure proper network connectivity and accessibility of resources (e.g., database) before running the script.
-- Review and customize the script according to your specific use case and environment.
-- Take necessary security precautions, especially when handling sensitive data or privileged operations.
-
----
-
-7. [VM/VM_server.expect](./VM/VM_server.expect) 
-
-**Overview:**
-This Expect script automates the deployment and execution of a controller virtual machine (VM) for a GDPR-compliant data management system. It launches the VM, configures the controller, and starts either the native or GDPR controller based on user-defined parameters.
-
-**Requirements:**
-- Linux environment
-- Expect package installed (expect)
-- Permissions to execute commands with sudo
-
-**Usage:**
-- Setup: Ensure the script is executable (`chmod +x VM_server.expect`) and Expect is installed.
-- Configuration: Modify the script variables according to your environment and requirements, such as VM settings, database details, controller type, and output file path.
-- Execution: Run the script with appropriate arguments:
-```
-./script_name <controller_type> <cores> <memory> <db_type> <db_address> <controller_address> <controller_port> <output_file> <gdpr_log_path>
-```
-to deploy the VM and start the controller.
-- Functionality:
-  - The script launches a VM using QEMU and enters the necessary login credentials.
-  - It navigates to the controller directory and starts either the native or GDPR controller based on user input.
-  - For the GDPR controller, it creates a log directory and configures logging.
-  - Output from the controller is redirected to a specified file for analysis.
-
-**Notes:**
-- Ensure proper network connectivity and accessibility of resources (e.g., database) before running the script.
-- Review and customize the script according to your specific use case and environment.
-- Take necessary security precautions, especially when handling sensitive data or privileged operations.
