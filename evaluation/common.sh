@@ -451,6 +451,7 @@ collect_results() {
         failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
     else
         echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> "$results_file"
+        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency\e[0m"
     fi
 }
 
