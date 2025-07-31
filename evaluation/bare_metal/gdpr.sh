@@ -33,12 +33,14 @@ parse_args_and_checks "$@"
 
 # GDPR controller
 results_csv_file=${script_dir}/results/gdpr_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+
+# prepare the client configs and set the client config file appropriately
+max_clients=$(echo $clients | tr ' ' '\n' | sort -nr | head -1)
+prepare_configs $max_clients
+client_cfg=$script_dir/../configs/
+
 controller="gdpr"
 for n_clients in $clients; do
-  # prepare the client configs
-  prepare_configs $n_clients
-  # set the client config file appropriately
-  client_cfg=$script_dir/../configs/
   for db in $dbs; do
     for workload in $workloads; do
       if [[ $db == "rocksdb" ]]; then
@@ -58,7 +60,7 @@ for n_clients in $clients; do
           db_address=$ctl_redis_address
         fi
       fi
-      echo "Starting a run with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging, and server connection set to $server_connection"
+      echo -e "\e[34mStarting a native GDPR controller scenario with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging, and server connection set to $server_connection\e[0m"
       run_experiment native_ctl $n_clients $workload $db $db_address $db_port \
         $results_csv_file $controller $controller_address $controller_port $client_cfg
       echo ""

@@ -19,27 +19,44 @@ fi
 
 # compile the controller in the CVM with the appropriate encryption option
 virt-customize --add ${images_dir}/gdpr.img --smp $(nproc) --memsize 16384 \
-  --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
+  --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
 
-# GDPR controller
+# direct CVM connection
 results_csv_file=${script_dir}/results/direct_CVM-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
-for n_clients in $clients; do
-  # copy the configs in the controller image
-  virt-customize --add ${images_dir}/gdpr.img --copy-in ${script_dir}/../configs:/root
-  for db in $dbs; do
-    for workload in $workloads; do
-      if [[ $db == "rocksdb" ]]; then
-        db_port=$direct_rocksdb_port
-        db_address=$direct_rocksdb_address
-      elif [[ $db == "redis" ]]; then
-        db_port=$direct_redis_port
-        db_address=$direct_redis_address
-      fi
-      echo "Starting a direct CVM scenario run with $n_clients clients, $db store and $workload"
-      run_experiment CVM_direct $n_clients $workload $db $db_address $db_port $results_csv_file
-      echo ""
+
+# Function to run all experiments in a single CVM
+run_experiments_in_cvm() {
+  local cvm_pid=""
+  
+  # Start CVM once
+  echo "Starting CVM for all direct database experiments..."
+  boot_cvm
+  cvm_pid=$!
+  
+  # Trap to ensure CVM cleanup on exit
+  trap "shutdown_cvm" EXIT INT TERM
+
+  # Run all experiments
+  for n_clients in $clients; do
+    for db in $dbs; do
+      for workload in $workloads; do
+        if [[ $db == "rocksdb" ]]; then
+          db_port=$direct_rocksdb_port
+          db_address=$direct_rocksdb_address
+        elif [[ $db == "redis" ]]; then
+          db_port=$direct_redis_port
+          db_address=$direct_redis_address
+        fi
+        
+        echo -e "\e[34mStarting a direct CVM scenario run with $n_clients clients, $db store and $workload\e[0m"
+
+        # Run experiment using existing CVM
+        run_experiment CVM_direct $n_clients $workload $db $db_address $db_port $results_csv_file
+        echo ""
+      done
     done
   done
-done
+}
 
+run_experiments_in_cvm
 print_summary
