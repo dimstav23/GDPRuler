@@ -86,6 +86,7 @@ def load_workload(server_address, server_port, workload_name, value_size, config
   exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
   client_socket.sendall(exit_msg_size + exit_query.encode())
   client_socket.close()
+  print(f"Workload {workload_name} loaded successfully.")
 
 def safe_receive(socket, size):
     """
