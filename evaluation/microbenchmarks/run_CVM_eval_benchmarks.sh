@@ -13,7 +13,6 @@ FIRMWARE_SRC="../../CVM_setup/firmware/gdpr"
 FIRMWARE_DEST="$CVM_OVMF_DIR"
 NETPLAN_SRC="../../CVM_setup/network_configs/netplan-gdpr-cvm-eval.yaml"
 NETPLAN_DEST="CVM_eval/gdpr_setup/netplan-gdpr-cvm-eval.yaml"
-PATCH="../CVM_eval.patch"
 
 ## Step 1: Setup directories
 mkdir -p "$CVM_IMG_DIR" "$CVM_OVMF_DIR"
@@ -80,13 +79,8 @@ sudo virt-customize -a "$CVM_IMG" -x \
   --smp "$(nproc)" \
   --memsize 16384
 
-## Step 8: Apply the patch, only if it has not been applied
+## Step 8: Go to the proper directory
 cd CVM_eval
-if ! git apply --check $PATCH 2>/dev/null; then
-  echo "Patch $PATCH already applied or not applicable, skipping."
-else
-  git apply $PATCH
-fi
 
 ## Step 9: Set up the bridge and tap interfaces
 nix develop -c just setup_bridge || true
@@ -100,3 +94,5 @@ for script in experiment/bench_network.sh experiment/bench_storage.sh experiment
     echo "WARNING: missing or not executable: $script"
   fi
 done
+
+nix develop -c bash experiment/plot_all.sh
