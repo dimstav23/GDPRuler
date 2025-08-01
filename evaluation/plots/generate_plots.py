@@ -1,9 +1,30 @@
 import pandas as pd
+import matplotlib as mpl  # type: ignore
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 import re
 import argparse
+
+mpl.use("Agg")
+mpl.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
+mpl.rcParams["pdf.fonttype"] = 42
+mpl.rcParams["ps.fonttype"] = 42
+mpl.rcParams["font.family"] = "libertine"
+
+sns.set_style("whitegrid")
+sns.set_style("ticks", {"xtick.major.size": 8, "ytick.major.size": 8})
+sns.set_context("paper", rc={"font.size": 5, "axes.titlesize": 5, "axes.labelsize": 8})
+
+# 3.3 inch for single column, 7 inch for double column
+figwidth_half = 3.3
+figwidth_full = 14
+
+FONTSIZE = 9
+
+pastel = sns.color_palette("pastel")
+# hatches = ["", "o", "*", ".", "//", "-", "\\", ".", "o-", "*-"]
+hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
 workload_size = {
     "small": 1_000,
@@ -19,8 +40,6 @@ variant_mapping = {
     "passthrough_CVM"             : "CVM passthrough",
     "gdpr_CVM"                    : "CVM GDPRuler",
 }
-
-hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
 def load_data_from_directory(input_dir):
     pattern = r"(?P<controller>\w+(?:_\w+)?)-(?P<workload_type>[\w_]+)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)-connection_(?P<connection>\w+)\.csv"
@@ -106,7 +125,7 @@ def set_plot_properties(ax, xlabel, ylabel, title, xticks, xticklabels):
     ax.set_title(title)
     ax.set_xticks(xticks)
     ax.set_xticklabels(xticklabels)
-    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.legend(bbox_to_anchor=(1.05, 1), ncols=1, loc='best')
 
 def save_plot(fig, output_dir, filename):
     plt.tight_layout()
@@ -114,9 +133,9 @@ def save_plot(fig, output_dir, filename):
     plt.savefig(os.path.join(output_dir, f'{filename}.pdf'), bbox_inches='tight')
     plt.close(fig)
 
-def create_workload_plots(data, db, metric, output_dir):
+def create_workload_bar_plots(data, db, metric, output_dir):
     for workload in data['workload'].unique():
-        fig, ax = plt.subplots(figsize=(14, 6))
+        fig, ax = plt.subplots(figsize=(figwidth_full, 4.0))
         
         df_subset = data[(data['db'] == db) & (data['workload'] == workload)]
         
@@ -145,15 +164,14 @@ def create_workload_plots(data, db, metric, output_dir):
         
         save_plot(fig, output_dir, f'{db}_{metric}_{workload}')
 
-def create_thread_count_plots(data, db, metric, output_dir):
+def create_thread_count_bar_plots(data, db, metric, output_dir):
     for thread_count in sorted(data['n_clients'].unique()):
-        fig, ax = plt.subplots(figsize=(14, 6))
+        fig, ax = plt.subplots(figsize=(figwidth_full, 4.0))
         
         df_subset = data[(data['db'] == db) & (data['n_clients'] == thread_count)]
-        
         variants = sort_variants(df_subset['variant'].unique())
         workloads = sorted(df_subset['workload'].unique())
-        
+
         x = range(len(workloads))
         width = 0.8 / len(variants)
         
@@ -177,14 +195,14 @@ def create_thread_count_plots(data, db, metric, output_dir):
         
         save_plot(fig, output_dir, f'{db}_{metric}_{thread_count}_threads')
 
-def create_bar_plots(data, output_dir):
+def create_generic_bar_plots(data, output_dir):
     for db in data['db'].unique():
         db_output_dir = os.path.join(output_dir, db)
         os.makedirs(db_output_dir, exist_ok=True)
         
         for metric in ['latency', 'throughput']:
-            create_workload_plots(data, db, metric, db_output_dir)
-            create_thread_count_plots(data, db, metric, db_output_dir)
+            create_workload_bar_plots(data, db, metric, db_output_dir)
+            create_thread_count_bar_plots(data, db, metric, db_output_dir)
 
 def main():
     parser = argparse.ArgumentParser(description="Generate latency and throughput plots from CSV data.")
@@ -197,7 +215,8 @@ def main():
     vm_data = load_data_from_directory(args.vm_results)
     all_data = pd.concat([bare_metal_data, vm_data], ignore_index=True)
 
-    create_bar_plots(all_data, args.output_dir)
-
+    # Create extensive bar plots for throughput and latency for workloads and thread counts
+    create_generic_bar_plots(all_data, args.output_dir)
+    
 if __name__ == "__main__":
     main()
