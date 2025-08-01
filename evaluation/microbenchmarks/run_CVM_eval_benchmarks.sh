@@ -60,8 +60,8 @@ sudo virt-customize -a "$CVM_IMG" -x \
   --root-password password:123456 \
   --edit '/etc/ssh/sshd_config:s/#PermitRootLogin prohibit-password/PermitRootLogin yes/' \
   --edit '/etc/ssh/sshd_config:s/PasswordAuthentication no/PasswordAuthentication yes/' \
-  --run-command 'growpart /dev/sda 1' \
-  --run-command 'resize2fs /dev/sda1' \
+  --run-command 'growpart /dev/sda 1 || true' \
+  --run-command 'resize2fs /dev/sda1 || true' \
   --run-command 'ssh-keygen -A' \
   --run-command 'systemctl mask pollinate.service' \
   --run-command 'apt update && apt install -y just iperf3 redis-server memcached fio' \
