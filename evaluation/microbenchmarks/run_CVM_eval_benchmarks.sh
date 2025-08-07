@@ -87,7 +87,7 @@ nix develop -c just setup_bridge || true
 nix develop -c just setup_tap || true
 
 ## Step 10: Run benchmarks only if the scripts exist and are executable
-for script in experiment/bench_network.sh experiment/bench_storage.sh experiment/bench_swiotlb.sh; do
+for script in experiment/bench_baremetal.sh experiment/bench_network.sh experiment/bench_storage.sh experiment/bench_swiotlb.sh; do
   if [ -x "$script" ] || [ -f "$script" ]; then
     sudo su -c "nix develop -c bash $script"
   else
