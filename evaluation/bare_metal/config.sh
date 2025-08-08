@@ -14,6 +14,8 @@ ctl_rocksdb_port=0
 controller_address="127.0.0.1"
 controller_port=1312
 
+results_dir_suffix=""
+
 # workload_type="large" # 10M ops
 workload_type="medium" # 1M ops
 # workload_type="small" # 1K ops

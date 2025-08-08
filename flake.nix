@@ -36,6 +36,7 @@
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           pandas
           pexpect
+	  plotly
           matplotlib
           seaborn
         ]);

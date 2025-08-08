@@ -16,6 +16,11 @@ controller_port=1312
 
 config_dir=$(dirname "$(readlink -f "$0")")
 images_dir=${config_dir}/../../CVM_setup/images
+results_dir_suffix=""
+# results_dir_suffix="_snp"
+# results_dir_suffix="_snp_iommu"
+# results_dir_suffix="_snp_vhost"
+# results_dir_suffix="_snp_vhost_iommu"
 
 # workload_type="large" # 10M ops
 workload_type="medium" # 1M ops

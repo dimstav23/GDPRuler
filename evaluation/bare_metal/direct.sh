@@ -18,7 +18,7 @@ if [[ "$server_connection" != "TCP" ]]; then
 fi
 
 # Direct client-server communication natively
-results_csv_file=${script_dir}/results/direct_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/direct_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 for n_clients in $clients; do
   for db in $dbs; do
     for workload in $workloads; do

@@ -22,7 +22,7 @@ virt-customize --add ${images_dir}/gdpr.img --smp $(nproc) --memsize 16384 \
   --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
 
 # direct CVM connection
-results_csv_file=${script_dir}/results/direct_CVM-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/direct_CVM-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 
 # Function to run all experiments in a single CVM
 run_experiments_in_cvm() {

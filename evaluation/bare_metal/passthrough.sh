@@ -13,7 +13,7 @@ source $script_dir/../args_and_checks.sh
 parse_args_and_checks "$@"
 
 # Native controller
-results_csv_file=${script_dir}/results/passthrough_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/passthrough_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 controller="passthrough"
 client_cfg="no_cfg"
 for n_clients in $clients; do

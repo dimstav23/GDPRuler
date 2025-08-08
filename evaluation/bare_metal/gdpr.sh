@@ -32,7 +32,7 @@ function prepare_configs() {
 parse_args_and_checks "$@"
 
 # GDPR controller
-results_csv_file=${script_dir}/results/gdpr_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_bare_metal-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 
 # prepare the client configs and set the client config file appropriately
 max_clients=$(echo $clients | tr ' ' '\n' | sort -nr | head -1)
