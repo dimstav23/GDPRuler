@@ -37,7 +37,8 @@ CVM_IP="${CONFIG[CVM_IP]}"
 # Function to start the CVM using the listed expect script
 boot_cvm() {
     local curr_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
-        
+    
+    # use -noiommu if you want to disable the iommu for performance reasons
     expect -c "
         log_user 0
         set timeout -1
@@ -49,6 +50,7 @@ boot_cvm() {
             -bios ${curr_dir}/../CVM_setup/firmware/gdpr \
             -smp ${CONFIG[VM_CORES]} \
             -mem ${CONFIG[VM_MEMORY]} \
+            -vhost \
             -log ${curr_dir}/cvm_boot.out
 
         expect \"login: \"
