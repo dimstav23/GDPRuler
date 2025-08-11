@@ -77,12 +77,26 @@ def process_dataframe(df, match, input_dir):
     return df
 
 def prepare_plot_data(df_subset, metric, group_by):
-    values = df_subset.groupby(group_by)[f'avg_{metric} (s)' if metric == 'latency' else 'throughput'].mean()
+    # Pick the column that contains the raw numbers
     if metric == 'latency':
-        values *= 1_000_000  # Convert to microseconds
-    elif metric == 'throughput':
-        values /= 1000  # Convert to kops
-    return values
+        col = 'avg_latency (s)'
+    else:                           # throughput
+        col = 'throughput'
+
+    g = df_subset.groupby(group_by)[col]
+
+    mean_vals = g.mean()
+    std_vals  = g.std(ddof=0)       # population-std (use ddof=1 for sample-std)
+    # Unit conversions
+    if metric == 'latency':
+        mean_vals *= 1_000_000      # s → µs
+        std_vals  *= 1_000_000
+    else:                           # throughput
+        mean_vals /= 1_000          # ops  → kops
+        std_vals  /= 1_000
+
+    return mean_vals, std_vals      # <- return both
+
 
 def sort_variants(unique_variants):
     variant_order = [
@@ -116,8 +130,14 @@ def sort_variants(unique_variants):
     sorted_variants = sorted(unique_variants, key=extract_parts)
     return sorted_variants
 
-def create_bar_plot(ax, x, values, width, offset, label, color, hatch):
-    ax.bar([xi + offset for xi in x], values, width, label=label, color=color, alpha=0.8, hatch=hatch)
+def create_bar_plot(ax, x, values, width, offset, label, color, hatch, errors=None):
+    bar_positions = [xi + offset for xi in x]
+    ax.bar(bar_positions, values, width, label=label, color=color, alpha=0.8, hatch=hatch)
+
+    # -- add the error bars if we got a std-series
+    if errors is not None:
+        ax.errorbar(bar_positions, values, yerr=errors,
+                    fmt='none', ecolor='black', capsize=3, lw=0.8)
 
 def set_plot_properties(ax, xlabel, ylabel, title, xticks, xticklabels):
     ax.set_xlabel(xlabel)
@@ -150,12 +170,12 @@ def create_workload_bar_plots(data, db, metric, output_dir):
             variant_data = df_subset[df_subset['variant'] == variant]
             baseline_type = variant.split('-')[0]
             if not variant_data.empty:
-                values = prepare_plot_data(variant_data, metric, 'n_clients')
+                values, errors = prepare_plot_data(variant_data, metric, 'n_clients')
                 offset = width * i - 0.4 + width / 2
                 label = f"{variant_mapping[baseline_type]} ({'w/ Encryption' if variant_data['encryption'].iloc[0] == 'ON' else 'w/o Encryption'}"
                 label = f"{label}{'-UNIX' if variant_data['connection'].iloc[0] == 'UNIX' else '-TCP'}"
                 label = f"{label}{'-w/ Logging' if variant_data['logging'].iloc[0] == 'ON)' else ')'}"
-                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i%len(hatches)])
+                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i%len(hatches)], errors)
         
         set_plot_properties(ax, 'Thread Count', 
                             f'Average {metric.capitalize()} {"(µs)" if metric == "latency" else "(kops)"}',
@@ -181,12 +201,12 @@ def create_thread_count_bar_plots(data, db, metric, output_dir):
             variant_data = df_subset[df_subset['variant'] == variant]
             baseline_type = variant.split('-')[0]
             if not variant_data.empty:
-                values = prepare_plot_data(variant_data, metric, 'workload')
+                values, errors = prepare_plot_data(variant_data, metric, 'workload')
                 offset = width * i - 0.4 + width / 2
                 label = f"{variant_mapping[baseline_type]} ({'w/ Encryption' if variant_data['encryption'].iloc[0] == 'ON' else 'w/o Encryption'}"
                 label = f"{label}{'-UNIX' if variant_data['connection'].iloc[0] == 'UNIX' else '-TCP'}"
                 label = f"{label}{'-w/ Logging' if variant_data['logging'].iloc[0] == 'ON)' else ')'}"
-                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i%len(hatches)])
+                create_bar_plot(ax, x, values, width, offset, label, colors[i], hatches[i%len(hatches)], errors)
         
         set_plot_properties(ax, 'Workload', 
                             f'Average {metric.capitalize()} {"(µs)" if metric == "latency" else "(kops)"}',
