@@ -92,12 +92,25 @@ def filter_data_for_ycsb_performance_plot(df):
     return df_filtered
 
 def prepare_plot_data(df_subset, metric, group_by):
-    values = df_subset.groupby(group_by)[f'avg_{metric} (s)' if metric == 'latency' else 'throughput'].mean()
+    # Pick the column that contains the raw numbers
     if metric == 'latency':
-        values *= 1_000_000  # Convert to microseconds
-    elif metric == 'throughput':
-        values /= 1000  # Convert to kops
-    return values
+        col = f'avg_{metric} (s)'
+    else:  # throughput
+        col = 'throughput'
+
+    g = df_subset.groupby(group_by)[col]
+    mean_vals = g.mean()
+    std_vals = g.std(ddof=0)  # population std (use ddof=1 for sample std)
+
+    # Unit conversions
+    if metric == 'latency':
+        mean_vals *= 1_000_000  # s → μs
+        std_vals *= 1_000_000
+    else:  # throughput
+        mean_vals /= 1_000  # ops → kops
+        std_vals /= 1_000
+
+    return mean_vals, std_vals
 
 def sort_variants(unique_variants):
     variant_order = [
@@ -176,7 +189,7 @@ def create_ycsb_performance_plot(data, output_dir):
         for j, variant in enumerate(variants):
             df_var = df_subset[df_subset['variant'] == variant]
             if not df_var.empty:
-                values = prepare_plot_data(df_var, 'throughput', 'workload')
+                values, errors = prepare_plot_data(df_var, 'throughput', 'workload')
                 offset = width * j - 0.4 + width / 2
                 ax.bar([xi + offset for xi in x_workloads], values, width,
                       color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
@@ -197,11 +210,15 @@ def create_ycsb_performance_plot(data, output_dir):
         for j, variant in enumerate(variants):
             df_var = df_subset[df_subset['variant'] == variant]
             if not df_var.empty:
-                values = prepare_plot_data(df_var, 'throughput', 'n_clients')
+                values, errors = prepare_plot_data(df_var, 'throughput', 'n_clients')
+                bar_positions = [xi + offset for xi in x_threads]
                 offset = width * j - 0.4 + width / 2
-                ax.bar([xi + offset for xi in x_threads], values, width,
+                ax.bar(bar_positions, values, width,
                       color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
                       edgecolor='black')
+                if errors is not None:
+                    ax.errorbar(bar_positions, values, yerr=errors,
+                                fmt='none', ecolor='black', capsize=3, lw=0.8)
         
         ax.set_xticks(x_threads)
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
@@ -218,11 +235,15 @@ def create_ycsb_performance_plot(data, output_dir):
         for j, variant in enumerate(variants):
             df_var = df_subset[df_subset['variant'] == variant]
             if not df_var.empty:
-                values = prepare_plot_data(df_var, 'throughput', 'n_clients')
+                values, errors = prepare_plot_data(df_var, 'throughput', 'n_clients')
                 offset = width * j - 0.4 + width / 2
-                ax.bar([xi + offset for xi in x_threads], values, width,
+                bar_positions = [xi + offset for xi in x_threads]
+                ax.bar(bar_positions, values, width,
                       color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
                       edgecolor='black')
+                if errors is not None:
+                    ax.errorbar(bar_positions, values, yerr=errors,
+                                fmt='none', ecolor='black', capsize=3, lw=0.8)
         
         ax.set_xticks(x_threads)
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
