@@ -28,6 +28,16 @@ cd ${SCRIPT_DIR}/GDPRbench/src
 # here: https://github.com/GDPRbench/GDPRbench#benchmarking
 ########
 
+### workload monitor 50% for testing
+echo "Generating trace for TEST workload workload_monitor_50_test in ${TRACE_FOLDER}/workload_monitor_50_test"
+# remove trace file, if it exists
+rm -f ${TRACE_FOLDER}/workload_monitor_50_test
+# set the trace path in the workload config: workload_monitor_50_test for load, workload_monitor_50_test for run
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workload_monitor_50_test_load|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_50_test
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb load tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_50_test
+sed -i "s|^tracer.file=.*|tracer.file=${TRACE_FOLDER}/workload_monitor_50_test_run|g" ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_50_test
+python2 ${SCRIPT_DIR}/GDPRbench/src/bin/ycsb run tracer -s -P  ${SCRIPT_DIR}/GDPRbench/src/tracer_workloads/workload_monitor_50_test
+
 ### workload monitor 0%
 echo "Generating trace for workload workload_monitor_0 in ${TRACE_FOLDER}/workload_monitor_0"
 # remove trace file, if it exists
