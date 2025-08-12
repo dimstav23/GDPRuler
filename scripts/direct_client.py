@@ -171,20 +171,23 @@ def main():
   preprocessed_queries = preprocess_queries(queries, args.value_size)
   queries_per_client = [preprocessed_queries[i::args.clients] for i in range(args.clients)]
   
-  start_time = time.perf_counter()
-
   manager = multiprocessing.Manager()
   latency_results = manager.list()
   time_breakdowns = manager.list()
   processes = []
   
+  # Start the time measurement before sending the workload
+  start_time = time.perf_counter()
+  
   for client_queries in queries_per_client:
     process = create_client_process(args.socket_path, client_queries, latency_results, time_breakdowns, args.breakdown)
     processes.append(process)
 
+  # Wait for all client processes to finish
   for process in processes:
     process.join()
 
+  # End the timer after the controller has returned
   end_time = time.perf_counter()
   elapsed_time = end_time - start_time
 

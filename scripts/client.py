@@ -203,13 +203,14 @@ def main():
   # Split queries among clients
   queries_per_client = [preprocessed_queries[i::args.clients] for i in range(args.clients)]
 
-  # Start the time measurement before sending the workload
-  start_time = time.perf_counter()
-
   manager = multiprocessing.Manager()
   latency_results = manager.list()
   time_breakdowns = manager.list()
   processes = []
+  
+  # Start the time measurement before sending the workload
+  start_time = time.perf_counter()
+  
   for i, client_queries in enumerate(queries_per_client):
     process = create_client_process(args.address, args.port, client_queries, latency_results, time_breakdowns, args.config, i, args.breakdown)
     processes.append(process)
