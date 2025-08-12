@@ -12,6 +12,21 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#ifdef INTERNAL_TIMING
+#include <chrono>
+#include <atomic>
+#include <mutex>
+#include <iomanip>
+
+// Simple timing variables
+static std::atomic<bool> g_skip_first_connection{true};  // Skip loading phase
+static std::atomic<bool> g_timing_started{false};       // Track if timing started
+static std::atomic<int> g_active_benchmark_threads{0};  // Count active threads
+static std::mutex g_timing_mutex;
+static std::chrono::steady_clock::time_point g_start_time;
+static std::chrono::steady_clock::time_point g_end_time;
+#endif
+
 constexpr int s2ns = 1000000000;
 constexpr int s2ms = 1000;
 constexpr int ns_precision = 9;

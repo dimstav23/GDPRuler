@@ -9,10 +9,6 @@
 #include "common.hpp"
 // #include "argh.hpp"
 
-#ifdef DEBUG
-#include <chrono>
-#endif
-
 using controller::query;
 
 inline auto handle_get(const query &query_args, std::unique_ptr<kv_client> &client) -> std::string
@@ -48,6 +44,23 @@ inline auto handle_delete(const query &query_args, std::unique_ptr<kv_client> &c
 
 auto handle_connection(int socket, const std::string& db_type, const std::string& db_address) -> void
 {
+  #ifdef INTERNAL_TIMING
+  bool is_benchmark_thread = false;
+  
+  // Skip loading, set start time and count benchmark threads
+  if (g_skip_first_connection.exchange(false)) {
+    // Loading connection - skip
+  } else {
+    is_benchmark_thread = true;
+    g_active_benchmark_threads.fetch_add(1);
+    
+    if (!g_timing_started.exchange(true)) {
+      std::lock_guard<std::mutex> lock(g_timing_mutex);
+      g_start_time = std::chrono::steady_clock::now();
+    }
+  }
+  #endif
+
   // Allocate a large buffer using mmap to hold the message and its size
   void* buffer = mmap(nullptr, max_msg_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (buffer == MAP_FAILED) {
@@ -57,10 +70,6 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
 
   // create the connection with the database instance
   std::unique_ptr<kv_client> client = kv_factory::create(db_type, db_address);
-
-  #ifdef DEBUG
-  std::chrono::duration<double> total_query_time{};
-  #endif
 
   while (true) {
     // Read the message size from the socket
@@ -74,16 +83,38 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     (static_cast<char*>(buffer))[bytes_read] = '\0';
 
-    #ifdef DEBUG
-    auto start_time = std::chrono::high_resolution_clock::now();
-    #endif
-
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     query query_args(static_cast<char*>(buffer));
     std::string response;
 
     if (query_args.cmd() == "exit") [[unlikely]] {
-      std::cout << "Client exiting..." << std::endl;
+      #ifdef INTERNAL_TIMING
+      if (is_benchmark_thread) {
+        // Decrement thread count and check if this is the last one
+        int remaining = g_active_benchmark_threads.fetch_sub(1) - 1;
+        
+        if (remaining == 0) {
+          // This is the LAST benchmark thread - send timing
+          std::lock_guard<std::mutex> lock(g_timing_mutex);
+          g_end_time = std::chrono::steady_clock::now();
+          auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(g_end_time - g_start_time);
+          response = "Total server processing time (incl. communication): " + std::to_string(duration.count()) + " seconds";
+        } else {
+          response = "Client exiting";
+        }
+      } else {
+        response = "Loading phase completed";
+      }
+      #else
+      response = "Client exiting";
+      #endif
+      
+      // Send the response before breaking
+      size_t response_length = response.length();
+      if (response_length <= max_msg_size) {
+        ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
+      }
+
       break;
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
@@ -104,12 +135,6 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
       }
     }
 
-    #ifdef DEBUG
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto query_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-    total_query_time += query_time;
-    #endif
-
     // Check the message size
     size_t response_length = response.length();
     if (response_length > max_msg_size) {
@@ -125,10 +150,6 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
     }
   }
 
-  #ifdef DEBUG
-  std::cout << "Total query processing time: " << total_query_time.count() << " seconds\n";
-  #endif
-
   // Unmap the socket communication buffer
   munmap(buffer, max_msg_size);
   // Close the client socket
@@ -136,7 +157,7 @@ auto handle_connection(int socket, const std::string& db_type, const std::string
 }
 
 auto main(int argc, char* argv[]) -> int
-{ 
+{
   /* initialize the client object that exports put/get/delete API */
   auto args = std::span(argv, static_cast<size_t>(argc));
   std::string db_type = get_command_line_argument(args, "--db");

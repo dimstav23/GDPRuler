@@ -85,6 +85,17 @@ def load_workload(server_address, server_port, workload_name, value_size, config
 
   exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
   client_socket.sendall(exit_msg_size + exit_query.encode())
+  
+  # Read the exit response (but don't print for loading phase)
+  try:
+    response_size_data = safe_receive(client_socket, msg_header_size)
+    if response_size_data:
+      response_size = int.from_bytes(response_size_data, 'big')
+      response = safe_receive(client_socket, response_size)
+      # Don't print loading phase timing
+  except:
+    pass
+    
   client_socket.close()
   print(f"Workload {workload_name} loaded successfully.")
 
@@ -159,9 +170,21 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
     total_latency += latency
     request_count += 1
 
-  # Send exit query to the server
+  # Send exit query to the server and READ the response
   exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
   client_socket.sendall(exit_msg_size + exit_query.encode())
+  
+  # Read the exit response from server
+  try:
+    response_size_data = safe_receive(client_socket, msg_header_size)
+    if response_size_data:
+      response_size = int.from_bytes(response_size_data, 'big')
+      response = safe_receive(client_socket, response_size)
+      if response:
+        print(f"[Client {client_num}] {response.decode()}")
+  except:
+    pass  # Connection might be closed
+  
   # Close the connection
   client_socket.close()
   

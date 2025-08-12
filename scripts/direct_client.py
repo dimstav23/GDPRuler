@@ -71,10 +71,21 @@ def load_workload(db_type, db_address, socket_path, workload_name, value_size):
         response = safe_receive(client_socket, response_size)
   
   # Send exit
-  exit_encoded = exit_query.encode()
-  exit_size = len(exit_encoded).to_bytes(msg_header_size, 'big')
-  client_socket.sendall(exit_size + exit_encoded)
+  exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
+  client_socket.sendall(exit_msg_size + exit_query.encode())
+  
+  # Read the exit response (but don't print for loading phase)
+  try:
+    response_size_data = safe_receive(client_socket, msg_header_size)
+    if response_size_data:
+      response_size = int.from_bytes(response_size_data, 'big')
+      response = safe_receive(client_socket, response_size)
+      # Don't print loading phase timing
+  except:
+    pass
+    
   client_socket.close()
+  print(f"Workload {workload_name} loaded successfully.")
 
 @contextmanager
 def timer(time_dict, stage, breakdown):
@@ -87,7 +98,7 @@ def timer(time_dict, stage, breakdown):
   else:
     yield
 
-def send_queries(socket_path, queries, latency_results, time_breakdowns, breakdown):
+def send_queries(socket_path, queries, latency_results, time_breakdowns, client_num, breakdown):
   # Connect to Unix socket
   client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
   client_socket.connect(socket_path)
@@ -120,10 +131,22 @@ def send_queries(socket_path, queries, latency_results, time_breakdowns, breakdo
     total_latency += latency
     request_count += 1
   
-  # Send exit
-  exit_encoded = exit_query.encode()
-  exit_size = len(exit_encoded).to_bytes(msg_header_size, 'big')
-  client_socket.sendall(exit_size + exit_encoded)
+  # Send exit query to the server and READ the response
+  exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
+  client_socket.sendall(exit_msg_size + exit_query.encode())
+  
+  # Read the exit response from server
+  try:
+    response_size_data = safe_receive(client_socket, msg_header_size)
+    if response_size_data:
+      response_size = int.from_bytes(response_size_data, 'big')
+      response = safe_receive(client_socket, response_size)
+      if response:
+        print(f"[Client {client_num}] {response.decode()}")
+  except:
+    pass  # Connection might be closed
+  
+  # Close the connection
   client_socket.close()
   
   if request_count > 0:
@@ -133,8 +156,8 @@ def send_queries(socket_path, queries, latency_results, time_breakdowns, breakdo
   if breakdown:
     time_breakdowns.append((breakdown_dict['prep'], breakdown_dict['send'], breakdown_dict['wait']))
 
-def create_client_process(socket_path, queries, latency_results, time_breakdowns, breakdown):
-  process = multiprocessing.Process(target=send_queries, args=(socket_path, queries, latency_results, time_breakdowns, breakdown))
+def create_client_process(socket_path, queries, latency_results, time_breakdowns, client_num, breakdown):
+  process = multiprocessing.Process(target=send_queries, args=(socket_path, queries, latency_results, time_breakdowns, client_num, breakdown))
   process.start()
   return process
 
@@ -179,8 +202,8 @@ def main():
   # Start the time measurement before sending the workload
   start_time = time.perf_counter()
   
-  for client_queries in queries_per_client:
-    process = create_client_process(args.socket_path, client_queries, latency_results, time_breakdowns, args.breakdown)
+  for i, client_queries in enumerate(queries_per_client):
+    process = create_client_process(args.socket_path, client_queries, latency_results, time_breakdowns, i, args.breakdown)
     processes.append(process)
 
   # Wait for all client processes to finish

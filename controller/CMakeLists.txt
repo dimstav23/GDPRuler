@@ -24,10 +24,19 @@ else()
   message(STATUS "Debug flag enabled: OFF")
 endif()
 
+# Add a preprocessor definition based on the INTERNAL_TIMING option
+if(INTERNAL_TIMING)
+  add_definitions(-DINTERNAL_TIMING)
+  message(STATUS "INTERNAL_TIMING flag enabled: ON")
+else()
+  message(STATUS "INTERNAL_TIMING flag enabled: OFF")
+endif()
+
+
 # Set the default value for METADATA_CACHE to ON
 option(METADATA_CACHE "Global metadata cache" ON)
 
-# Add a preprocessor definition based on the DEBUG_FLAG option
+# Add a preprocessor definition based on the METADATA_CACHE option
 if(METADATA_CACHE)
   add_definitions(-DMETADATA_CACHE)
   message(STATUS "Global metadata cache enabled: ON")

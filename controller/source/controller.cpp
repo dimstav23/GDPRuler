@@ -17,10 +17,6 @@
 #include "gdpr_regulator.hpp"
 #include "global_gdpr_metadata_cache.hpp"
 
-#ifdef DEBUG
-#include <chrono>
-#endif
-
 using controller::default_policy;
 using controller::cipher_engine;
 using controller::query;
@@ -379,6 +375,23 @@ auto handle_get_logs(const query &query_args,
 auto handle_connection
 (int socket, const std::string& db_type, const std::string& db_address) -> void
 {
+  #ifdef INTERNAL_TIMING
+  bool is_benchmark_thread = false;
+  
+  // Skip loading, set start time and count benchmark threads
+  if (g_skip_first_connection.exchange(false)) {
+    // Loading connection - skip
+  } else {
+    is_benchmark_thread = true;
+    g_active_benchmark_threads.fetch_add(1);
+    
+    if (!g_timing_started.exchange(true)) {
+      std::lock_guard<std::mutex> lock(g_timing_mutex);
+      g_start_time = std::chrono::steady_clock::now();
+    }
+  }
+  #endif
+
   // Receive and set the client-specific policy
   auto received_policy = receive_policy(socket);
   if (received_policy) {
@@ -399,10 +412,6 @@ auto handle_connection
     return;
   }
 
-  #ifdef DEBUG
-  std::chrono::duration<double> total_query_time{};
-  #endif
-
   while (true) {
     // Read the message size from the socket
     ssize_t bytes_read = safe_sock_receive(socket, buffer);
@@ -415,16 +424,38 @@ auto handle_connection
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     (static_cast<char*>(buffer))[bytes_read] = '\0';
 
-    #ifdef DEBUG
-    auto start_time = std::chrono::high_resolution_clock::now();
-    #endif
-
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     query query_args(static_cast<char*>(buffer));
     std::string response;
 
     if (query_args.cmd() == "exit") [[unlikely]] {
-      std::cout << "Client exiting..." << std::endl;
+      #ifdef INTERNAL_TIMING
+      if (is_benchmark_thread) {
+        // Decrement thread count and check if this is the last one
+        int remaining = g_active_benchmark_threads.fetch_sub(1) - 1;
+        
+        if (remaining == 0) {
+          // This is the LAST benchmark thread - send timing
+          std::lock_guard<std::mutex> lock(g_timing_mutex);
+          g_end_time = std::chrono::steady_clock::now();
+          auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(g_end_time - g_start_time);
+          response = "Total server processing time (incl. communication): " + std::to_string(duration.count()) + " seconds";
+        } else {
+          response = "Client exiting";
+        }
+      } else {
+        response = "Loading phase completed";
+      }
+      #else
+      response = "Client exiting";
+      #endif
+      
+      // Send the response before breaking
+      size_t response_length = response.length();
+      if (response_length <= max_msg_size) {
+        ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
+      }
+
       break;
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
@@ -458,12 +489,6 @@ auto handle_connection
       }
     }
 
-    #ifdef DEBUG
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto query_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-    total_query_time += query_time;
-    #endif
-
     // Check the message size
     size_t response_length = response.length();
     if (response_length > max_msg_size) {
@@ -479,9 +504,6 @@ auto handle_connection
     }
   }
 
-  #ifdef DEBUG
-  std::cout << "Total query processing time: " << total_query_time.count() << " seconds\n";
-  #endif
   #ifdef CACHE_STATS
   std::cout << "Cache size: " << cache.total_size() << "\n";
   std::cout << "Cache hits: " << cache.cache_hits() << "\n";
