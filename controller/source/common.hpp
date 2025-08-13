@@ -12,21 +12,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#ifdef INTERNAL_TIMING
-#include <chrono>
-#include <atomic>
-#include <mutex>
-#include <iomanip>
-
-// Simple timing variables
-static std::atomic<bool> g_skip_first_connection{true};  // Skip loading phase
-static std::atomic<bool> g_timing_started{false};       // Track if timing started
-static std::atomic<int> g_active_benchmark_threads{0};  // Count active threads
-static std::mutex g_timing_mutex;
-static std::chrono::steady_clock::time_point g_start_time;
-static std::chrono::steady_clock::time_point g_end_time;
-#endif
-
 constexpr int s2ns = 1000000000;
 constexpr int s2ms = 1000;
 constexpr int ns_precision = 9;
@@ -181,3 +166,80 @@ auto hex_dump(std::string_view data, bool show_ascii = true, size_t bytes_per_li
 auto hex_dump(const std::string& data, bool show_ascii = true, size_t bytes_per_line = 16) -> std::string{
   return hex_dump(std::string_view(data), show_ascii, bytes_per_line);
 }
+
+
+/* Helper functions for internal timing measurements and reporting */
+#ifdef INTERNAL_TIMING
+#include <chrono>
+#include <atomic>
+#include <mutex>
+#include <iomanip>
+
+// Simple timing variables
+static std::atomic<bool> g_skip_first_connection{true};  // Skip loading phase
+static std::atomic<bool> g_timing_started{false};       // Track if timing started
+static std::atomic<int> g_active_benchmark_threads{0};  // Count active threads
+static std::mutex g_timing_mutex;
+static std::chrono::steady_clock::time_point g_start_time;
+static std::chrono::steady_clock::time_point g_end_time;
+static std::atomic<std::chrono::duration<double>::rep> g_total_processing_time_seconds{0.0};
+static std::atomic<std::chrono::duration<double>::rep> g_total_connection_time_seconds{0.0};
+
+// Timing helper functions
+inline auto start_benchmark_timing() -> bool {
+  static bool first_call = true;
+  if (g_skip_first_connection.exchange(false)) {
+    // Loading connection
+    return false;
+  } else {
+    // Benchmark connection
+    g_active_benchmark_threads.fetch_add(1);
+    if (!g_timing_started.exchange(true)) {
+      std::lock_guard<std::mutex> lock(g_timing_mutex);
+      g_start_time = std::chrono::steady_clock::now();
+    }
+    return true;
+  }
+}
+
+inline auto accumulate_timing(bool is_benchmark, 
+                             std::chrono::duration<double>& local_processing, 
+                             std::chrono::duration<double>& local_connection,
+                             const std::chrono::steady_clock::time_point& processing_start,
+                             const std::chrono::steady_clock::time_point& processing_end,
+                             const std::chrono::steady_clock::time_point& connection_start,
+                             const std::chrono::steady_clock::time_point& connection_end) -> void {
+  if (is_benchmark) {
+    auto processing_duration = std::chrono::duration_cast<std::chrono::duration<double>>(processing_end - processing_start);
+    auto connection_duration = std::chrono::duration_cast<std::chrono::duration<double>>(connection_end - connection_start);
+    
+    local_processing += processing_duration;
+    local_connection += connection_duration;
+  }
+}
+
+inline auto generate_timing_response(std::chrono::duration<double> local_processing,
+                                    std::chrono::duration<double> local_connection) -> std::string {
+  // Add this thread's times to global totals
+  double current_processing = g_total_processing_time_seconds.load();
+  while (!g_total_processing_time_seconds.compare_exchange_weak(current_processing, current_processing + local_processing.count())) {}
+  
+  double current_connection = g_total_connection_time_seconds.load();
+  while (!g_total_connection_time_seconds.compare_exchange_weak(current_connection, current_connection + local_connection.count())) {}
+  
+  // Calculate final metrics
+  std::lock_guard<std::mutex> lock(g_timing_mutex);
+  g_end_time = std::chrono::steady_clock::now();
+  auto wall_duration = std::chrono::duration_cast<std::chrono::duration<double>>(g_end_time - g_start_time);
+  double total_processing = g_total_processing_time_seconds.load();
+  double total_connection = g_total_connection_time_seconds.load();
+  double total_work = total_processing + total_connection;
+  
+  return "Wall: " + std::to_string(wall_duration.count()) + 
+         "s, Processing: " + std::to_string(total_processing) + 
+         "s (" + std::to_string((total_processing/wall_duration.count())*100.0) + "%), " +
+         "Connection: " + std::to_string(total_connection) + 
+         "s (" + std::to_string((total_connection/wall_duration.count())*100.0) + "%), " +
+         "Utilization: " + std::to_string((total_work/wall_duration.count())*100.0) + "%";
+}
+#endif
