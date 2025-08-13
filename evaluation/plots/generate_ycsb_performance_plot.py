@@ -191,7 +191,8 @@ def create_ycsb_performance_plot(data, output_dir):
             if not df_var.empty:
                 values, errors = prepare_plot_data(df_var, 'throughput', 'workload')
                 offset = width * j - 0.4 + width / 2
-                ax.bar([xi + offset for xi in x_workloads], values, width,
+                bar_positions = [xi + offset for xi in x_workloads]
+                ax.bar(bar_positions, values, width,
                       color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
                       edgecolor='black')
         
@@ -211,8 +212,8 @@ def create_ycsb_performance_plot(data, output_dir):
             df_var = df_subset[df_subset['variant'] == variant]
             if not df_var.empty:
                 values, errors = prepare_plot_data(df_var, 'throughput', 'n_clients')
-                bar_positions = [xi + offset for xi in x_threads]
                 offset = width * j - 0.4 + width / 2
+                bar_positions = [xi + offset for xi in x_threads]
                 ax.bar(bar_positions, values, width,
                       color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
                       edgecolor='black')
