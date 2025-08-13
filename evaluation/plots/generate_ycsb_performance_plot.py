@@ -77,7 +77,7 @@ def process_dataframe(df, match, input_dir):
     df['variant'] = f"{controller}{'-encr' if encryption == 'ON' else '-no_encr'}{'-logging' if logging == 'ON' else '-no_logging'}{'-tcp' if connection == 'TCP' else '-unix'}"
     return df
 
-def filter_data_for_ycsb_performance_plot(df):
+def filter_data_for_ycsb_performance_plot(df, include_tcp = False):
     """Filter data for paper-performance plots:
     - Ignore passthrough variants
     - Consider only UNIX connection for GDPRuler variants
@@ -85,10 +85,11 @@ def filter_data_for_ycsb_performance_plot(df):
     # Only keep variants without 'passthrough' in their names
     df_filtered = df[~df['variant'].str.contains('passthrough')].copy()
     
-    # For GDPRuler variants, keep only UNIX connection
-    mask_gdpruler = df_filtered['variant'].str.contains('gdpr')
-    df_filtered = df_filtered[~(mask_gdpruler & (df_filtered['connection'] != 'UNIX'))]
-    
+    # For GDPRuler variants, keep only UNIX connection if include_tcp is false
+    if not include_tcp:
+        mask_gdpruler = df_filtered['variant'].str.contains('gdpr')
+        df_filtered = df_filtered[~(mask_gdpruler & (df_filtered['connection'] != 'UNIX'))]
+
     return df_filtered
 
 def prepare_plot_data(df_subset, metric, group_by):
@@ -144,12 +145,12 @@ def sort_variants(unique_variants):
     sorted_variants = sorted(unique_variants, key=extract_parts)
     return sorted_variants
 
-def create_ycsb_performance_plot(data, output_dir):
+def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     """Create paper-ready plots with 2 rows (DBs) x 3 columns layout"""
     
     # Filter data according to paper requirements
-    data_filtered = filter_data_for_ycsb_performance_plot(data)
-    
+    data_filtered = filter_data_for_ycsb_performance_plot(data, include_tcp = include_tcp)
+
     # Define figure size (1/3 of double column for each subplot)
     fig, axes = plt.subplots(2, 3, figsize=(figwidth_full, 3))
     
@@ -195,7 +196,9 @@ def create_ycsb_performance_plot(data, output_dir):
                 ax.bar(bar_positions, values, width,
                       color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
                       edgecolor='black')
-        
+                if errors is not None:
+                    ax.errorbar(bar_positions, values, yerr=errors,
+                                fmt='none', ecolor='black', capsize=1, lw=0.5)
         ax.set_xticks(x_workloads)
         ax.set_xticklabels([w[-1].upper() for w in workloads], fontsize=TICK_FONTSIZE)
         ax.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
@@ -219,7 +222,7 @@ def create_ycsb_performance_plot(data, output_dir):
                       edgecolor='black')
                 if errors is not None:
                     ax.errorbar(bar_positions, values, yerr=errors,
-                                fmt='none', ecolor='black', capsize=3, lw=0.8)
+                                fmt='none', ecolor='black', capsize=1, lw=0.5)
         
         ax.set_xticks(x_threads)
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
@@ -244,7 +247,7 @@ def create_ycsb_performance_plot(data, output_dir):
                       edgecolor='black')
                 if errors is not None:
                     ax.errorbar(bar_positions, values, yerr=errors,
-                                fmt='none', ecolor='black', capsize=3, lw=0.8)
+                                fmt='none', ecolor='black', capsize=1, lw=0.5)
         
         ax.set_xticks(x_threads)
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
@@ -278,20 +281,27 @@ def create_ycsb_performance_plot(data, output_dir):
             label_text += " (w/o Encr)"
         else:
             label_text += " (w/ Encr)"
-            
+
+        if include_tcp:
+          if 'tcp' in variant:
+            label_text += " (TCP)"
+          else:
+            label_text += " (UNIX)"
+
         labels.append(label_text)
     
     # Position legend at the top
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.11), 
-              ncol=min(len(variants), 3), fontsize=LEGEND_FONTSIZE, frameon=True)
+              ncol=min(len(variants), 4), fontsize=LEGEND_FONTSIZE, frameon=True)
     
     # Adjust layout and save
     plt.tight_layout()
     
     os.makedirs(output_dir, exist_ok=True)
-    plt.savefig(os.path.join(output_dir, 'ycsb_performance_plot.png'), 
+    output_file = "ycsb_performance_plot" if not include_tcp else "ycsb_performance_plot_tcp"
+    plt.savefig(os.path.join(output_dir, f'{output_file}.png'),
                 bbox_inches='tight', dpi=300)
-    plt.savefig(os.path.join(output_dir, 'ycsb_performance_plot.pdf'), 
+    plt.savefig(os.path.join(output_dir, f'{output_file}.pdf'),
                 bbox_inches='tight')
     plt.close(fig)
 
@@ -320,6 +330,7 @@ def main():
     
     # Create paper-performance plots
     create_ycsb_performance_plot(all_data, args.output_dir)
+    create_ycsb_performance_plot(all_data, args.output_dir, include_tcp = True)
     
 if __name__ == "__main__":
     main()
