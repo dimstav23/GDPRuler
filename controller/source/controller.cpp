@@ -375,20 +375,20 @@ auto handle_get_logs(const query &query_args,
 #ifdef INTERNAL_TIMING
 auto handle_exit(bool is_benchmark_thread, 
                 std::chrono::duration<double> local_processing_time,
-                std::chrono::duration<double> local_connection_time) -> std::string {
+                std::chrono::duration<double> local_frontend_connection_time) -> std::string {
   if (is_benchmark_thread) {
     int remaining = g_active_benchmark_threads.fetch_sub(1) - 1;
     
     if (remaining == 0) {
       // Last thread - generate full timing report
-      return generate_timing_response(local_processing_time, local_connection_time);
+      return generate_timing_response(local_processing_time, local_frontend_connection_time);
     } else {
       // Not the last thread - just add to globals
       double current_processing = g_total_processing_time_seconds.load();
       while (!g_total_processing_time_seconds.compare_exchange_weak(current_processing, current_processing + local_processing_time.count())) {}
       
       double current_connection = g_total_connection_time_seconds.load();
-      while (!g_total_connection_time_seconds.compare_exchange_weak(current_connection, current_connection + local_connection_time.count())) {}
+      while (!g_total_connection_time_seconds.compare_exchange_weak(current_connection, current_connection + local_frontend_connection_time.count())) {}
       
       return "Client exiting";
     }
@@ -404,7 +404,7 @@ auto handle_connection
   #ifdef INTERNAL_TIMING
   bool is_benchmark_thread = start_benchmark_timing();
   std::chrono::duration<double> local_processing_time{0};
-  std::chrono::duration<double> local_connection_time{0};
+  std::chrono::duration<double> local_frontend_connection_time{0};
   #endif
 
   // Receive and set the client-specific policy
@@ -429,7 +429,7 @@ auto handle_connection
 
   while (true) {
     #ifdef INTERNAL_TIMING
-    auto connection_start = std::chrono::steady_clock::now();
+    auto frontend_connection_rec_start = std::chrono::steady_clock::now();
     #endif
 
     // Read the message size from the socket
@@ -440,7 +440,7 @@ auto handle_connection
     }
     
     #ifdef INTERNAL_TIMING
-    auto connection_after_recv = std::chrono::steady_clock::now();
+    auto frontend_connection_rec_end = std::chrono::steady_clock::now();
     auto processing_start = std::chrono::steady_clock::now();
     #endif
 
@@ -454,7 +454,7 @@ auto handle_connection
 
     if (query_args.cmd() == "exit") [[unlikely]] {
       #ifdef INTERNAL_TIMING
-      response = handle_exit(is_benchmark_thread, local_processing_time, local_connection_time);
+      response = handle_exit(is_benchmark_thread, local_processing_time, local_frontend_connection_time);
       #else
       response = "Client exiting";
       #endif      
@@ -499,7 +499,7 @@ auto handle_connection
 
     #ifdef INTERNAL_TIMING
     auto processing_end = std::chrono::steady_clock::now();
-    auto connection_before_send = std::chrono::steady_clock::now();
+    auto frontend_connection_send_start = std::chrono::steady_clock::now();
     #endif
 
     // Check the message size
@@ -517,11 +517,12 @@ auto handle_connection
     }
 
     #ifdef INTERNAL_TIMING
-    auto connection_end = std::chrono::steady_clock::now();
+    auto frontend_connection_send_end = std::chrono::steady_clock::now();
     // Accumulate timing for this request
-    accumulate_timing(is_benchmark_thread, local_processing_time, local_connection_time,
+    accumulate_timing(is_benchmark_thread, local_processing_time, local_frontend_connection_time,
                      processing_start, processing_end, 
-                     connection_after_recv, connection_before_send);
+                     frontend_connection_rec_start, frontend_connection_rec_end,
+                     frontend_connection_send_start, frontend_connection_send_end);
     #endif
   }
 

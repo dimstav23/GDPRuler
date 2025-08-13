@@ -204,17 +204,21 @@ inline auto start_benchmark_timing() -> bool {
 
 inline auto accumulate_timing(bool is_benchmark, 
                              std::chrono::duration<double>& local_processing, 
-                             std::chrono::duration<double>& local_connection,
+                             std::chrono::duration<double>& local_frontend_connection,
                              const std::chrono::steady_clock::time_point& processing_start,
                              const std::chrono::steady_clock::time_point& processing_end,
-                             const std::chrono::steady_clock::time_point& connection_start,
-                             const std::chrono::steady_clock::time_point& connection_end) -> void {
+                             const std::chrono::steady_clock::time_point& frontend_connection_rec_start,
+                             const std::chrono::steady_clock::time_point& frontend_connection_rec_end,
+                             const std::chrono::steady_clock::time_point& frontend_connection_send_start,
+                             const std::chrono::steady_clock::time_point& frontend_connection_send_end) -> void {
   if (is_benchmark) {
     auto processing_duration = std::chrono::duration_cast<std::chrono::duration<double>>(processing_end - processing_start);
-    auto connection_duration = std::chrono::duration_cast<std::chrono::duration<double>>(connection_end - connection_start);
+    auto frontend_connection_rec_duration = std::chrono::duration_cast<std::chrono::duration<double>>(frontend_connection_rec_end - frontend_connection_rec_start);
+    auto frontend_connection_send_duration = std::chrono::duration_cast<std::chrono::duration<double>>(frontend_connection_send_end - frontend_connection_send_start);
+    auto frontend_connection_duration = frontend_connection_rec_duration + frontend_connection_send_duration;
     
     local_processing += processing_duration;
-    local_connection += connection_duration;
+    local_frontend_connection += frontend_connection_duration;
   }
 }
 
