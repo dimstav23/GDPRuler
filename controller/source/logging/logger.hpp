@@ -84,7 +84,7 @@ public:
     // Encode the timestamp as a fixed-width integer type
     const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
     // Encode the user key as a string
-    std::string_view user_key = get_field_string<num_users, usr>(query_args.user_key().value_or(def_policy.user_key()), "user");
+    auto user_key = get_field_string<num_users, usr>(query_args.user_key().value_or(def_policy.user_key()), "user");
     // Encode the operation type (3bits) and the operation result (1 bit) as a single byte
     const uint8_t operation = static_cast<uint8_t>((convert_operation_to_enum(query_args.cmd()) & operation_mask) << 1U);
     const uint8_t valid_bit = (valid ? 0x01U : 0x00U);
@@ -367,7 +367,7 @@ private:
     uint8_t result_bit = operation_result & 0x01U;
     std::string_view valid = (result_bit != 0U) ? "valid" : "invalid";
     uint8_t operation_bits = static_cast<uint8_t>(operation_result >> 1U) & operation_mask;
-    std::string_view oper = convert_enum_to_operation(static_cast<operation>(operation_bits));
+    auto oper = convert_enum_to_operation(static_cast<operation>(operation_bits));
     
     // move the start position past the delimiter
     start_pos = end_pos + 1;

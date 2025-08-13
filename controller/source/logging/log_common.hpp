@@ -148,8 +148,7 @@ inline auto gdpr_metadata_fmt(std::string_view value_str) -> std::string {
         }
       case exp:
         {
-          std::string_view expire_time = (token == "0") ?
-              "none" : timestamp_to_datetime(std::stoi(std::string(token)));
+          auto expire_time = (token == "0") ? "none" : timestamp_to_datetime(std::stoi(std::string(token)));
           res.append("Expiration time: ").append(expire_time).append(", ");
           break;
         }
