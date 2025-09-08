@@ -16,3 +16,6 @@
 [submodule "evaluation/microbenchmarks/CVM_eval"]
 	path = evaluation/microbenchmarks/CVM_eval
 	url = https://github.com/dimstav23/CVM_eval.git
+[submodule "gdpr-logger"]
+	path = gdpr-logger
+	url = https://github.com/dimstav23/gdpr-logger.git
