@@ -68,13 +68,13 @@ target_link_libraries(gdpr_controller_lib
     PUBLIC
         gdpr_logging_lib        # Logger propagates to consumers
         OpenSSL::Crypto
-        OpenSSL::SSL
-        ZLIB::ZLIB
         ${REDIS_PLUS_PLUS_LIB}
     PRIVATE
         ${HIREDIS_LIB}          # Private dependencies
         ${ROCKSDB_LIB}
         ${Boost_LIBRARIES}
+        ZLIB::ZLIB
+        OpenSSL::SSL
 )
 
 # ---------------------------------------------------------------------------------
