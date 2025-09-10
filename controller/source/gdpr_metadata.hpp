@@ -115,9 +115,14 @@ auto inline set_bitmap(std::bitset<N> &bits, const std::vector<std::string> &bit
 template<std::size_t N, metadata_fields Field>
 auto inline get_field_string(const std::bitset<N> &bits, const std::string& prefix) -> std::string {
   std::stringstream res;
+  bool first_entry = true;
+
   for (size_t i = 0; i < bits.size(); i++) {
     if (bits.test(i)) {
-      res << prefix << i << ",";
+      if (!first_entry)
+        res << ","; // Add comma after each entry
+      res << prefix << i;
+      first_entry = false;
     }
   }
   return res.str();
