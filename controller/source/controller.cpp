@@ -12,7 +12,6 @@
 #include "gdpr_filter.hpp"
 #include "common.hpp"
 #include "kv_client/factory.hpp"
-#include "logging/logger.hpp"
 #include "logging/monitor.hpp"
 #include "gdpr_regulator.hpp"
 #include "global_gdpr_metadata_cache.hpp"
