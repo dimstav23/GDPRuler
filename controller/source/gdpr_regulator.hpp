@@ -7,8 +7,9 @@
 
 namespace controller {
 
+// set user0 to be the regulator key for proper testing
 // NOLINTNEXTLINE(cert-err58-cpp)
-const std::string regulator_key = "reg";
+const std::string regulator_key = "user0";
 
 class gdpr_regulator
 {
