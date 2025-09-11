@@ -40,7 +40,7 @@ auto gdpr_regulator::retrieve_logs() -> std::vector<std::string> {
 auto gdpr_regulator::read_key_log(std::string_view key) -> std::vector<std::string> {
   // construct the filename for the given key
   std::string log_name = std::string(this->m_gdpr_logger->get_logs_dir()) + "/" +
-                         std::string(key) + std::string(this->m_gdpr_logger->get_logs_extension());
+                         std::string(key);
   return read_log(log_name);
 }
 
