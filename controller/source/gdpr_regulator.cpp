@@ -4,10 +4,11 @@
 namespace controller {
 
 gdpr_regulator::gdpr_regulator()
-    : m_history_logger{logger::get_instance()},
+    : m_gdpr_logger{logger::get_instance()},
       m_timestamp_thres{std::chrono::system_clock::now().time_since_epoch().count()}
 {
-
+  // Initialize the logger
+  m_gdpr_logger->init_log_path();
 }
 
 // gdpr_regulator::~gdpr_regulator()
@@ -30,7 +31,7 @@ auto gdpr_regulator::validate_reg_key(const controller::query &query_args,
  * along with the filenames
  */
 auto gdpr_regulator::retrieve_logs() -> std::vector<std::string> {
-  return get_filenames(this->m_history_logger->get_logs_dir());
+  return get_filenames(this->m_gdpr_logger->get_logs_dir());
 }
 
 /*
@@ -38,8 +39,8 @@ auto gdpr_regulator::retrieve_logs() -> std::vector<std::string> {
  */
 auto gdpr_regulator::read_key_log(std::string_view key) -> std::vector<std::string> {
   // construct the filename for the given key
-  std::string log_name = std::string(this->m_history_logger->get_logs_dir()) + "/" +
-                         std::string(key) + std::string(this->m_history_logger->get_logs_extension());
+  std::string log_name = std::string(this->m_gdpr_logger->get_logs_dir()) + "/" +
+                         std::string(key) + std::string(this->m_gdpr_logger->get_logs_extension());
   return read_log(log_name);
 }
 
@@ -47,7 +48,7 @@ auto gdpr_regulator::read_key_log(std::string_view key) -> std::vector<std::stri
  * return the log entries of a log in human-readable form
  */
 auto gdpr_regulator::read_log(std::string_view log_name) const -> std::vector<std::string> {
-  return this->m_history_logger->log_decode(log_name, this->m_timestamp_thres);
+  return this->m_gdpr_logger->log_decode(log_name, this->m_timestamp_thres);
 }
 
 /*

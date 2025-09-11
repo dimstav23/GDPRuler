@@ -25,7 +25,7 @@ public:
   static auto validate_reg_key(const controller::query &query_args, 
                                const controller::default_policy &def_policy) -> bool;
 private:
-  logger* m_history_logger;
+  logger* m_gdpr_logger;
   int64_t m_timestamp_thres;
 
   static auto get_filenames(std::string_view dir) -> std::vector<std::string>;

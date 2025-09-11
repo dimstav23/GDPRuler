@@ -7,6 +7,8 @@
 #include "../common.hpp"
 #include "../gdpr_metadata.hpp"
 
+#include "LoggingManager.hpp"
+
 namespace controller {
 
 /* Delimiter for the logged values */
@@ -33,57 +35,27 @@ enum operation : uint8_t {
  * Converts operation string to respective enum.
 */
 inline auto convert_operation_to_enum(std::string_view oper) -> operation {
-  if (oper == "get") {
-    return operation::get;
-  }
-  if (oper == "put") {
-    return operation::put;
-  }
-  if (oper == "delete") {
-    return operation::del;
-  }
-  if (oper == "getm") {
-    return operation::getm;
-  }
-  if (oper == "putm") {
-    return operation::putm;
-  }
-  if (oper == "putc") {
-    return operation::putc;
-  }
-  if (oper == "getLogs") {
-    return operation::get_logs;
-  }
-  // Invalid case
+  if (oper == "get") return operation::get;
+  if (oper == "put") return operation::put;
+  if (oper == "delete") return operation::del;
+  if (oper == "getm") return operation::getm;
+  if (oper == "putm") return operation::putm;
+  if (oper == "putc") return operation::putc;
+  if (oper == "getLogs") return operation::get_logs;
   return operation::invalid;
 }
 
 /**
  * Converts the enum to its respective operation string.
 */
-inline auto convert_enum_to_operation(const operation oper) -> std::string  {
-  if (oper == operation::get) {
-    return "get";
-  }
-  if (oper == operation::put) {
-    return "put";
-  }
-  if (oper == operation::del) {
-    return "delete";
-  }
-  if (oper == operation::getm) {
-    return "getm";
-  }
-  if (oper == operation::putm) {
-    return "putm";
-  }
-  if (oper == operation::putc) {
-    return "putc";
-  }
-  if (oper == operation::get_logs) {
-    return "getLogs";
-  }
-  // Invalid case
+inline auto convert_enum_to_operation(const operation oper) -> std::string {
+  if (oper == operation::get) return "get";
+  if (oper == operation::put) return "put";
+  if (oper == operation::del) return "delete";
+  if (oper == operation::getm) return "getm";
+  if (oper == operation::putm) return "putm";
+  if (oper == operation::putc) return "putc";
+  if (oper == operation::get_logs) return "getLogs";
   return "invalid_op";
 }
 
