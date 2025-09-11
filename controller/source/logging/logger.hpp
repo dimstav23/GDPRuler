@@ -13,6 +13,8 @@
 #include "../gdpr_filter.hpp"
 #include "../query.hpp"
 
+#define DEFAULT_LOGGER_COMPRESSION_LEVEL 6
+
 namespace controller {
 
 /**
@@ -34,15 +36,23 @@ public:
     config.basePath = log_path.value_or(m_logs_dir);
     config.baseFilename = "gdpr";
     config.maxSegmentSize = 10 * 1024 * 1024;
-    config.useEncryption = true;
-    config.compressionLevel = 9;
     config.numWriterThreads = 2;
     config.batchSize = 50;
     config.queueCapacity = 2048;
-    config.maxExplicitProducers = 4;
+    config.maxExplicitProducers = 32;
     // Set the max open log files to "fd_load_factor" of the file descriptors
     config.maxOpenFiles = static_cast<size_t>(std::ceil(get_max_fds() * fd_load_factor));
     config.appendTimeout = std::chrono::seconds(5);
+    #ifdef ENCRYPTION_ENABLED
+    config.useEncryption = true;
+    #else
+    config.useEncryption = false;
+    #endif
+    #ifdef LOGGER_COMPRESSION_LEVEL
+    config.compressionLevel = LOGGER_COMPRESSION_LEVEL;
+    #else
+    config.compressionLevel = DEFAULT_LOGGER_COMPRESSION_LEVEL;
+    #endif
 
     m_logs_dir = config.basePath;
     

@@ -10,6 +10,12 @@ option(ENCRYPTION_ENABLED "Enable encryption" ON)
 option(ASAN_ENABLED "Enable Address Sanitizer" OFF)
 option(TSAN_ENABLED "Enable Thread Sanitizer" OFF)
 
+set(LOGGER_COMPRESSION_LEVEL "6" CACHE STRING "Compression level (0-9)")
+# Validate range (0-9)
+if(LOGGER_COMPRESSION_LEVEL LESS 0 OR LOGGER_COMPRESSION_LEVEL GREATER 9)
+    message(FATAL_ERROR "LOGGER_COMPRESSION_LEVEL must be in the range [0,9]. You set: ${LOGGER_COMPRESSION_LEVEL}")
+endif()
+
 # ---------------------------------------------------------------------------------
 # Status Messages (preserved from your original)
 # ---------------------------------------------------------------------------------
@@ -22,6 +28,7 @@ if(METADATA_CACHE)
     message(STATUS "  Global metadata cache stats enabled: ${CACHE_STATS}")
 endif()
 message(STATUS "  Encryption enabled: ${ENCRYPTION_ENABLED}")
+message(STATUS "  Logger compression level: ${LOGGER_COMPRESSION_LEVEL}")
 message(STATUS "  ASan: ${ASAN_ENABLED}")
 message(STATUS "  TSan: ${TSAN_ENABLED}")
 
@@ -47,6 +54,8 @@ endif()
 if(ENCRYPTION_ENABLED)
     add_definitions(-DENCRYPTION_ENABLED)
 endif()
+
+add_compile_definitions(LOGGER_COMPRESSION_LEVEL=${LOGGER_COMPRESSION_LEVEL})
 
 if(ASAN_ENABLED)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=leak -g")
