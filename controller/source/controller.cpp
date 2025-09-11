@@ -558,7 +558,7 @@ auto main(int argc, char* argv[]) -> int
   
   // set the log path based on the input parameter
   const std::string log_path = get_command_line_argument(args, "--logpath");
-  logger::get_instance()->init_log_path(log_path);
+  logger::get_instance()->init_gdpr_logger(log_path);
 
   // set the database encryption key based on the input parameter
   const std::string db_encryption_key = get_command_line_argument(args, "--db_encryptionkey");

@@ -8,7 +8,7 @@ gdpr_regulator::gdpr_regulator()
       m_timestamp_thres{std::chrono::system_clock::now().time_since_epoch().count()}
 {
   // Initialize the logger
-  m_gdpr_logger->init_log_path();
+  m_gdpr_logger->init_gdpr_logger();
 }
 
 // gdpr_regulator::~gdpr_regulator()

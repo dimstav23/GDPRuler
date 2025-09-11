@@ -25,7 +25,7 @@ public:
     return &gdpr_logger;
   }
 
-  auto init_log_path(const std::optional<std::string>& log_path = std::nullopt) -> void {
+  auto init_gdpr_logger(const std::optional<std::string>& log_path = std::nullopt) -> void {
     if (m_initialized) {
       return;
     }
@@ -35,7 +35,7 @@ public:
     config.baseFilename = "gdpr";
     config.maxSegmentSize = 10 * 1024 * 1024;
     config.useEncryption = true;
-    config.compressionLevel = 6;
+    config.compressionLevel = 9;
     config.numWriterThreads = 2;
     config.batchSize = 50;
     config.queueCapacity = 2048;
@@ -49,8 +49,19 @@ public:
     m_logging_manager = std::make_unique<LoggingManager>(config);
     m_logging_manager->startGDPR();
     
-    m_producer_token = m_logging_manager->createProducerToken();
     m_initialized = true;
+  }
+
+  // New method to get thread-local producer token
+  auto get_thread_producer_token() -> BufferQueue::ProducerToken& {
+    // Initialize thread-local token if needed
+    if (!thread_producer_token.has_value()) {
+      if (!m_initialized) {
+        init_gdpr_logger();
+      }
+      thread_producer_token = m_logging_manager->createProducerToken();
+    }
+    return thread_producer_token.value();
   }
 
   /*
@@ -68,17 +79,15 @@ public:
                           const bool& valid, std::string_view new_val = {}) 
   {
     if (!m_initialized) [[unlikely]] {
-      init_log_path();
+      std::cerr << "GDPR logger is not initialized" << std::endl;
     }
 
     LogEntry entry = create_gdpr_log_entry(query_args, def_policy, valid, new_val);
     
-    if (m_producer_token.has_value()) {
-      if (!m_logging_manager->append(std::move(entry), m_producer_token.value())) {
-        std::cerr << "Failed to log GDPR entry" << std::endl;
-      }
-    } else {
-      std::cerr << "Producer token not initialized" << std::endl;
+    // Use thread-local producer token
+    auto& token = get_thread_producer_token();
+    if (!m_logging_manager->append(std::move(entry), token, std::string(query_args.key()))) {
+      std::cerr << "Failed to log GDPR entry" << std::endl;
     }
   }
 
@@ -92,10 +101,6 @@ public:
     return std::string_view(this->m_logs_dir);
   }
 
-  auto get_logs_extension() -> std::string_view {
-    return this->log_file_extension;
-  } 
-
   ~logger() {
     if (m_logging_manager) {
       m_logging_manager->stop();
@@ -106,10 +111,10 @@ private:
   logger() = default;
   
   std::unique_ptr<LoggingManager> m_logging_manager;
-  std::optional<BufferQueue::ProducerToken> m_producer_token;
+  // Thread-local producer token
+  thread_local static std::optional<BufferQueue::ProducerToken> thread_producer_token;
   bool m_initialized = false;
   std::string m_logs_dir = "./gdpr_logs";
-  const std::string_view log_file_extension = ".log";
   int32_t trusted_counter = 0;
 
   LogEntry create_gdpr_log_entry(const query& query_args, const default_policy& def_policy,
@@ -140,11 +145,9 @@ private:
     }
     return LogEntry(timestamp, cnt, user_key, operation_result, std::move(payload));
   }
-
-  auto log_file_path(std::string_view key) -> std::string {
-    return m_logs_dir + '/' + std::string(key) + std::string(log_file_extension);
-  }
-
 };
+
+// Define the thread_local variable
+thread_local std::optional<BufferQueue::ProducerToken> logger::thread_producer_token;
 
 } // namespace controller
