@@ -77,6 +77,12 @@ public:
     return m_log_exporter;
   }
 
+  void pauseWorkersAndFlushLogs() {
+    if (m_logging_manager) {
+      m_logging_manager->pauseWorkersDrainAndResume();
+    }
+  }
+  
   // Method to get thread-local producer token
   auto get_thread_producer_token() -> BufferQueue::ProducerToken& {
     // Initialize thread-local token if needed

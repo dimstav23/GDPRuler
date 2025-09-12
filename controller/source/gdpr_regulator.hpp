@@ -27,7 +27,8 @@ public:
       m_initialized = true;
     }
   }
-
+  
+  void pauseWorkersAndFlushLogs();
   auto retrieve_logs() -> std::vector<std::string>;
   auto read_key_log(std::string_view key, uint64_t timestamp_thres) -> std::vector<std::string>;
   auto read_log(std::string_view log_name, uint64_t timestamp_thres) const -> std::vector<std::string>;

@@ -34,7 +34,8 @@ auto gdpr_regulator::read_key_log(std::string_view key, uint64_t timestamp_thres
   if (!m_log_exporter) {
     return {};
   }
-  m_log_exporter->flushLogs(); // Ensure all logs are written before reading
+  pauseWorkersAndFlushLogs(); // Ensure all logs are written before reading
+
   return m_log_exporter->exportLogsForKey(std::string(key), timestamp_thres);
 }
 
@@ -46,13 +47,26 @@ auto gdpr_regulator::read_log(std::string_view log_name, uint64_t timestamp_thre
   if (!m_log_exporter) {
     return {};
   }
-  m_log_exporter->flushLogs(); // Ensure all logs are written before reading
+  const_cast<gdpr_regulator*>(this)->pauseWorkersAndFlushLogs(); // Ensure all logs are written before reading 
 
   // Extract key from log_name
   std::filesystem::path logPath(log_name);
   std::string key = logPath.stem().string();
   
   return m_log_exporter->exportLogsForKey(key, timestamp_thres);
+}
+
+void gdpr_regulator::pauseWorkersAndFlushLogs()
+{
+  // Access logger through controller namespace
+  auto* loggerInstance = controller::logger::get_instance();
+  if (loggerInstance) {
+    std::cout << "GDPR Regulator: Pausing workers and flushing logs..." << std::endl;
+    loggerInstance->pauseWorkersAndFlushLogs();
+    std::cout << "GDPR Regulator: Workers resumed, all logs flushed" << std::endl;
+  } else {
+    std::cout << "GDPR Regulator: No logging manager available" << std::endl;
+  }
 }
 
 /*
