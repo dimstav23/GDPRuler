@@ -61,12 +61,13 @@ void gdpr_regulator::pauseWorkersAndFlushLogs()
   // Access logger through controller namespace
   auto* loggerInstance = controller::logger::get_instance();
   if (loggerInstance) {
-    std::cout << "GDPR Regulator: Pausing workers and flushing logs..." << std::endl;
+    // std::cout << "GDPR Regulator: Pausing workers and flushing logs..." << std::endl;
     loggerInstance->pauseWorkersAndFlushLogs();
-    std::cout << "GDPR Regulator: Workers resumed, all logs flushed" << std::endl;
-  } else {
-    std::cout << "GDPR Regulator: No logging manager available" << std::endl;
-  }
+    // std::cout << "GDPR Regulator: Workers resumed, all logs flushed" << std::endl;
+  } 
+  // else {
+    // std::cout << "GDPR Regulator: No logging manager available" << std::endl;
+  // }
 }
 
 /*
