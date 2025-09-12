@@ -10,6 +10,7 @@
 #include <cmath>
 
 #include "log_common.hpp"
+#include "gdpr_regulator.hpp"
 #include "../gdpr_filter.hpp"
 #include "../query.hpp"
 
@@ -37,8 +38,8 @@ public:
     config.baseFilename = "gdpr";
     config.maxSegmentSize = 10 * 1024 * 1024;
     config.numWriterThreads = 2;
-    config.batchSize = 50;
-    config.queueCapacity = 2048;
+    config.batchSize = 100;
+    config.queueCapacity = 8192;
     config.maxExplicitProducers = 32;
     // Set the max open log files to "fd_load_factor" of the file descriptors
     config.maxOpenFiles = static_cast<size_t>(std::ceil(get_max_fds() * fd_load_factor));
@@ -59,10 +60,24 @@ public:
     m_logging_manager = std::make_unique<LoggingManager>(config);
     m_logging_manager->startGDPR();
     
+    // Create LogExporter
+    m_log_exporter = std::make_shared<LogExporter>(
+      m_logging_manager->getStorage(), 
+      config.useEncryption, 
+      config.compressionLevel
+    );
+
     m_initialized = true;
   }
 
-  // New method to get thread-local producer token
+  auto get_log_exporter() -> std::shared_ptr<LogExporter> {
+    if (!m_initialized) {
+      init_gdpr_logger();
+    }
+    return m_log_exporter;
+  }
+
+  // Method to get thread-local producer token
   auto get_thread_producer_token() -> BufferQueue::ProducerToken& {
     // Initialize thread-local token if needed
     if (!thread_producer_token.has_value()) {
@@ -101,12 +116,6 @@ public:
     }
   }
 
-  auto log_decode(std::string_view log_name, const int64_t timestamp_thres) 
-    -> std::vector<std::string> {
-    // TODO: Implement using external logger's export functionality
-    return {};
-  }
-
   auto get_logs_dir() -> std::string_view {
     return std::string_view(this->m_logs_dir);
   }
@@ -121,11 +130,31 @@ private:
   logger() = default;
   
   std::unique_ptr<LoggingManager> m_logging_manager;
+  std::shared_ptr<LogExporter> m_log_exporter;
   // Thread-local producer token
   thread_local static std::optional<BufferQueue::ProducerToken> thread_producer_token;
   bool m_initialized = false;
   std::string m_logs_dir = "./gdpr_logs";
-  int32_t trusted_counter = 0;
+
+  std::unordered_map<std::string, std::atomic<int32_t>> trusted_counters;
+  std::mutex counters_mutex; // Protects the counters map structure
+
+  int32_t get_next_counter(const std::string& key) {
+    // Check if key exists (most common case)
+    auto it = trusted_counters.find(key);
+    if (it != trusted_counters.end()) {
+      // Key exists - atomic increment
+      return it->second.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+    
+    // Key doesn't exist
+    {
+      std::lock_guard<std::mutex> lock(counters_mutex);
+      // Double-check after acquiring lock
+      auto [inserted_it, inserted] = trusted_counters.try_emplace(key, 0);
+      return inserted_it->second.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+  }
 
   LogEntry create_gdpr_log_entry(const query& query_args, const default_policy& def_policy,
                                   const bool& valid, std::string_view new_val) 
@@ -139,9 +168,9 @@ private:
      - Length-prefixed arbitrary new_value (if applicable)
      */
     // Get current timestamp
-    const int64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+    const uint64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
     // Get trusted counter
-    int32_t cnt = ++trusted_counter;
+    uint32_t cnt = get_next_counter(std::string(query_args.key()));
     // Get user key as bitset
     std::bitset<num_users> user_key = query_args.user_key().value_or(def_policy.user_key());
     // Encode operation (3 bits) + validity (1 bit)

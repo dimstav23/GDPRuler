@@ -4,6 +4,7 @@
 #include <vector>
 #include <filesystem>
 #include "logging/logger.hpp"
+#include "LogExporter.hpp"
 
 namespace controller {
 
@@ -14,21 +15,31 @@ const std::string regulator_key = "user0";
 class gdpr_regulator
 {
 public:
-	gdpr_regulator();
-  // explicit gdpr_regulator();
-  // ~gdpr_regulator();
+	static auto get_instance() -> gdpr_regulator* {
+    static gdpr_regulator regulator_instance;
+    return &regulator_instance;
+  }
 
-  [[nodiscard]] auto timestamp_thres() const -> int64_t;
+  // Initialize the regulator with log exporter
+  void initialize(std::shared_ptr<LogExporter> logExporter) {
+    if (!m_initialized) {
+      m_log_exporter = logExporter;
+      m_initialized = true;
+    }
+  }
+
   auto retrieve_logs() -> std::vector<std::string>;
-  auto read_key_log(std::string_view key) -> std::vector<std::string>;
-  auto read_log(std::string_view log_name) const -> std::vector<std::string>;
+  auto read_key_log(std::string_view key, uint64_t timestamp_thres) -> std::vector<std::string>;
+  auto read_log(std::string_view log_name, uint64_t timestamp_thres) const -> std::vector<std::string>;
   static auto validate_reg_key(const controller::query &query_args, 
                                const controller::default_policy &def_policy) -> bool;
 private:
-  logger* m_gdpr_logger;
-  int64_t m_timestamp_thres;
+  gdpr_regulator() = default;
 
-  static auto get_filenames(std::string_view dir) -> std::vector<std::string>;
+  std::shared_ptr<LogExporter> m_log_exporter;
+  bool m_initialized = false;
+
+  auto get_filenames(std::string_view dir) -> std::vector<std::string>;
 };
 
 } // namespace controller
