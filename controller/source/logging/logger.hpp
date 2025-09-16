@@ -168,15 +168,15 @@ private:
     /*
      Log entry format:
      - int64_t timestamp
-     - int32_t trusted_counter
+     - Length-prefixed arbitrary query key
      - user bitset
      - uint8_t operation & validity
      - Length-prefixed arbitrary new_value (if applicable)
      */
     // Get current timestamp
     const uint64_t timestamp = std::chrono::system_clock::now().time_since_epoch().count();
-    // Get trusted counter
-    uint32_t cnt = get_next_counter(std::string(query_args.key()));
+    // Get the query key as string
+    std::string key = std::string(query_args.key());
     // Get user key as bitset
     std::bitset<num_users> user_key = query_args.user_key().value_or(def_policy.user_key());
     // Encode operation (3 bits) + validity (1 bit)
@@ -188,7 +188,7 @@ private:
     if (!new_val.empty()) {
         payload.assign(new_val.begin(), new_val.end());
     }
-    return LogEntry(timestamp, cnt, user_key, operation_result, std::move(payload));
+    return LogEntry(timestamp, std::move(key), user_key, operation_result, std::move(payload));
   }
 };
 
