@@ -14,8 +14,8 @@ namespace controller {
 /* Delimiter for the logged values */
 const char log_delimiter = ',';
 const unsigned int operation_mask = 0x07U;
-// Set the max open log files to 80% of the file descriptors
-constexpr double fd_load_factor = 0.8;
+// Set the max open log files to 90% of the file descriptors
+constexpr double fd_load_factor = 0.9;
 
 /**
  * Query operations enum.
@@ -162,5 +162,32 @@ inline auto get_max_fds() -> int {
   std::cerr << "Error getting resource limits." << std::endl;
   return 0;
 }
+
+// Key-to-filename mapper for logging
+class LogFileHasher {
+private:
+  static inline size_t m_max_files = 512;
+
+  struct string_hash {
+    using hash_type = std::hash<std::string_view>;
+    using is_transparent = void;
+    
+    size_t operator()(const char* str) const { return hash_type{}(str); }
+    size_t operator()(std::string_view str) const { return hash_type{}(str); }
+    size_t operator()(const std::string& str) const { return hash_type{}(str); }
+  };
+    
+public:
+  // Set the max files (to be used during initialization)
+  static void set_max_files(size_t max_files) {
+    m_max_files = max_files;
+  }
+  // Filename generation using the hash of the key for better distribution
+  static std::string hash_key_to_filename(std::string_view key) {
+    string_hash hasher;
+    size_t hash_value = hasher(key) % m_max_files;
+    return std::to_string(hash_value);
+  }
+};
   
 } // namespace controller

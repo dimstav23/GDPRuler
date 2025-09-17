@@ -427,7 +427,7 @@ auto handle_connection
     std::cerr << "Failed to allocate buffer" << std::endl;
     return;
   }
-
+  
   while (true) {
     #ifdef INTERNAL_TIMING
     auto frontend_connection_rec_start = std::chrono::steady_clock::now();

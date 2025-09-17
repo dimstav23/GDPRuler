@@ -36,10 +36,10 @@ public:
     LoggingConfig config;
     config.basePath = log_path.value_or(m_logs_dir);
     config.baseFilename = "gdpr";
-    config.maxSegmentSize = 10 * 1024 * 1024;
-    config.numWriterThreads = 2;
-    config.batchSize = 100;
-    config.queueCapacity = 8192;
+    config.maxSegmentSize = 100 * 1024 * 1024; // 100 MB per file
+    config.numWriterThreads = 4;
+    config.batchSize = 8192;
+    config.queueCapacity = 2 * config.numWriterThreads * config.batchSize;
     config.maxExplicitProducers = 32;
     // Set the max open log files to "fd_load_factor" of the file descriptors
     config.maxOpenFiles = static_cast<size_t>(std::ceil(get_max_fds() * fd_load_factor));
@@ -66,6 +66,9 @@ public:
       config.useEncryption, 
       config.compressionLevel
     );
+
+    // Set the LogFileHasher max files
+    LogFileHasher::set_max_files(config.maxOpenFiles);
 
     m_initialized = true;
   }
@@ -117,7 +120,9 @@ public:
     
     // Use thread-local producer token
     auto& token = get_thread_producer_token();
-    if (!m_logging_manager->append(std::move(entry), token, std::string(query_args.key()))) {
+    static constexpr size_t MAX_LOG_FILES = 1000;
+    const std::string& filename = LogFileHasher::hash_key_to_filename(query_args.key());
+    if (!m_logging_manager->append(std::move(entry), token, filename)) {
       std::cerr << "Failed to log GDPR entry" << std::endl;
     }
   }
