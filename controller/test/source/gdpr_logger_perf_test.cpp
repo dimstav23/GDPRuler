@@ -17,7 +17,7 @@ auto main() -> int
   // about its instantiation parameters
   auto const def_policy = default_policy {};
   // get the logger instance
-  logger::get_instance()->init_gdpr_logger("/scratch/dimitrios/logs/");
+  logger::get_instance()->init_gdpr_logger("/scratch/dimitrios/gdpruler_fs/logs/");
   logger* m_gdpr_logger = logger::get_instance();
   
   constexpr int value_size = 1024;
