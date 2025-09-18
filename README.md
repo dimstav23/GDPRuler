@@ -24,6 +24,15 @@ To enter the development environment with all the required dependencies, use:
 ```
 $ nix develop
 ``` 
+For the logging experiments you might want to allocate an entire block device and create an `ext4` filesystem on top where you must also configure 
+you log file path to be. 
+An example execution to do that is the following:
+```
+$ sudo mkfs.ext4 /dev/nvme1n1
+$ mkdir -p /scratch/dimitrios/gdpruler_fs
+$ sudo mount /dev/nvme1n1 /scratch/dimitrios/gdpruler_fs -t ext4
+$ sudo chown $USER:$(id -gn $USER) /scratch/dimitrios/gdpruler_fs 
+```
 
 ### 1. Make sure you have fetched all the submodules:
 ```
