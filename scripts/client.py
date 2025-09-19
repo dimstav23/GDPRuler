@@ -130,6 +130,44 @@ def timer(time_dict, stage, breakdown):
   else:
     yield  # If not breakdown, execute the code but don't measure time
 
+def send_drain_request(server_address, server_port, config_path):
+  """Send drain request to controller and measure the time"""
+  try:
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    client_socket.connect((server_address, server_port))
+    
+    # Load and send default policy
+    if config_path != "no_cfg":
+      default_policy = load_config(config_path, 0)
+      if not send_default_policy(client_socket, default_policy):
+        print(f"On Drain: Failed to set default policy for client {0}")
+        client_socket.close()
+        return
+    
+    # Send drain query
+    drain_query = "query(drain)\n"
+    query_encoded = drain_query.encode()
+    msg_size = len(query_encoded).to_bytes(msg_header_size, 'big')
+    
+    start_time = time.perf_counter()
+    client_socket.sendall(msg_size + query_encoded)
+    
+    # Receive response
+    response_size_data = safe_receive(client_socket, msg_header_size)
+    if response_size_data:
+      response_size = int.from_bytes(response_size_data, 'big')
+      response = safe_receive(client_socket, response_size)
+        
+    end_time = time.perf_counter()
+    drain_time = end_time - start_time
+    
+    client_socket.close()
+    return drain_time, response.decode() if response else "No response"
+      
+  except Exception as e:
+      return None, f"Error during drain: {str(e)}"
+
 def send_queries(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown):
   # Open a connection to the server
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -163,6 +201,8 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
       response_size_data = safe_receive(client_socket, msg_header_size)
       response_size = int.from_bytes(response_size_data, 'big')
       response = safe_receive(client_socket, response_size)
+      # print(response.decode())
+      # print(len(response))
       
     end_time = time.perf_counter() # End the timer
     # Calculate and accumulate the latency
@@ -210,6 +250,7 @@ def main():
   parser.add_argument('--clients', help='Number of clients to spawn', default=1, type=int)
   parser.add_argument('--value_size', help='Size of the value in bytes for PUT queries', default=1024, type=int)
   parser.add_argument('--breakdown', help='Enable breakdown measurements', action='store_true')
+  parser.add_argument('--drain', help='Send drain request after workload completion', action='store_true')
   args = parser.parse_args()
 
   # Perform the load phase of the workload
@@ -264,5 +305,18 @@ def main():
 
   print(f"Elapsed time: {elapsed_time:.3f} seconds (100%)")
 
+  if args.drain:
+    print("=" * 50)
+    print("DRAIN PHASE: Flushing logging queues...")
+    drain_time, drain_response = send_drain_request(args.address, args.port, args.config)
+      
+    if drain_time is not None:
+      print(f"Drain time: {drain_time:.6f} seconds")
+      print(f"Drain response: {drain_response}")
+      print(f"Total time (workload + drain): {elapsed_time + drain_time:.3f} seconds")
+    else:
+      print(f"Drain failed: {drain_response}")
+  
+  
 if __name__ == "__main__":
   main()

@@ -12,6 +12,7 @@ declare -A CONFIG=(
     [DB_DUMP_DIR]="/scratch/$(whoami)/gdpruler_fs/db_data"
     [CTL_DUMP_DIR]="/scratch/$(whoami)/gdpruler_fs/controller_data"
     [NODE_BIND]="numactl --cpunodebind=0 --membind=0"
+    [NODE_BIND_CLIENT]="numactl --cpunodebind=1 --membind=1"
     [CVM_IP]="192.168.122.48"
     [SSH_OPTS]="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 )
@@ -407,6 +408,7 @@ run_client() {
     local port="$5"
     local output_file="$6"
     local extra_args="$7"
+    local use_drain="$8"
     
     local client_bin=""
     local client_cmd=""
@@ -421,11 +423,14 @@ run_client() {
             client_bin="${PATHS[CLIENT]}"
             validate_executable "$client_bin" "Client"
             client_cmd="$client_bin --workload $workload --clients $n_clients --address $address --port $port --config $extra_args"
+            if [[ "$use_drain" == "true" ]]; then
+                client_cmd="$client_cmd --drain"
+            fi
             ;;
     esac
     
     echo "Starting the client(s): ${CONFIG[NODE_BIND]} $client_cmd > $output_file"
-    ${CONFIG[NODE_BIND]} python3 $client_cmd > "$output_file"
+    ${CONFIG[NODE_BIND_CLIENT]} python3 $client_cmd > "$output_file"
     local exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
@@ -447,7 +452,7 @@ prepare_experiment() {
     
     if [ ! -f "$result_file" ]; then
         install -D -m 644 /dev/null "$result_file"
-        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s)" >> "$result_file"
+        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s),ctl_files_count,ctl_files_size_mb,db_files_count,db_files_size_mb" >> "$result_file"
     fi
 }
 
@@ -540,6 +545,7 @@ collect_results() {
     local db="$3"
     local n_clients="$4"
     local results_file="$5"
+    local environment="$6"  # "native" or "CVM"
     
     local elapsed_time=$(grep "Elapsed time: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
     local avg_latency=$(grep "Average Latency: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
@@ -547,9 +553,55 @@ collect_results() {
     if [ -z "$avg_latency" ]; then
         failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
     else
-        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> "$results_file"
-        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency\e[0m"
+        # Collect storage metrics before cleanup
+        local storage_metrics=$(collect_storage_metrics "$environment" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[DB_DUMP_DIR]}")
+
+        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency,$storage_metrics" >> "$results_file"
+        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency, storage=$storage_metrics\e[0m"
     fi
+}
+
+# Function to collect storage metrics before cleanup
+collect_storage_metrics() {
+    local environment="$1"  # "native" or "CVM"
+    local ctl_dir="$2"
+    local db_dir="$3"
+    
+    local ctl_files_count=0
+    local ctl_files_size_mb=0
+    local db_files_count=0  
+    local db_files_size_mb=0
+    
+    if [[ "$environment" == "native" ]]; then
+        # Collect metrics on host
+        if [[ -d "$ctl_dir" ]]; then
+            ctl_files_count=$(find "$ctl_dir" -type f 2>/dev/null | wc -l)
+            local ctl_size_bytes=$(du -sb "$ctl_dir" 2>/dev/null | cut -f1)
+            ctl_files_size_mb=$(echo "scale=2; $ctl_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+        
+        if [[ -d "$db_dir" ]]; then
+            db_files_count=$(find "$db_dir" -type f 2>/dev/null | wc -l)
+            local db_size_bytes=$(du -sb "$db_dir" 2>/dev/null | cut -f1)
+            db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+    else
+        # Collect metrics in CVM
+        if execute_in_cvm "[ -d '$ctl_dir' ]" 2>/dev/null; then
+            ctl_files_count=$(execute_in_cvm "find '$ctl_dir' -type f 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+            local ctl_size_bytes=$(execute_in_cvm "du -sb '$ctl_dir' 2>/dev/null | cut -f1" 2>/dev/null || echo "0")
+            ctl_files_size_mb=$(echo "scale=2; $ctl_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+        
+        if execute_in_cvm "[ -d '$db_dir' ]" 2>/dev/null; then
+            db_files_count=$(execute_in_cvm "find '$db_dir' -type f 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+            local db_size_bytes=$(execute_in_cvm "du -sb '$db_dir' 2>/dev/null | cut -f1" 2>/dev/null || echo "0")
+            db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+    fi
+    
+    # Return the metrics as a comma-separated string
+    echo "$ctl_files_count,$ctl_files_size_mb,$db_files_count,$db_files_size_mb"
 }
 
 # Function that cleans up processes and files from previous experiments in CVM via SSH
@@ -662,7 +714,7 @@ run_experiment() {
         "native_direct")
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
             run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
-            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file"
+            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "native"
             ;;
         "native_ctl")
             local controller="$1"
@@ -672,13 +724,13 @@ run_experiment() {
             
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
             run_controller "$controller" "native" "$controller_address" "$controller_port" "$db" "$db_address_formatted" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" ""
-            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config"
-            collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file"
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "true" # last parameter is to draing the logging queues
+            collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file" "native"
             ;;
         "CVM_direct")
             run_server "$db" "CVM" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
             run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
-            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file"
+            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "CVM"
             ;;
         "CVM_passthrough"|"CVM_gdpr")
             local controller_type="${experiment_type#CVM_}"
@@ -687,8 +739,8 @@ run_experiment() {
             local config="$3"
             
             run_controller "$controller_type" "CVM" "$controller_address" "$controller_port" "$db" "$db_address" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "${CONFIG[TMP_DIR]}/server.txt"
-            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config"
-            collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file"
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "true" # last parameter is to draing the logging queues
+            collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file" "CVM"
             ;;
     esac
     # Cleanup phase

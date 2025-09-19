@@ -82,7 +82,7 @@ auto query::process_predicate(std::string_view predicate) -> void
       return std::tolower(cmd_char);
     });
 
-    if (this->m_cmd == "exit") [[unlikely]] {
+    if (this->m_cmd == "exit" || this->m_cmd == "drain") [[unlikely]] {
       // Do nothing
     } else [[likely]] {
       parse_query(pred_val);

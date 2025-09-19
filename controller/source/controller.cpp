@@ -464,7 +464,17 @@ auto handle_connection
       if (response_length <= max_msg_size) {
         ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
       }
-
+      break;
+    }
+    else if (query_args.cmd() == "drain") [[unlikely]] {
+      // drain the logging queues and sync
+      logger::get_instance()->pauseWorkersAndFlushLogs();
+      // Send the response before breaking
+      response = "Logger queues drained";
+      size_t response_length = response.length();
+      if (response_length <= max_msg_size) {
+        ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
+      }
       break;
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
