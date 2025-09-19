@@ -5,8 +5,8 @@ set -e
 # Configuration
 declare -A CONFIG=(
     [PROJECT_ROOT]="$(git rev-parse --show-toplevel 2>/dev/null)"
-    [VM_CORES]="16"
-    [VM_MEMORY]="16384"
+    [VM_CORES]="24"
+    [VM_MEMORY]="32768"
     [MAX_WAIT_ATTEMPTS]="60"
     [TMP_DIR]="/tmp"
     [DB_DUMP_DIR]="/scratch/$(whoami)/gdpruler_fs/db_data"
@@ -27,6 +27,12 @@ declare -A PATHS=(
     [PASSTHROUGH_CONTROLLER]="${CONFIG[PROJECT_ROOT]}/scripts/passthrough.py"
 )
 
+# Storage configuration
+NVME_DEVICE="/dev/nvme1n1"
+MOUNT_POINT="/scratch/dimitrios/gdpruler_fs"
+DEVICE_IN_CVM="/dev/vda"
+FILESYSTEM_TYPE="ext4"
+
 # Global variables
 failed_tests=""
 server_connection=""
@@ -37,7 +43,11 @@ CVM_IP="${CONFIG[CVM_IP]}"
 # Function to start the CVM using the listed expect script
 boot_cvm() {
     local curr_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+    local nvme_device="${NVME_DEVICE:-/dev/nvme1n1}"
     
+    # Pass storage parameters to launch-qemu.sh
+    local storage_opts="-nvme $nvme_device"
+
     # use -noiommu if you want to disable the iommu for performance reasons
     expect -c "
         log_user 0
@@ -51,6 +61,7 @@ boot_cvm() {
             -smp ${CONFIG[VM_CORES]} \
             -mem ${CONFIG[VM_MEMORY]} \
             -vhost \
+            $storage_opts \
             -log ${curr_dir}/cvm_boot.out
 
         expect \"login: \"
@@ -73,6 +84,8 @@ boot_cvm() {
         if ssh ${CONFIG[SSH_OPTS]} root@${CONFIG[CVM_IP]} "echo 'ready'" >/dev/null 2>&1; then
             CVM_READY=true
             echo "CVM is ready and accessible via SSH"
+            # Prepare CVM storage
+            prepare_storage_cvm ${DEVICE_IN_CVM} ${MOUNT_POINT} ${FILESYSTEM_TYPE}
             return 0
         fi
         sleep 2
@@ -438,6 +451,88 @@ prepare_experiment() {
     fi
 }
 
+# Storage device preparation on the host
+prepare_storage_host() {
+    local device="$1"
+    local mount_point="$2"
+    local fs_type="$3"
+    
+    echo "Preparing host storage: device=$device, mount_point=$mount_point, fs_type=$fs_type"
+    
+    # Check if already mounted with correct filesystem
+    if mountpoint -q "$mount_point" 2>/dev/null; then
+        local current_fs=$(findmnt -n -o FSTYPE "$mount_point" 2>/dev/null)
+        
+        if [[ "$current_fs" == "$fs_type" ]]; then
+            echo "Storage already mounted with correct filesystem ($current_fs) at $mount_point"
+            return 0
+        else
+            echo "Wrong filesystem type ($current_fs), unmounting..."
+            sudo umount "$mount_point" || true
+        fi
+    fi
+    
+    # Create filesystem and mount
+    echo "Creating $fs_type filesystem on $device"
+    sudo mkfs.$fs_type -F "$device"
+    
+    sudo mkdir -p "$mount_point"
+    sudo mount "$device" "$mount_point"
+    sudo chown -R $(whoami):$(id -gn $(whoami)) "$mount_point"
+    
+    echo "Storage prepared and mounted at $mount_point"
+}
+
+# Storage device cleanup on the host
+cleanup_storage_host() {
+    local mount_point="$1"
+    
+    if mountpoint -q "$mount_point" 2>/dev/null; then
+        echo "Unmounting storage at $mount_point"
+        sudo umount -f "$mount_point" || true
+    fi
+}
+
+# Storage device preparation in the CVM
+prepare_storage_cvm() {
+    local device="$1"
+    local mount_point="$2"  
+    local fs_type="$3"
+    
+    echo "Preparing CVM storage at $mount_point"
+    
+    # Check if storage device exists in CVM
+    if ! execute_in_cvm "[ -b $device ]"; then
+        echo "Error: Storage device $device not available in CVM"
+        return 1
+    fi
+    
+    execute_in_cvm "mkdir -p $mount_point"
+    
+    # Check if already mounted with correct filesystem
+    if execute_in_cvm "mountpoint -q $mount_point 2>/dev/null"; then
+        local current_fs=$(execute_in_cvm "findmnt -n -o FSTYPE $mount_point 2>/dev/null")
+        
+        if [[ "$current_fs" == "$fs_type" ]]; then
+            echo "CVM storage already mounted with correct filesystem ($current_fs)"
+            return 0
+        else
+            echo "Wrong filesystem type in CVM ($current_fs), unmounting..."
+            execute_in_cvm "umount $mount_point" || true
+        fi
+    fi
+    
+    # Create filesystem on the device
+    echo "virtio-blk mode: Creating $fs_type filesystem in CVM"
+    execute_in_cvm "mkfs.$fs_type -F $device"
+    
+    # Mount the filesystem
+    echo "Mounting filesystem in CVM"
+    execute_in_cvm "mount $device $mount_point"
+    
+    echo "CVM storage ready at $mount_point"
+}
+
 # Function to collect results from the client output
 collect_results() {
     local workload="$1"
@@ -596,6 +691,8 @@ run_experiment() {
             collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file"
             ;;
     esac
+    # Cleanup phase
+    cleanup "$controller_address" "$controller_port" "$db" "$db_address" "$db_port"
 }
 
 # Function to print a summary of the results

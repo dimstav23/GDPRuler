@@ -29,6 +29,9 @@ if [[ "$server_connection" != "UNIX" ]]; then
   exit 1
 fi
 
+# Set cleanup trap for CVM-only cleanup
+trap 'shutdown_cvm' EXIT INT TERM
+
 # compile the controller in the CVM with the appropriate encryption option
 virt-customize --add ${images_dir}/gdpr.img --smp $(nproc) --memsize 16384 \
   --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
@@ -57,9 +60,6 @@ run_experiments_in_cvm() {
   echo "Starting CVM for all GDPR experiments..."
   boot_cvm
   cvm_pid=$!
-  
-  # Trap to ensure CVM cleanup on exit
-  trap shutdown_cvm EXIT INT TERM
   
   # Run all experiments
   for n_clients in $clients; do

@@ -17,10 +17,6 @@ controller_port=1312
 config_dir=$(dirname "$(readlink -f "$0")")
 images_dir=${config_dir}/../../CVM_setup/images
 results_dir_suffix=""
-# results_dir_suffix="_snp"
-# results_dir_suffix="_snp_iommu"
-# results_dir_suffix="_snp_vhost"
-# results_dir_suffix="_snp_vhost_iommu"
 
 # workload_type="large" # 10M ops
 workload_type="medium" # 1M ops
@@ -33,5 +29,5 @@ workload_type="medium" # 1M ops
 clients="1 2 4 8 16"
 dbs="redis rocksdb"
 workloads="workloada_${workload_type} workloadb_${workload_type} workloadc_${workload_type} workloadd_${workload_type} workloadf_${workload_type}"
-logging_workloads="workloada_monitor_${workload_type}_0 workloada_monitor_${workload_type}_10 workloada_monitor_${workload_type}_50 workloada_monitor_${workload_type}_100 \
-                    workloadc_monitor_${workload_type}_0 workloadc_monitor_${workload_type}_10 workloadc_monitor_${workload_type}_50 workloadc_monitor_${workload_type}_100"
+logging_workloads="workloada_monitor_0_${workload_type} workloada_monitor_10_${workload_type} workloada_monitor_50_${workload_type} workloada_monitor_100_${workload_type} \
+                    workloadc_monitor_0_${workload_type} workloadc_monitor_10_${workload_type} workloadc_monitor_50_${workload_type} workloadc_monitor_100_${workload_type}"

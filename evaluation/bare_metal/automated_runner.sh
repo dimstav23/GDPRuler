@@ -28,7 +28,9 @@ for i in $(seq 1 "$repeats"); do
   # ./gdpr.sh --encryption OFF --logging ON
   ./gdpr.sh --encryption ON  --logging OFF --server_connection UNIX
   # ./gdpr.sh --encryption ON  --logging OFF --server_connection TCP
-  # ./gdpr.sh --encryption ON  --logging ON
+  # with logging enabled
+  ./gdpr.sh --encryption OFF --logging ON --server_connection UNIX
+  ./gdpr.sh --encryption OFF --logging ON --server_connection UNIX
 
   echo
 done
