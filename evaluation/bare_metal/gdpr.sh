@@ -40,6 +40,7 @@ client_cfg=$script_dir/../configs/
 
 if [[ $logging == "ON" ]]; then
   workloads_to_use=$logging_workloads
+  USE_DRAIN="true"
 else
   workloads_to_use=$workloads
 fi
@@ -67,7 +68,7 @@ for n_clients in $clients; do
       fi
       echo -e "\e[34mStarting a native GDPR controller scenario with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging, and server connection set to $server_connection\e[0m"
       run_experiment native_ctl $n_clients $workload $db $db_address $db_port \
-        $results_csv_file $controller $controller_address $controller_port $client_cfg
+        $results_csv_file $USE_DRAIN $controller $controller_address $controller_port $client_cfg
       echo ""
     done
   done

@@ -30,7 +30,7 @@ for n_clients in $clients; do
         db_address=$direct_redis_address
       fi
       echo -e "\e[34mStarting a direct DB server scenario with $n_clients clients, $db store, direct connection, and $workload.\e[0m"
-      run_experiment native_direct $n_clients $workload $db $db_address $db_port $results_csv_file
+      run_experiment native_direct $n_clients $workload $db $db_address $db_port $results_csv_file $USE_DRAIN
       echo ""
     done
   done

@@ -40,6 +40,7 @@ server_connection=""
 CVM_EXPECT_PID=""
 CVM_READY=false
 CVM_IP="${CONFIG[CVM_IP]}"
+USE_DRAIN="false"
 
 # Function to start the CVM using the listed expect script
 boot_cvm() {
@@ -429,7 +430,7 @@ run_client() {
             ;;
     esac
     
-    echo "Starting the client(s): ${CONFIG[NODE_BIND]} $client_cmd > $output_file"
+    echo "Starting the client(s): ${CONFIG[NODE_BIND_CLIENT]} $client_cmd > $output_file"
     ${CONFIG[NODE_BIND_CLIENT]} python3 $client_cmd > "$output_file"
     local exit_code=$?
     
@@ -581,6 +582,10 @@ collect_storage_metrics() {
         fi
         
         if [[ -d "$db_dir" ]]; then
+            # Send SIGINT to flush and close the DB properly
+            kill -INT $(pgrep -f rocksdb_server) 2>/dev/null || true
+            kill -INT $(pgrep -f redis-server) 2>/dev/null || true
+            sleep 5
             db_files_count=$(find "$db_dir" -type f 2>/dev/null | wc -l)
             local db_size_bytes=$(du -sb "$db_dir" 2>/dev/null | cut -f1)
             db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
@@ -594,6 +599,10 @@ collect_storage_metrics() {
         fi
         
         if execute_in_cvm "[ -d '$db_dir' ]" 2>/dev/null; then
+            # Send SIGINT to flush and close the DB properly
+            execute_in_cvm "kill -INT \$(pgrep -f rocksdb_server) 2>/dev/null || true"
+            execute_in_cvm "kill -INT \$(pgrep -f redis-server) 2>/dev/null || true"
+            sleep 5
             db_files_count=$(execute_in_cvm "find '$db_dir' -type f 2>/dev/null | wc -l" 2>/dev/null || echo "0")
             local db_size_bytes=$(execute_in_cvm "du -sb '$db_dir' 2>/dev/null | cut -f1" 2>/dev/null || echo "0")
             db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
@@ -698,7 +707,8 @@ run_experiment() {
     local db_address="$5"
     local db_port="$6"
     local results_csv_file="$7"
-    shift 7
+    local use_drain="$8"
+    shift 8
         
     local db_address_formatted="${db_address}:${db_port}"
     if [[ $db == "redis" ]]; then
@@ -713,7 +723,7 @@ run_experiment() {
     case "$experiment_type" in
         "native_direct")
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
-            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
+            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db" "$use_drain"
             collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "native"
             ;;
         "native_ctl")
@@ -724,12 +734,12 @@ run_experiment() {
             
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
             run_controller "$controller" "native" "$controller_address" "$controller_port" "$db" "$db_address_formatted" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" ""
-            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "true" # last parameter is to draing the logging queues
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "$use_drain"
             collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file" "native"
             ;;
         "CVM_direct")
             run_server "$db" "CVM" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
-            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
+            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db" "$use_drain"
             collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "CVM"
             ;;
         "CVM_passthrough"|"CVM_gdpr")
@@ -739,7 +749,7 @@ run_experiment() {
             local config="$3"
             
             run_controller "$controller_type" "CVM" "$controller_address" "$controller_port" "$db" "$db_address" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "${CONFIG[TMP_DIR]}/server.txt"
-            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "true" # last parameter is to draing the logging queues
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "$use_drain"
             collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file" "CVM"
             ;;
     esac
