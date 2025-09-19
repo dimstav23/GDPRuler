@@ -12,19 +12,12 @@ source $script_dir/../args_and_checks.sh
 function prepare_configs() {
   local clients=$1
 
-  # logging is retrieved from cmdline arguments
-  if [[ $logging == "ON" ]]; then
-    local monitor="true"
-  else
-    local monitor="false"
-  fi
-  
   # prepare the default data policies of the clients
   echo "Preparing the client configurations with logging set to ${logging}"
   for ((i=0; i<$clients; i++)); do
     # pur is the total number of purposes (64 for the bitmap)
     # clients is the total number of clients (64 for our setup)
-    $script_dir/../default_policy_creator.sh -uid $i -pur 64 -clients 64 -monitor $monitor
+    $script_dir/../default_policy_creator.sh -uid $i -pur 64 -clients 64 -monitor "false"
   done
 }
 
@@ -54,6 +47,12 @@ run_experiments_in_cvm() {
   # copy the configs in the controller image
   virt-customize --add ${images_dir}/gdpr.img --copy-in ${script_dir}/../configs:/root
 
+  if [[ $logging == "ON" ]]; then
+    workloads_to_use=$logging_workloads
+  else
+    workloads_to_use=$workloads
+  fi
+
   # Start CVM once
   echo "Starting CVM for all GDPR experiments..."
   boot_cvm
@@ -65,7 +64,7 @@ run_experiments_in_cvm() {
   # Run all experiments
   for n_clients in $clients; do
     for db in $dbs; do
-      for workload in $workloads; do
+      for workload in $workloads_to_use; do
         if [[ $db == "rocksdb" ]]; then
           db_port=$ctl_rocksdb_port
           db_address=$ctl_rocksdb_address

@@ -33,3 +33,5 @@ workload_type="medium" # 1M ops
 clients="1 2 4 8 16"
 dbs="redis rocksdb"
 workloads="workloada_${workload_type} workloadb_${workload_type} workloadc_${workload_type} workloadd_${workload_type} workloadf_${workload_type}"
+logging_workloads="workloada_monitor_${workload_type}_0 workloada_monitor_${workload_type}_10 workloada_monitor_${workload_type}_50 workloada_monitor_${workload_type}_100 \
+                    workloadc_monitor_${workload_type}_0 workloadc_monitor_${workload_type}_10 workloadc_monitor_${workload_type}_50 workloadc_monitor_${workload_type}_100"
