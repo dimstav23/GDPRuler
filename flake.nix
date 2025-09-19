@@ -126,6 +126,8 @@
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libraries;
           shellHook = ''
             export PATH=${pythonEnv}/bin:$PATH
+	    export CC=clang
+	    export CXX=clang++
           '';
 
           RUST_BACKTRACE = 1;
