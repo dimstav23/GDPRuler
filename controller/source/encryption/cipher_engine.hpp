@@ -340,12 +340,4 @@ public:
 // NOLINTEND
 };
 
-// Thread-local cleanup helper for cipher_engine contexts
-struct CipherEngineCleanup {
-  ~CipherEngineCleanup() {
-    // Cleanup will be handled automatically by thread_local destructors
-    // when thread exits - contexts are static thread_local in get_*_context()
-  }
-};
-
 } // namespace controller
