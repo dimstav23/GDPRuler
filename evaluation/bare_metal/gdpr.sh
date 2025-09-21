@@ -40,13 +40,15 @@ client_cfg=$script_dir/../configs/
 
 if [[ $logging == "ON" ]]; then
   workloads_to_use=$logging_workloads
+  clients_to_use=$logging_clients
   USE_DRAIN="true"
 else
   workloads_to_use=$workloads
+  clients_to_use=$clients
 fi
 
 controller="gdpr"
-for n_clients in $clients; do
+for n_clients in $clients_to_use; do
   for db in $dbs; do
     for workload in $workloads_to_use; do
       if [[ $db == "rocksdb" ]]; then

@@ -591,6 +591,7 @@ collect_storage_metrics() {
             db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
         fi
     else
+        set +e # Disable exit on error for CVM commands
         # Collect metrics in CVM
         if execute_in_cvm "[ -d '$ctl_dir' ]" 2>/dev/null; then
             ctl_files_count=$(execute_in_cvm "find '$ctl_dir' -type f 2>/dev/null | wc -l" 2>/dev/null || echo "0")
@@ -607,6 +608,7 @@ collect_storage_metrics() {
             local db_size_bytes=$(execute_in_cvm "du -sb '$db_dir' 2>/dev/null | cut -f1" 2>/dev/null || echo "0")
             db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
         fi
+        set -e # Re-enable exit on error
     fi
     
     # Return the metrics as a comma-separated string
