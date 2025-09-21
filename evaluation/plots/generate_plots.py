@@ -49,6 +49,9 @@ def load_data_from_directory(input_dir):
         if filename.endswith(".csv"):
             match = re.match(pattern, filename)
             if match:
+                # Skip files with logging=ON
+                if match.group("logging") == "ON":
+                    continue
                 df = pd.read_csv(os.path.join(input_dir, filename))
                 df = process_dataframe(df, match, input_dir)
                 data.append(df)
