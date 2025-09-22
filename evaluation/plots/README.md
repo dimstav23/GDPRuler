@@ -17,13 +17,23 @@ Creates summary plots (for the paper).
 - Key scenarios: workload comparison, scaling analysis
 - 2 plots total
 
+### `generate_logging_plot_and_stats.py`
+Analyzes logging impact on database performance.
+- `logging=ON` data only
+- Different logging percentages (e.g., 0%, 10%, 50%, 100%)
+- Side-by-side Redis/RocksDB throughput comparison
+- Storage overhead analysis with percentage differences
+
 ## Requirements
 The required packages are already include in the nix development environment.
 ```
-pandas matplotlib seaborn
+pandas matplotlib seaborn numpy
 ```
 
 ## Usage
+
+### Basic Performance Analysis
+
 **Use default directories**
 ```
 python3 generate_plots.py
@@ -40,6 +50,29 @@ python3 generate_plots.py --bare_metal_results <path> --vm_results <path> --outp
 - VM results: `../VM/results`
 - Output: `plots/`
 
+### Logging Impact Analysis
+**Default configuration (gdpr_CVM, 8 clients, encryption ON)**
+```
+python3 generate_logging_plot_and_stats.py
+```
+
+**Custom configuration**
+```
+python3 generate_logging_plot_and_stats.py
+--variant gdpr_bare_metal
+--n_clients 16
+--encryption OFF
+--output_dir custom_plots
+```
+
+**Available parameters:**
+- `--variant`: `gdpr_bare_metal` or `gdpr_CVM` (default: `gdpr_CVM`)
+- `--n_clients`: Thread count to analyze (default: `8`)
+- `--encryption`: `ON` or `OFF` (default: `ON`)
+- `--bare_metal_results`: Path to bare metal results (default: `../bare_metal/results`)
+- `--vm_results`: Path to VM results (default: `../VM/results`)
+- `--output_dir`: Output directory (default: `plots`)
+
 ## Input Files
 CSV files with naming pattern:
 ```
@@ -49,6 +82,7 @@ CSV files with naming pattern:
 **Examples:**
 - `direct_CVM-query_mgmt_medium-encryption_OFF-logging_OFF-connection_UNIX.csv`
 - `gdpr_bare_metal-query_mgmt_medium-encryption_ON-logging_OFF-connection_TCP.csv`
+- `gdpr_CVM-query_mgmt_medium-encryption_ON-logging_ON-connection_UNIX.csv`
 
 **Required columns:**
 - `workload` - YCSB workload name
@@ -58,29 +92,41 @@ CSV files with naming pattern:
 - `elapsed_time (s)` - Execution time
 - `avg_latency (s)` - Average latency
 
-If there are more columns (e.g., storage information), they are ignored.
+**Additional columns (for logging analysis):**
+- `ctl_files_count` - Number of controller files created
+- `ctl_files_size_mb` - Size of controller files (MB)
+- `db_files_count` - Number of database files created  
+- `db_files_size_mb` - Size of database files (MB)
+
+*Note: Extra columns are ignored by the standard performance scripts*
 
 ## Data Processing
 
 The scripts automatically:
-- **Filter logging=OFF only** (explicitly ignores `logging=ON` cases)
+- **Filter data**: Performance scripts use `logging=OFF`, logging script uses `logging=ON`
 - **Ignore extra columns** (last 4 columns referring to storage are skipped explicitly)
 - **Calculate throughput** from elapsed time
 - **Convert units** (latency to μs, throughput to kops)
 - **Generate error bars** from standard deviation
 
-## Controller Types
+## System Components
+
+### Controller Types
 - **direct**: Direct database access
 - **passthrough**: Proxy access
 - **gdpr**: GDPRuler access
 
-## YCSB Workloads
+### YCSB Workloads
 
 - **A**: 50% reads, 50% updates (write-heavy)
 - **B**: 95% reads, 5% updates 
 - **C**: 100% reads (read-only)
 - **D**: 95% reads, 5% inserts
 - **F**: 50% reads, 50% read-modify-writes
+
+### Environment Types
+- **bare_metal**: Native hardware execution
+- **CVM**: Confidential Virtual Machine execution
 
 ## Output
 
@@ -102,3 +148,39 @@ plots/
 ├── ycsb_performance_plot.png/pdf
 └── ycsb_performance_plot_tcp.png/pdf
 ```
+
+### `generate_logging_plot_and_stats.py`
+```
+plots/
+├── logging_impact_gdpr_CVM_8_clients_encryption_ON.png/pdf
+└── logging_impact_gdpr_bare_metal_8_clients_encryption_ON.png/pdf
+```
+
+**Plus, detailed console output, such as:**
+```
+================================================================================
+STORAGE STATISTICS
+================================================================================
+REDIS DATABASE:
+----------------------------------------
+WORKLOADA:
+  Baseline (0% logged):
+    Controller files: 0 files, 0.00 MB
+    DB files: 1 files, 112.33 MB
+    Throughput: 75.36 kops/s
+  10% logged:
+    Controller files: 922 files (+∞%), 6.52 MB (+∞%)
+    DB files: 1 files (+0.0%), 112.33 MB (+0.0%)
+    Throughput: 73.08 kops/s (-3.02%)
+```
+
+
+## Key Features
+
+- **Comprehensive analysis**: Multiple visualization approaches for different use cases
+- **Error visualization**: Standard deviation bars show measurement reliability  
+- **Configurable filtering**: Focus on specific variants, thread counts, or encryption settings
+- **Professional output**: Publication-ready plots with proper formatting and legends
+- **Storage impact analysis**: Quantify logging overhead in terms of files and performance
+- **Backward compatibility**: Works with both old (6-column) and new (10-column) data formats
+- **Multiple formats**: PNG for presentations, PDF for publications
