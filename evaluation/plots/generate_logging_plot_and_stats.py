@@ -200,9 +200,11 @@ def print_storage_stats(data):
         print("No data available for statistics")
         return
 
+
     print("\n" + "="*80)
     print("STORAGE STATISTICS")
     print("="*80)
+
 
     # Group by database and workload
     for db in sorted(data['db'].unique()):
@@ -210,14 +212,17 @@ def print_storage_stats(data):
         print(f"\n{db.upper()} DATABASE:")
         print("-" * 40)
 
+
         for workload in sorted(db_data['workload_name'].unique()):
             workload_data = db_data[db_data['workload_name'] == workload]
             print(f"\n  {workload.upper()}:")
+
 
             # Get baseline (0% logging)
             baseline = workload_data[workload_data['logged_percent'] == 0]
             if baseline.empty:
                 continue
+
 
             baseline_ctl_files = baseline['ctl_files_count'].mean()
             baseline_ctl_size = baseline['ctl_files_size_mb'].mean()
@@ -225,25 +230,30 @@ def print_storage_stats(data):
             baseline_db_size = baseline['db_files_size_mb'].mean()
             baseline_throughput = baseline['throughput_kops'].mean()
 
+
             print(f"    Baseline (0% logged):")
             print(f"      Controller files: {baseline_ctl_files:.0f} files, {baseline_ctl_size:.2f} MB")
             print(f"      DB files: {baseline_db_files:.0f} files, {baseline_db_size:.2f} MB")
             print(f"      Throughput: {baseline_throughput:.2f} kops/s")
+
 
             # Compare other percentages
             for percent in sorted(workload_data['logged_percent'].unique()):
                 if percent == 0:
                     continue
 
+
                 percent_data = workload_data[workload_data['logged_percent'] == percent]
                 if percent_data.empty:
                     continue
+
 
                 ctl_files = percent_data['ctl_files_count'].mean()
                 ctl_size = percent_data['ctl_files_size_mb'].mean()
                 db_files = percent_data['db_files_count'].mean()
                 db_size = percent_data['db_files_size_mb'].mean()
                 throughput = percent_data['throughput_kops'].mean()
+
 
                 # Calculate percentage differences
                 ctl_files_diff = ((ctl_files - baseline_ctl_files) / max(baseline_ctl_files, 1)) * 100
@@ -252,10 +262,139 @@ def print_storage_stats(data):
                 db_size_diff = ((db_size - baseline_db_size) / max(baseline_db_size, 0.01)) * 100
                 throughput_diff = ((throughput - baseline_throughput) / baseline_throughput) * 100
 
+
                 print(f"\n    {percent}% logged:")
                 print(f"      Controller files: {ctl_files:.0f} files ({ctl_files_diff:+.1f}%), {ctl_size:.2f} MB ({ctl_size_diff:+.1f}%)")
                 print(f"      DB files: {db_files:.0f} files ({db_files_diff:+.1f}%), {db_size:.2f} MB ({db_size_diff:+.1f}%)")
                 print(f"      Throughput: {throughput:.2f} kops/s ({throughput_diff:+.2f}%)")
+
+
+def print_storage_amplification_table(data_dir):
+    """Print storage amplification table for CVM variants."""
+
+    # Load data from different experiment types
+    def load_experiment_data(data_dir, controller_type, logging_state):
+        pattern = r"(?P<controller>\w+(?:_\w+)?)-(?P<workload_type>[\w_]+)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)-connection_(?P<connection>\w+)\.csv"
+        data = []
+
+        for filename in os.listdir(data_dir):
+            if filename.endswith(".csv"):
+                match = re.match(pattern, filename)
+                if match:
+                    if (match.group("controller") == controller_type and 
+                        match.group("logging") == logging_state):
+
+                        df = pd.read_csv(os.path.join(data_dir, filename))
+                        df['variant'] = match.group("controller")
+                        df['encryption'] = match.group("encryption")
+                        df['connection'] = match.group("connection")
+                        data.append(df)
+
+        if data:
+            return pd.concat(data, ignore_index=True)
+        else:
+            return pd.DataFrame()
+
+    # Load direct (vanilla) data - no GDPR metadata
+    direct_data = load_experiment_data(data_dir, "direct_CVM", "OFF")
+
+    # Load GDPR data (logging OFF for baseline GDPR DB size)  
+    gdpr_baseline = load_experiment_data(data_dir, "gdpr_CVM", "OFF")
+
+    # Load GDPR logging data
+    gdpr_logging = load_experiment_data(data_dir, "gdpr_CVM", "ON")
+
+    # Parse logging data for different percentages
+    if not gdpr_logging.empty:
+        workload_pattern = r"(?P<workload_name>workload[a-z])_monitor_(?P<logged_percent>\d+)_(?P<size>\w+)"
+        extracted = gdpr_logging['workload'].str.extract(workload_pattern)
+        gdpr_logging['workload_name'] = extracted['workload_name']
+        gdpr_logging['logged_percent'] = extracted['logged_percent'].astype(int)
+        gdpr_logging['workload_size'] = extracted['size']
+        gdpr_logging = gdpr_logging.dropna(subset=['workload_name'])
+
+    # Calculate averages
+    def get_db_size_average(data, db_type):
+        if data.empty:
+            return 0.0
+        db_data = data[data['db'] == db_type]
+        return db_data['db_files_size_mb'].mean() if not db_data.empty else 0.0
+
+    def get_gdpr_log_average(data, db_type, logged_percent):
+        if data.empty:
+            return 0.0
+        db_data = data[(data['db'] == db_type) & (data['logged_percent'] == logged_percent)]
+        return db_data['ctl_files_size_mb'].mean() if not db_data.empty else 0.0
+
+    # Get vanilla DB sizes
+    redis_vanilla = get_db_size_average(direct_data, 'redis')
+    rocksdb_vanilla = get_db_size_average(direct_data, 'rocksdb')
+
+    # Get GDPRuler DB sizes
+    redis_gdpr_db = get_db_size_average(gdpr_baseline, 'redis')
+    rocksdb_gdpr_db = get_db_size_average(gdpr_baseline, 'rocksdb')
+
+    # Get GDPR log sizes for different percentages (compression level 6 is default)
+    redis_logs_10 = get_gdpr_log_average(gdpr_logging, 'redis', 10)
+    redis_logs_50 = get_gdpr_log_average(gdpr_logging, 'redis', 50)
+    redis_logs_100 = get_gdpr_log_average(gdpr_logging, 'redis', 100)
+
+    rocksdb_logs_10 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 10)
+    rocksdb_logs_50 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 50)
+    rocksdb_logs_100 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 100)
+
+    # Calculate write amplification (total data / vanilla DB size)
+    def calc_write_amp(vanilla_size, gdpr_db_size, log_size):
+        if vanilla_size == 0:
+            return float('inf') if gdpr_db_size + log_size > 0 else 1.0
+        return (gdpr_db_size + log_size) / vanilla_size
+
+    redis_wa_0_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, 0)
+    redis_wa_10_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_10)
+    redis_wa_50_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_50)
+    redis_wa_100_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_100)
+
+    rocksdb_wa_0_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, 0)
+    rocksdb_wa_10_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_10)
+    rocksdb_wa_50_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_50)
+    rocksdb_wa_100_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_100)
+
+    # Print the table
+    print("\n" + "="*90)
+    print("STORAGE AMPLIFICATION ANALYSIS")
+    print("="*90)
+    print(f"{'Database':<12} {'Vanilla':<12} {'GDPRuler':<12} {'Compr.':<8} {'GDPR logs (MB)':<30}")
+    print(f"{'':12} {'DB (MB)':<12} {'DB (MB)':<12} {'level':<8} {'10%':<8} {'50%':<10} {'100%':<12}")
+    print("-" * 90)
+
+    # Redis rows
+    print(f"{'Redis':<12} {redis_vanilla:<12.2f} {redis_gdpr_db:<12.2f} {'0':<8} {0.00:<8.2f} {0.00:<10.2f} {0.00:<12.2f}")
+    print(f"{'':12} {'':12} {'':12} {'6':<8} {redis_logs_10:<8.2f} {redis_logs_50:<10.2f} {redis_logs_100:<12.2f}")
+    print()
+
+    # RocksDB rows  
+    print(f"{'RocksDB':<12} {rocksdb_vanilla:<12.2f} {rocksdb_gdpr_db:<12.2f} {'0':<8} {0.00:<8.2f} {0.00:<10.2f} {0.00:<12.2f}")
+    print(f"{'':12} {'':12} {'':12} {'6':<8} {rocksdb_logs_10:<8.2f} {rocksdb_logs_50:<10.2f} {rocksdb_logs_100:<12.2f}")
+    print()
+    print("-" * 90)
+
+    # Write amplification rows
+    print(f"{'Write Amplification (Redis)':<38} {'0':<8} {redis_wa_0_comp:<8.2f} {redis_wa_0_comp:<10.2f} {redis_wa_0_comp:<12.2f}")
+    print(f"{'':38} {'6':<8} {redis_wa_10_comp:<8.2f} {redis_wa_50_comp:<10.2f} {redis_wa_100_comp:<12.2f}")
+    print(f"{'Write Amplification (Rocksdb)':<38} {'0':<8} {rocksdb_wa_0_comp:<8.2f} {rocksdb_wa_0_comp:<10.2f} {rocksdb_wa_0_comp:<12.2f}")
+    print(f"{'':38} {'6':<8} {rocksdb_wa_10_comp:<8.2f} {rocksdb_wa_50_comp:<10.2f} {rocksdb_wa_100_comp:<12.2f}")
+
+    print("="*90)
+    print()
+    print("DETAILED BREAKDOWN:")
+    print(f"Redis - Vanilla DB: {redis_vanilla:.2f} MB")
+    print(f"Redis - GDPRuler DB: {redis_gdpr_db:.2f} MB") 
+    print(f"Redis - GDPR logs: 10%={redis_logs_10:.2f} MB, 50%={redis_logs_50:.2f} MB, 100%={redis_logs_100:.2f} MB")
+    print()
+    print(f"RocksDB - Vanilla DB: {rocksdb_vanilla:.2f} MB")
+    print(f"RocksDB - GDPRuler DB: {rocksdb_gdpr_db:.2f} MB")
+    print(f"RocksDB - GDPR logs: 10%={rocksdb_logs_10:.2f} MB, 50%={rocksdb_logs_50:.2f} MB, 100%={rocksdb_logs_100:.2f} MB")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Generate logging impact plots and statistics")
@@ -304,6 +443,9 @@ def main():
 
     # Print statistics
     print_storage_stats(data)
+
+    # Print storage amplification table
+    print_storage_amplification_table(input_dir)
 
 if __name__ == "__main__":
     main()
