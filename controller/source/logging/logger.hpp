@@ -14,7 +14,7 @@
 #include "../gdpr_filter.hpp"
 #include "../query.hpp"
 
-#define DEFAULT_LOGGER_COMPRESSION_LEVEL 6
+#define DEFAULT_LOGGER_COMPRESSION_LEVEL 3
 
 namespace controller {
 

@@ -10,7 +10,7 @@ option(ENCRYPTION_ENABLED "Enable encryption" ON)
 option(ASAN_ENABLED "Enable Address Sanitizer" OFF)
 option(TSAN_ENABLED "Enable Thread Sanitizer" OFF)
 
-set(LOGGER_COMPRESSION_LEVEL "6" CACHE STRING "Compression level (0-9)")
+set(LOGGER_COMPRESSION_LEVEL "3" CACHE STRING "Compression level (0-9)")
 # Validate range (0-9)
 if(LOGGER_COMPRESSION_LEVEL LESS 0 OR LOGGER_COMPRESSION_LEVEL GREATER 9)
     message(FATAL_ERROR "LOGGER_COMPRESSION_LEVEL must be in the range [0,9]. You set: ${LOGGER_COMPRESSION_LEVEL}")
