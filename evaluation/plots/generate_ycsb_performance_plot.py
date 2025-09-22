@@ -295,7 +295,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     
     # Position legend at the top
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.11), 
-              ncol=min(len(variants), 4), fontsize=LEGEND_FONTSIZE, frameon=True)
+              ncol=min(len(variants), 3), fontsize=LEGEND_FONTSIZE, frameon=True)
     
     # Adjust layout and save
     plt.tight_layout()
