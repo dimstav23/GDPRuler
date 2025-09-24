@@ -280,7 +280,7 @@ def print_storage_amplification_table(data_dir):
     """Print storage amplification table for CVM variants."""
 
     # Load data from different experiment types
-    def load_experiment_data(data_dir, controller_type, logging_state):
+    def load_experiment_data(data_dir, controller_type, logging_state, encryption):
         pattern = r"(?P<controller>\w+(?:_\w+)?)-(?P<workload_type>[\w_]+)-encryption_(?P<encryption>\w+)-logging_(?P<logging>\w+)-connection_(?P<connection>\w+)\.csv"
         data = []
 
@@ -289,7 +289,8 @@ def print_storage_amplification_table(data_dir):
                 match = re.match(pattern, filename)
                 if match:
                     if (match.group("controller") == controller_type and 
-                        match.group("logging") == logging_state):
+                        match.group("logging") == logging_state and
+                        match.group("encryption") == encryption):
 
                         df = pd.read_csv(os.path.join(data_dir, filename))
                         df['variant'] = match.group("controller")
@@ -303,13 +304,13 @@ def print_storage_amplification_table(data_dir):
             return pd.DataFrame()
 
     # Load direct (vanilla) data - no GDPR metadata
-    direct_data = load_experiment_data(data_dir, "direct_CVM", "OFF")
+    direct_data = load_experiment_data(data_dir, "direct_CVM", "OFF", "OFF")
 
     # Load GDPR data (logging OFF for baseline GDPR DB size)  
-    gdpr_baseline = load_experiment_data(data_dir, "gdpr_CVM", "OFF")
+    gdpr_baseline = load_experiment_data(data_dir, "gdpr_CVM", "OFF", "ON")
 
     # Load GDPR logging data
-    gdpr_logging = load_experiment_data(data_dir, "gdpr_CVM", "ON")
+    gdpr_logging = load_experiment_data(data_dir, "gdpr_CVM", "ON", "ON")
 
     # Parse logging data for different percentages
     if not gdpr_logging.empty:
@@ -320,35 +321,52 @@ def print_storage_amplification_table(data_dir):
         gdpr_logging['workload_size'] = extracted['size']
         gdpr_logging = gdpr_logging.dropna(subset=['workload_name'])
 
-    # Calculate averages
+    # Calculate averages (only based workloadA and workloadC as these are the ones used in the monitor workloads)
     def get_db_size_average(data, db_type):
         if data.empty:
             return 0.0
         db_data = data[data['db'] == db_type]
+        db_data = data[(data['db'] == db_type) & ((data['workload'] == "workloada_medium") | (data['workload'] == "workloadc_medium"))]
         return db_data['db_files_size_mb'].mean() if not db_data.empty else 0.0
 
-    def get_gdpr_log_average(data, db_type, logged_percent):
+    def get_gdpr_log_average(data, db_type, logged_percent, compression_level):
         if data.empty:
             return 0.0
-        db_data = data[(data['db'] == db_type) & (data['logged_percent'] == logged_percent)]
+        db_data = data[(data['db'] == db_type) & (data['logged_percent'] == logged_percent) & (data['compression_level'] == compression_level)]
         return db_data['ctl_files_size_mb'].mean() if not db_data.empty else 0.0
 
-    # Get vanilla DB sizes
+    # Get vanilla DB sizes from generic YCSB experiments based on WorkloadA and WorkloadC
     redis_vanilla = get_db_size_average(direct_data, 'redis')
     rocksdb_vanilla = get_db_size_average(direct_data, 'rocksdb')
 
-    # Get GDPRuler DB sizes
+    # Get GDPRuler DB sizes from generic YCSB experiments based on WorkloadA and WorkloadC
     redis_gdpr_db = get_db_size_average(gdpr_baseline, 'redis')
     rocksdb_gdpr_db = get_db_size_average(gdpr_baseline, 'rocksdb')
 
-    # Get GDPR log sizes for different percentages (compression level 6 is default)
-    redis_logs_10 = get_gdpr_log_average(gdpr_logging, 'redis', 10)
-    redis_logs_50 = get_gdpr_log_average(gdpr_logging, 'redis', 50)
-    redis_logs_100 = get_gdpr_log_average(gdpr_logging, 'redis', 100)
+    # Get GDPR log sizes for different percentages and compression levels
+    redis_logs_10_0 = get_gdpr_log_average(gdpr_logging, 'redis', 10, compression_level=0)
+    redis_logs_50_0 = get_gdpr_log_average(gdpr_logging, 'redis', 50, compression_level=0)
+    redis_logs_100_0 = get_gdpr_log_average(gdpr_logging, 'redis', 100, compression_level=0)
 
-    rocksdb_logs_10 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 10)
-    rocksdb_logs_50 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 50)
-    rocksdb_logs_100 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 100)
+    rocksdb_logs_10_0 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 10, compression_level=0)
+    rocksdb_logs_50_0 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 50, compression_level=0)
+    rocksdb_logs_100_0 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 100, compression_level=0)
+    
+    redis_logs_10_3 = get_gdpr_log_average(gdpr_logging, 'redis', 10, compression_level=3)
+    redis_logs_50_3 = get_gdpr_log_average(gdpr_logging, 'redis', 50, compression_level=3)
+    redis_logs_100_3 = get_gdpr_log_average(gdpr_logging, 'redis', 100, compression_level=3)
+
+    rocksdb_logs_10_3 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 10, compression_level=3)
+    rocksdb_logs_50_3 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 50, compression_level=3)
+    rocksdb_logs_100_3 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 100, compression_level=3)
+    
+    redis_logs_10_6 = get_gdpr_log_average(gdpr_logging, 'redis', 10, compression_level=6)
+    redis_logs_50_6 = get_gdpr_log_average(gdpr_logging, 'redis', 50, compression_level=6)
+    redis_logs_100_6 = get_gdpr_log_average(gdpr_logging, 'redis', 100, compression_level=6)
+
+    rocksdb_logs_10_6 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 10, compression_level=6)
+    rocksdb_logs_50_6 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 50, compression_level=6)
+    rocksdb_logs_100_6 = get_gdpr_log_average(gdpr_logging, 'rocksdb', 100, compression_level=6)
 
     # Calculate write amplification (total data / vanilla DB size)
     def calc_write_amp(vanilla_size, gdpr_db_size, log_size):
@@ -356,15 +374,25 @@ def print_storage_amplification_table(data_dir):
             return float('inf') if gdpr_db_size + log_size > 0 else 1.0
         return (gdpr_db_size + log_size) / vanilla_size
 
-    redis_wa_0_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, 0)
-    redis_wa_10_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_10)
-    redis_wa_50_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_50)
-    redis_wa_100_comp = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_100)
+    redis_wa_10_comp_0 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_10_0)
+    redis_wa_50_comp_0 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_50_0)
+    redis_wa_100_comp_0 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_100_0)
+    redis_wa_10_comp_3 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_10_3)
+    redis_wa_50_comp_3 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_50_3)
+    redis_wa_100_comp_3 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_100_3)
+    redis_wa_10_comp_6 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_10_6)
+    redis_wa_50_comp_6 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_50_6)
+    redis_wa_100_comp_6 = calc_write_amp(redis_vanilla, redis_gdpr_db, redis_logs_100_6)
 
-    rocksdb_wa_0_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, 0)
-    rocksdb_wa_10_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_10)
-    rocksdb_wa_50_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_50)
-    rocksdb_wa_100_comp = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_100)
+    rocksdb_wa_10_comp_0 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_10_0)
+    rocksdb_wa_50_comp_0 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_50_0)
+    rocksdb_wa_100_comp_0 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_100_0)
+    rocksdb_wa_10_comp_3 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_10_3)
+    rocksdb_wa_50_comp_3 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_50_3)
+    rocksdb_wa_100_comp_3 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_100_3)
+    rocksdb_wa_10_comp_6 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_10_6)
+    rocksdb_wa_50_comp_6 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_50_6)
+    rocksdb_wa_100_comp_6 = calc_write_amp(rocksdb_vanilla, rocksdb_gdpr_db, rocksdb_logs_100_6)
 
     # Print the table
     print("\n" + "="*90)
@@ -375,33 +403,40 @@ def print_storage_amplification_table(data_dir):
     print("-" * 90)
 
     # Redis rows
-    print(f"{'Redis':<12} {redis_vanilla:<12.2f} {redis_gdpr_db:<12.2f} {'0':<8} {0.00:<8.2f} {0.00:<10.2f} {0.00:<12.2f}")
-    print(f"{'':12} {'':12} {'':12} {'6':<8} {redis_logs_10:<8.2f} {redis_logs_50:<10.2f} {redis_logs_100:<12.2f}")
+    print(f"{'Redis':<12} {redis_vanilla:<12.2f} {redis_gdpr_db:<12.2f} {'0':<8} {redis_logs_10_0:<8.2f} {redis_logs_50_0:<10.2f} {redis_logs_100_0:<12.2f}")
+    print(f"{'':12} {'':12} {'':12} {'3':<8} {redis_logs_10_3:<8.2f} {redis_logs_50_3:<10.2f} {redis_logs_100_3:<12.2f}")
+    print(f"{'':12} {'':12} {'':12} {'6':<8} {redis_logs_10_6:<8.2f} {redis_logs_50_6:<10.2f} {redis_logs_100_6:<12.2f}")
     print()
 
     # RocksDB rows  
-    print(f"{'RocksDB':<12} {rocksdb_vanilla:<12.2f} {rocksdb_gdpr_db:<12.2f} {'0':<8} {0.00:<8.2f} {0.00:<10.2f} {0.00:<12.2f}")
-    print(f"{'':12} {'':12} {'':12} {'6':<8} {rocksdb_logs_10:<8.2f} {rocksdb_logs_50:<10.2f} {rocksdb_logs_100:<12.2f}")
+    print(f"{'RocksDB':<12} {rocksdb_vanilla:<12.2f} {rocksdb_gdpr_db:<12.2f} {'0':<8} {rocksdb_logs_10_0:<8.2f} {rocksdb_logs_50_0:<10.2f} {rocksdb_logs_100_0:<12.2f}")
+    print(f"{'':12} {'':12} {'':12} {'3':<8} {rocksdb_logs_10_3:<8.2f} {rocksdb_logs_50_3:<10.2f} {rocksdb_logs_100_3:<12.2f}")
+    print(f"{'':12} {'':12} {'':12} {'6':<8} {rocksdb_logs_10_6:<8.2f} {rocksdb_logs_50_6:<10.2f} {rocksdb_logs_100_6:<12.2f}")
     print()
     print("-" * 90)
 
     # Write amplification rows
-    print(f"{'Write Amplification (Redis)':<38} {'0':<8} {redis_wa_0_comp:<8.2f} {redis_wa_0_comp:<10.2f} {redis_wa_0_comp:<12.2f}")
-    print(f"{'':38} {'6':<8} {redis_wa_10_comp:<8.2f} {redis_wa_50_comp:<10.2f} {redis_wa_100_comp:<12.2f}")
-    print(f"{'Write Amplification (Rocksdb)':<38} {'0':<8} {rocksdb_wa_0_comp:<8.2f} {rocksdb_wa_0_comp:<10.2f} {rocksdb_wa_0_comp:<12.2f}")
-    print(f"{'':38} {'6':<8} {rocksdb_wa_10_comp:<8.2f} {rocksdb_wa_50_comp:<10.2f} {rocksdb_wa_100_comp:<12.2f}")
+    print(f"{'Write Amplification (Redis)':<38} {'0':<8} {redis_wa_10_comp_0:<8.2f} {redis_wa_50_comp_0:<10.2f} {redis_wa_100_comp_0:<12.2f}")
+    print(f"{'':38} {'3':<8} {redis_wa_10_comp_3:<8.2f} {redis_wa_50_comp_3:<10.2f} {redis_wa_100_comp_3:<12.2f}")
+    print(f"{'':38} {'6':<8} {redis_wa_10_comp_6:<8.2f} {redis_wa_50_comp_6:<10.2f} {redis_wa_100_comp_6:<12.2f}")
+    print(f"{'Write Amplification (Rocksdb)':<38} {'0':<8} {rocksdb_wa_10_comp_0:<8.2f} {rocksdb_wa_50_comp_0:<10.2f} {rocksdb_wa_100_comp_0:<12.2f}")
+    print(f"{'':38} {'3':<8} {rocksdb_wa_10_comp_3:<8.2f} {rocksdb_wa_50_comp_3:<10.2f} {rocksdb_wa_100_comp_3:<12.2f}")
+    print(f"{'':38} {'6':<8} {rocksdb_wa_10_comp_6:<8.2f} {rocksdb_wa_50_comp_6:<10.2f} {rocksdb_wa_100_comp_6:<12.2f}")
 
     print("="*90)
     print()
     print("DETAILED BREAKDOWN:")
     print(f"Redis - Vanilla DB: {redis_vanilla:.2f} MB")
     print(f"Redis - GDPRuler DB: {redis_gdpr_db:.2f} MB") 
-    print(f"Redis - GDPR logs: 10%={redis_logs_10:.2f} MB, 50%={redis_logs_50:.2f} MB, 100%={redis_logs_100:.2f} MB")
+    print(f"Redis - GDPR logs (compression = 0): 10%={redis_logs_10_0:.2f} MB, 50%={redis_logs_50_0:.2f} MB, 100%={redis_logs_100_0:.2f} MB")
+    print(f"Redis - GDPR logs (compression = 3): 10%={redis_logs_10_3:.2f} MB, 50%={redis_logs_50_3:.2f} MB, 100%={redis_logs_100_3:.2f} MB")
+    print(f"Redis - GDPR logs (compression = 6): 10%={redis_logs_10_6:.2f} MB, 50%={redis_logs_50_6:.2f} MB, 100%={redis_logs_100_6:.2f} MB")
     print()
     print(f"RocksDB - Vanilla DB: {rocksdb_vanilla:.2f} MB")
     print(f"RocksDB - GDPRuler DB: {rocksdb_gdpr_db:.2f} MB")
-    print(f"RocksDB - GDPR logs: 10%={rocksdb_logs_10:.2f} MB, 50%={rocksdb_logs_50:.2f} MB, 100%={rocksdb_logs_100:.2f} MB")
-
+    print(f"RocksDB - GDPR logs (compression = 3): 10%={rocksdb_logs_10_0:.2f} MB, 50%={rocksdb_logs_50_0:.2f} MB, 100%={rocksdb_logs_100_0:.2f} MB")
+    print(f"RocksDB - GDPR logs (compression = 3): 10%={rocksdb_logs_10_3:.2f} MB, 50%={rocksdb_logs_50_3:.2f} MB, 100%={rocksdb_logs_100_3:.2f} MB")
+    print(f"RocksDB - GDPR logs (compression = 6): 10%={rocksdb_logs_10_6:.2f} MB, 50%={rocksdb_logs_50_6:.2f} MB, 100%={rocksdb_logs_100_6:.2f} MB")
 
 def main():
     parser = argparse.ArgumentParser(description="Generate logging impact plots and statistics")
