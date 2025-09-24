@@ -26,6 +26,13 @@ TITLE_FONTSIZE = FONTSIZE
 LABEL_FONTSIZE = FONTSIZE
 TICK_FONTSIZE = FONTSIZE - 1
 LEGEND_FONTSIZE = FONTSIZE 
+
+FONTSIZE = 6
+TITLE_FONTSIZE = FONTSIZE
+LABEL_FONTSIZE = FONTSIZE
+TICK_FONTSIZE = FONTSIZE - 1
+LEGEND_FONTSIZE = FONTSIZE
+ANNOTATION_FONTSIZE = FONTSIZE / 2 - 1
 # hatches = ["", "o", "*", ".", "//", "-", "\\", ".", "o-", "*-"]
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
