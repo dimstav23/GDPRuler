@@ -53,7 +53,7 @@ run_experiments_in_cvm() {
 
         # Run experiment using existing CVM
         run_experiment CVM_passthrough $n_clients $workload $db $db_address $db_port \
-          $results_csv_file $USE_DRAIN $controller_address $controller_port $client_cfg
+          $results_csv_file $controller_address $controller_port $client_cfg
         echo ""
       done
     done

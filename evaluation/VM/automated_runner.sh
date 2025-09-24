@@ -1,6 +1,6 @@
 #!/bin/sh
 
-repeats=5
+repeats=3
 
 for i in $(seq 1 "$repeats"); do
   echo "=== Iteration $i / $repeats ==="

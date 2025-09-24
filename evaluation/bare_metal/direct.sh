@@ -12,6 +12,12 @@ source $script_dir/../args_and_checks.sh
 # Call the parse_args function with your command-line arguments
 parse_args_and_checks "$@"
 
+# Prepare host storage
+echo "Preparing storage for bare metal experiments..."
+prepare_storage_host "$NVME_DEVICE" "$MOUNT_POINT" "$FILESYSTEM_TYPE"
+# Set cleanup trap
+trap 'cleanup_storage_host "$MOUNT_POINT"' EXIT INT TERM
+
 if [[ "$server_connection" != "TCP" ]]; then
   echo "Error: server_connection must be 'TCP' for the direct, bare metal experiment"
   exit 1
@@ -30,7 +36,7 @@ for n_clients in $clients; do
         db_address=$direct_redis_address
       fi
       echo -e "\e[34mStarting a direct DB server scenario with $n_clients clients, $db store, direct connection, and $workload.\e[0m"
-      run_experiment native_direct $n_clients $workload $db $db_address $db_port $results_csv_file $USE_DRAIN
+      run_experiment native_direct $n_clients $workload $db $db_address $db_port $results_csv_file
       echo ""
     done
   done

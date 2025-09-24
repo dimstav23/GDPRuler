@@ -51,7 +51,7 @@ run_experiments_in_cvm() {
         echo -e "\e[34mStarting a direct CVM scenario run with $n_clients clients, $db store and $workload\e[0m"
 
         # Run experiment using existing CVM
-        run_experiment CVM_direct $n_clients $workload $db $db_address $db_port $results_csv_file $USE_DRAIN 
+        run_experiment CVM_direct $n_clients $workload $db $db_address $db_port $results_csv_file
         echo ""
       done
     done

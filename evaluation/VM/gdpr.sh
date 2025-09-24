@@ -32,10 +32,6 @@ fi
 # Set cleanup trap for CVM-only cleanup
 trap 'shutdown_cvm' EXIT INT TERM
 
-# compile the controller in the CVM with the appropriate encryption option
-virt-customize --add ${images_dir}/gdpr.img --smp $(nproc) --memsize 16384 \
-  --run-command "cd /root/GDPRuler/controller && rm -rf build && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption && cmake --build build -j$(nproc)"
-
 # GDPR controller
 results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_CVM-query_mgmt_${workload_type}-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 
@@ -53,10 +49,13 @@ run_experiments_in_cvm() {
   if [[ $logging == "ON" ]]; then
     workloads_to_use=$logging_workloads
     clients_to_use=$logging_clients
-    USE_DRAIN="true"
+    compression_levels_to_use=$logging_compression_levels
+    use_drain="true"
   else
     workloads_to_use=$workloads
     clients_to_use=$clients
+    compression_levels_to_use=$compression_levels
+    use_drain="false"
   fi
 
   # Start CVM once
@@ -65,23 +64,31 @@ run_experiments_in_cvm() {
   cvm_pid=$!
   
   # Run all experiments
-  for n_clients in $clients_to_use; do
-    for db in $dbs; do
-      for workload in $workloads_to_use; do
-        if [[ $db == "rocksdb" ]]; then
-          db_port=$ctl_rocksdb_port
-          db_address=$ctl_rocksdb_address
-        elif [[ $db == "redis" ]]; then
-          db_port=$ctl_redis_port
-          db_address=$ctl_redis_address
-        fi
+  for compression_level in $compression_levels_to_use; do
+    # recompile the controller with the appropriate compression level and encryption parameter
+    cmd="cd /root/GDPRuler/controller && rm -rf build \
+     && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption -D LOGGER_COMPRESSION_LEVEL=$compression_level \
+     && cmake --build build -j$(nproc)"
+    execute_in_cvm "$cmd"
 
-        echo -e "\e[34mStarting a gdpr CVM scenario run with $n_clients clients, $db store, gdpr controller, $workload, logging set to $logging, and server connection set to $server_connection\e[0m"
+    for n_clients in $clients_to_use; do
+      for db in $dbs; do
+        for workload in $workloads_to_use; do
+          if [[ $db == "rocksdb" ]]; then
+            db_port=$ctl_rocksdb_port
+            db_address=$ctl_rocksdb_address
+          elif [[ $db == "redis" ]]; then
+            db_port=$ctl_redis_port
+            db_address=$ctl_redis_address
+          fi
 
-        # Run experiment using existing CVM
-        run_experiment CVM_gdpr $n_clients $workload $db $db_address $db_port \
-          $results_csv_file $USE_DRAIN $controller_address $controller_port $client_cfg
-        echo ""
+          echo -e "\e[34mStarting a gdpr CVM scenario run with $n_clients clients, $db store, gdpr controller, $workload, logging set to $logging (compression level = $compression_level), and server connection set to $server_connection\e[0m"
+
+          # Run experiment using existing CVM
+          run_experiment CVM_gdpr $n_clients $workload $db $db_address $db_port \
+            $results_csv_file $controller_address $controller_port $client_cfg $compression_level $use_drain
+          echo ""
+        done
       done
     done
   done

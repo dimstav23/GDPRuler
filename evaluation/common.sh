@@ -33,6 +33,7 @@ NVME_DEVICE="/dev/nvme1n1"
 MOUNT_POINT="/scratch/dimitrios/gdpruler_fs"
 DEVICE_IN_CVM="/dev/vda"
 FILESYSTEM_TYPE="ext4"
+DEFAULT_COMPRESSION_LEVEL="0"
 
 # Global variables
 failed_tests=""
@@ -40,7 +41,6 @@ server_connection=""
 CVM_EXPECT_PID=""
 CVM_READY=false
 CVM_IP="${CONFIG[CVM_IP]}"
-USE_DRAIN="false"
 
 # Function to start the CVM using the listed expect script
 boot_cvm() {
@@ -316,7 +316,7 @@ run_controller_native() {
     local db_dir="$6"
     local ctl_dir="$7"
     local output_file="$8"
-    
+
     local controller_bin=""
     case "$controller_type" in
         "gdpr") controller_bin="${PATHS[GDPR_CONTROLLER]}" ;;
@@ -453,7 +453,7 @@ prepare_experiment() {
     
     if [ ! -f "$result_file" ]; then
         install -D -m 644 /dev/null "$result_file"
-        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s),ctl_files_count,ctl_files_size_mb,db_files_count,db_files_size_mb" >> "$result_file"
+        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s),ctl_files_count,ctl_files_size_mb,db_files_count,db_files_size_mb,compression_level" >> "$result_file"
     fi
 }
 
@@ -547,6 +547,7 @@ collect_results() {
     local n_clients="$4"
     local results_file="$5"
     local environment="$6"  # "native" or "CVM"
+    local compression_level="${7:-$DEFAULT_COMPRESSION_LEVEL}"
     
     local elapsed_time=$(grep "Elapsed time: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
     local avg_latency=$(grep "Average Latency: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
@@ -557,8 +558,8 @@ collect_results() {
         # Collect storage metrics before cleanup
         local storage_metrics=$(collect_storage_metrics "$environment" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[DB_DUMP_DIR]}")
 
-        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency,$storage_metrics" >> "$results_file"
-        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency, storage=$storage_metrics\e[0m"
+        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency,$storage_metrics,$compression_level" >> "$results_file"
+        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency, storage=$storage_metrics, compression_level=$compression_level\e[0m"
     fi
 }
 
@@ -709,8 +710,7 @@ run_experiment() {
     local db_address="$5"
     local db_port="$6"
     local results_csv_file="$7"
-    local use_drain="$8"
-    shift 8
+    shift 7
         
     local db_address_formatted="${db_address}:${db_port}"
     if [[ $db == "redis" ]]; then
@@ -725,7 +725,7 @@ run_experiment() {
     case "$experiment_type" in
         "native_direct")
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
-            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db" "$use_drain"
+            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
             collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "native"
             ;;
         "native_ctl")
@@ -733,15 +733,17 @@ run_experiment() {
             local controller_address="$2"
             local controller_port="$3"
             local config="$4"
+            local compression_level="$5"
+            local use_drain="$6"
             
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
-            run_controller "$controller" "native" "$controller_address" "$controller_port" "$db" "$db_address_formatted" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" ""
+            run_controller "$controller" "native" "$controller_address" "$controller_port" "$db" "$db_address_formatted" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "" "$compression_level"
             run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "$use_drain"
-            collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file" "native"
+            collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file" "native" "$compression_level"
             ;;
         "CVM_direct")
             run_server "$db" "CVM" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
-            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db" "$use_drain"
+            run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
             collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "CVM"
             ;;
         "CVM_passthrough"|"CVM_gdpr")
@@ -749,10 +751,12 @@ run_experiment() {
             local controller_address="$1"
             local controller_port="$2"
             local config="$3"
+            local compression_level="$4"
+            local use_drain="$5"
             
-            run_controller "$controller_type" "CVM" "$controller_address" "$controller_port" "$db" "$db_address" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "${CONFIG[TMP_DIR]}/server.txt"
+            run_controller "$controller_type" "CVM" "$controller_address" "$controller_port" "$db" "$db_address" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "${CONFIG[TMP_DIR]}/server.txt" "$compression_level"
             run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "$use_drain"
-            collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file" "CVM"
+            collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file" "CVM" "$compression_level"
             ;;
     esac
     # Cleanup phase
