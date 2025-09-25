@@ -19,7 +19,7 @@ clients = [1, 2, 4, 8, 16]
 repeats = 3
 workloads = ["workloada", "workloadb", "workloadc", "workloadd", "workloadf"]
 # workloads = ["workloada_test", "workloadb_test", "workloadc_test", "workloadd_test", "workloadf_test"]
-db_files_dir = "/scratch/dimitrios/data"
+db_files_dir = "/scratch/dimitrios/gdpruler_fs/data"
 
 # Setup of the server executables, their arguments and the kv client driver
 redis_server_path = [os.path.join(curr_dir, "../KVs/redis/src/redis-server")]

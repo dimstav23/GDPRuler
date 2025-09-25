@@ -12,7 +12,6 @@
 #include "gdpr_filter.hpp"
 #include "common.hpp"
 #include "kv_client/factory.hpp"
-#include "logging/logger.hpp"
 #include "logging/monitor.hpp"
 #include "gdpr_regulator.hpp"
 #include "global_gdpr_metadata_cache.hpp"
@@ -337,16 +336,18 @@ auto handle_get_logs(const query &query_args,
     return GET_LOGS_FAILED; // GET_LOGS_FAILED: Invalid regulator key
   }
 
-  auto regulator = gdpr_regulator(); 
+  uint64_t timestamp_thres = std::chrono::system_clock::now().time_since_epoch().count();
+  // auto regulator = gdpr_regulator();
+  auto* regulator = controller::gdpr_regulator::get_instance();
   std::stringstream response;
 
   if (query_args.log_key() == "read_all") {
     response << "Reading all the log files:" << std::endl;
-    std::vector<std::string> log_files = regulator.retrieve_logs();
+    std::vector<std::string> log_files = regulator->retrieve_logs();
     // TODO: redirect this output to the regulator secure channel
     for (const auto& log : log_files) {
       response << "Log file: " << log << std::endl;
-      std::vector<std::string> log_entries = regulator.read_log(log);
+      std::vector<std::string> log_entries = regulator->read_log(log, timestamp_thres);
       for (const auto& entry : log_entries) {
         response << entry << std::endl;
       }
@@ -354,7 +355,7 @@ auto handle_get_logs(const query &query_args,
   }
   else if (query_args.log_key() == "dir") {
     response << "Available log files:" << std::endl;
-    std::vector<std::string> log_files = regulator.retrieve_logs();
+    std::vector<std::string> log_files = regulator->retrieve_logs();
     // TODO: redirect this output to the regulator secure channel
     for (const auto& log : log_files) {
       response << log << std::endl;
@@ -362,7 +363,7 @@ auto handle_get_logs(const query &query_args,
   }
   else {
     response << "Reading the log file of key " << query_args.log_key() << ":" << std::endl;
-    std::vector<std::string> log_entries = regulator.read_key_log(query_args.log_key());
+    std::vector<std::string> log_entries = regulator->read_key_log(query_args.log_key(), timestamp_thres);
     // TODO: redirect this output to the regulator secure channel
     for (const auto& entry : log_entries) {
       response << entry << std::endl;
@@ -426,7 +427,7 @@ auto handle_connection
     std::cerr << "Failed to allocate buffer" << std::endl;
     return;
   }
-
+  
   while (true) {
     #ifdef INTERNAL_TIMING
     auto frontend_connection_rec_start = std::chrono::steady_clock::now();
@@ -463,7 +464,17 @@ auto handle_connection
       if (response_length <= max_msg_size) {
         ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
       }
-
+      break;
+    }
+    else if (query_args.cmd() == "drain") [[unlikely]] {
+      // drain the logging queues and sync
+      logger::get_instance()->pauseWorkersAndFlushLogs();
+      // Send the response before breaking
+      response = "Logger queues drained";
+      size_t response_length = response.length();
+      if (response_length <= max_msg_size) {
+        ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
+      }
       break;
     }
     else if (query_args.cmd() == "invalid") [[unlikely]] {
@@ -502,13 +513,8 @@ auto handle_connection
     auto frontend_connection_send_start = std::chrono::steady_clock::now();
     #endif
 
-    // Check the message size
+    // Get the message size
     size_t response_length = response.length();
-    if (response_length > max_msg_size) {
-      std::cerr << "Outgoing message too large." << std::endl;
-      break;
-    }
-
     // Send the response to the client
     ssize_t bytes_sent = safe_sock_send(socket, response.data(), response_length);
     if (bytes_sent <= 0) {
@@ -559,7 +565,8 @@ auto main(int argc, char* argv[]) -> int
   
   // set the log path based on the input parameter
   const std::string log_path = get_command_line_argument(args, "--logpath");
-  logger::get_instance()->init_log_path(log_path);
+  logger::get_instance()->init_gdpr_logger(log_path);
+  gdpr_regulator::get_instance()->initialize(logger::get_instance()->get_log_exporter());
 
   // set the database encryption key based on the input parameter
   const std::string db_encryption_key = get_command_line_argument(args, "--db_encryptionkey");

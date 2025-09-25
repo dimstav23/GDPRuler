@@ -36,7 +36,7 @@
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           pandas
           pexpect
-	  plotly
+	        plotly
           matplotlib
           seaborn
         ]);
@@ -91,7 +91,6 @@
             #redis specific packages
             tcl
             tcltls
-            openssl
             jemalloc
             hiredis
             redis-plus-plus
@@ -118,11 +117,17 @@
             #for the snpguest -- rust nightly is required
             # Note: to use stable, just replace `default` with `stable`
             # fenix.packages.${system}.default.toolchain
+            # for the logging system
+            gnumake
+            gtest
+
           ];
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libraries;
           shellHook = ''
             export PATH=${pythonEnv}/bin:$PATH
+	    export CC=clang
+	    export CXX=clang++
           '';
 
           RUST_BACKTRACE = 1;

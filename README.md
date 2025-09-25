@@ -24,13 +24,31 @@ To enter the development environment with all the required dependencies, use:
 ```
 $ nix develop
 ``` 
+For the logging experiments you might want to allocate an entire block device and create an `ext4` filesystem on top where you must also configure 
+you log file path to be. 
+An example execution to do that is the following:
+```
+$ sudo mkfs.ext4 /dev/nvme1n1
+$ mkdir -p /scratch/dimitrios/gdpruler_fs
+$ sudo mount /dev/nvme1n1 /scratch/dimitrios/gdpruler_fs -t ext4
+$ sudo chown $USER:$(id -gn $USER) /scratch/dimitrios/gdpruler_fs 
+```
 
 ### 1. Make sure you have fetched all the submodules:
 ```
 $ git submodule update --init --recursive
 ```
 
-### 2. Build the `GDPR controller`:
+### 2. Build the `Logging subsystem`:
+```
+$ cd gdpr-logger
+$ mkdir build
+$ cd build
+$ cmake .. -D CMAKE_BUILD_TYPE=Release
+$ make -j$(nproc)
+```
+
+### 3. Build the `GDPR controller`:
 ```
 $ cd controller
 $ cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
@@ -42,7 +60,7 @@ $ cmake --build build
 - Enable/disable AddressSanitizer with `-D ASAN_ENABLED=ON/OFF` (defaults to `OFF`)
 - Enable/disable ThreadSanitizer with `-D TSAN_ENABLED=ON/OFF` (defaults to `OFF`)
 
-### 3. Compile `redis` (to build the `redis-server` binary):
+### 4. Compile `redis` (to build the `redis-server` binary):
 ```
 $ cd KVs/redis
 $ make BUILD_TLS=yes MALLOC=libc
@@ -92,7 +110,7 @@ For more command line options, please consult [`scripts/client.py`](scripts/clie
 
 ## VM Setup instructions
 For instructions on how to set up the client and server SEV VMs, 
-please consult the respective [README](./AMD_SEV_SNP/README.md).
+please consult the respective [README](./CVM_setup/README.md).
 
 ## VM sample execution
 

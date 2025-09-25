@@ -106,15 +106,15 @@ public:
       return failed_encrypt_result;
     }
 
-    /* Create and initialise the context */
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    /* Get pre-initialized context */
+    EVP_CIPHER_CTX* ctx = get_encrypt_context();
     if (ctx == nullptr) {
-      std::cerr << "Failed to create encryption context!" << std::endl;
+      std::cerr << "Failed to get encryption context!" << std::endl;
       return failed_encrypt_result;
     }
 
     /* Initialise the encryption operation. */
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, initialization_vector.data()) != 1) {
+    if (EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, initialization_vector.data()) != 1) {
       std::cerr << "Failed to initialize encryption!" << std::endl;
       EVP_CIPHER_CTX_free(ctx);
       return failed_encrypt_result;
@@ -147,9 +147,6 @@ public:
       EVP_CIPHER_CTX_free(ctx);
       return failed_encrypt_result;
     }
-
-    /* Clean up */
-    EVP_CIPHER_CTX_free(ctx);
 
     std::string result_string;
     result_string.reserve(initialization_vector_len + tag_len + sizeof(int) + ciphertext_len);
@@ -196,15 +193,15 @@ public:
     int ciphertext_len = 0;
     std::memcpy(&ciphertext_len, len_bytes, sizeof(int));
 
-    // Create and initialize the context
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    // Get pre-initialized context
+    EVP_CIPHER_CTX* ctx = get_decrypt_context();
     if (ctx == nullptr) {
-        std::cerr << "Failed to create decryption context!" << std::endl;
+        std::cerr << "Failed to get decryption context!" << std::endl;
         return failed_decrypt_result;
     }
 
     // Initialize the decryption operation
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, iv) != 1) {
+    if (EVP_DecryptInit_ex(ctx, nullptr, nullptr, key, iv) != 1) {
         std::cerr << "Failed to initialize decryption!" << std::endl;
         EVP_CIPHER_CTX_free(ctx);
         return failed_decrypt_result;
@@ -234,9 +231,6 @@ public:
         return failed_decrypt_result;
     }
     plaintext_len += final_len;
-
-    // Clean up
-    EVP_CIPHER_CTX_free(ctx);
 
     std::string result_string = std::string(reinterpret_cast<const char*>(plaintext.data()),
                                      static_cast<std::string::size_type>(plaintext_len));
@@ -295,8 +289,55 @@ public:
       return m_encryption_keys[static_cast<int>(key_type)];
     }
 
+    /**
+     * Get thread-local pre-initialized encryption context.
+     */
+    static EVP_CIPHER_CTX* get_encrypt_context() {
+      static thread_local EVP_CIPHER_CTX* encrypt_ctx = nullptr;
+      
+      if (!encrypt_ctx) {
+        encrypt_ctx = EVP_CIPHER_CTX_new();
+        if (!encrypt_ctx) {
+          std::cerr << "Failed to create thread-local encryption context!" << std::endl;
+          return nullptr;
+        }
+        
+        // Pre-initialize with AES-128-GCM cipher
+        if (EVP_EncryptInit_ex(encrypt_ctx, EVP_aes_128_gcm(), nullptr, nullptr, nullptr) != 1) {
+          std::cerr << "Failed to pre-initialize encryption context!" << std::endl;
+          EVP_CIPHER_CTX_free(encrypt_ctx);
+          encrypt_ctx = nullptr;
+          return nullptr;
+        }
+      }
+      return encrypt_ctx;
+    }
+
+    /**
+     * Get thread-local pre-initialized decryption context.
+     */
+    static EVP_CIPHER_CTX* get_decrypt_context() {
+      static thread_local EVP_CIPHER_CTX* decrypt_ctx = nullptr;
+      
+      if (!decrypt_ctx) {
+        decrypt_ctx = EVP_CIPHER_CTX_new();
+        if (!decrypt_ctx) {
+          std::cerr << "Failed to create thread-local decryption context!" << std::endl;
+          return nullptr;
+        }
+        
+        // Pre-initialize with AES-128-GCM cipher
+        if (EVP_DecryptInit_ex(decrypt_ctx, EVP_aes_128_gcm(), nullptr, nullptr, nullptr) != 1) {
+          std::cerr << "Failed to pre-initialize decryption context!" << std::endl;
+          EVP_CIPHER_CTX_free(decrypt_ctx);
+          decrypt_ctx = nullptr;
+          return nullptr;
+        }
+      }
+      return decrypt_ctx;
+    }
+
 // NOLINTEND
 };
-
 
 } // namespace controller

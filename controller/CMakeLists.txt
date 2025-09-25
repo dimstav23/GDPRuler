@@ -13,74 +13,43 @@ project(
 include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
 
-# Set the default value for DEBUG_FLAG to OFF
-option(DEBUG_FLAG "Debug flag" OFF)
+# ---------------------------------------------------------------------------------
+# Load Configuration Options
+# ---------------------------------------------------------------------------------
+include(cmake/options.cmake)
 
-# Add a preprocessor definition based on the DEBUG_FLAG option
-if(DEBUG_FLAG)
-  add_definitions(-DDEBUG)
-  message(STATUS "Debug flag enabled: ON")
-else()
-  message(STATUS "Debug flag enabled: OFF")
+# ---------------------------------------------------------------------------------
+# External Dependencies
+# ---------------------------------------------------------------------------------
+
+# Add external GDPR logger
+set(GDPR_LOGGER_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../gdpr-logger")
+set(GDPR_LOGGER_BUILD_DIR "${CMAKE_BINARY_DIR}/external/gdpr-logger")
+
+if(NOT EXISTS "${GDPR_LOGGER_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR "GDPR Logger not found at: ${GDPR_LOGGER_SOURCE_DIR}")
 endif()
 
-# Add a preprocessor definition based on the INTERNAL_TIMING option
-if(INTERNAL_TIMING)
-  add_definitions(-DINTERNAL_TIMING)
-  message(STATUS "INTERNAL_TIMING flag enabled: ON")
-else()
-  message(STATUS "INTERNAL_TIMING flag enabled: OFF")
-endif()
+add_subdirectory("${GDPR_LOGGER_SOURCE_DIR}" "${GDPR_LOGGER_BUILD_DIR}")
 
+# Find system packages
+find_package(Boost CONFIG REQUIRED COMPONENTS system)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto SSL)
+find_package(ZLIB REQUIRED)
 
-# Set the default value for METADATA_CACHE to ON
-option(METADATA_CACHE "Global metadata cache" ON)
+# Find manual libraries
+find_path(HIREDIS_HEADER hiredis)
+find_library(HIREDIS_LIB hiredis)
+find_path(REDIS_PLUS_PLUS_HEADER sw)
+find_library(REDIS_PLUS_PLUS_LIB redis++)
+find_path(ROCKSDB_HEADER rocksdb)
+find_library(ROCKSDB_LIB rocksdb)
 
-# Add a preprocessor definition based on the METADATA_CACHE option
-if(METADATA_CACHE)
-  add_definitions(-DMETADATA_CACHE)
-  message(STATUS "Global metadata cache enabled: ON")
+# ---------------------------------------------------------------------------------
+# Main Library: gdpr_controller_lib
+# ---------------------------------------------------------------------------------
 
-  if(CACHE_STATS)
-    add_definitions(-DCACHE_STATS)
-    message(STATUS "Global metadata cache stats enabled: ON")
-  else ()
-    message(STATUS "Global metadata cache stats enabled: OFF")
-  endif()
-else()
-  message(STATUS "Global metadata cache enabled: OFF")
-endif()
-
-# Set the default value for ENCRYPTION_ENABLED to ON
-option(ENCRYPTION_ENABLED "Enable encryption" ON)
-
-# Add a preprocessor definition based on the ENCRYPTION_ENABLED option
-if(ENCRYPTION_ENABLED)
-  add_definitions(-DENCRYPTION_ENABLED)
-  message(STATUS "Encryption enabled: ON")
-else()
-  message(STATUS "Encryption enabled: OFF")
-endif()
-
-if(ASAN_ENABLED)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address  -fsanitize=leak -g")
-  message(STATUS "ASan: ON")
-else()
-  message(STATUS "ASan: OFF")
-endif()
-
-if(TSAN_ENABLED)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -g")
-  message(STATUS "TSan: ON")
-else()
-  message(STATUS "TSan: OFF")
-endif()
-
-
-# ---- Declare library ----
-
-add_library(
-    gdpr_controller_lib SHARED
+add_library(gdpr_controller_lib SHARED
     source/default_policy.cpp
     source/query.cpp
     source/query_rewriter.cpp
@@ -88,104 +57,64 @@ add_library(
     source/gdpr_regulator.cpp
 )
 
-target_include_directories(
-    gdpr_controller_lib ${warning_guard}
+target_include_directories(gdpr_controller_lib
     PUBLIC
-    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>"
 )
 
 target_compile_features(gdpr_controller_lib PUBLIC cxx_std_20)
 
-# ---- Add custom project dependencies ----
+target_link_libraries(gdpr_controller_lib
+    PUBLIC
+        gdpr_logging_lib        # Logger propagates to consumers
+        OpenSSL::Crypto
+        ${REDIS_PLUS_PLUS_LIB}
+    PRIVATE
+        ${HIREDIS_LIB}          # Private dependencies
+        ${ROCKSDB_LIB}
+        ${Boost_LIBRARIES}
+        ZLIB::ZLIB
+        OpenSSL::SSL
+)
 
-# ---- Add hiredis dependency ----
-find_path(HIREDIS_HEADER hiredis)
-find_library(HIREDIS_LIB hiredis)
+# ---------------------------------------------------------------------------------
+# Helper Function for Executables
+# ---------------------------------------------------------------------------------
 
-# ---- Add redis-plus-plus dependency ----
-# NOTE: this should be *sw* NOT *redis++*
-find_path(REDIS_PLUS_PLUS_HEADER sw)
-find_library(REDIS_PLUS_PLUS_LIB redis++)
+function(add_gdpruler_executable name source_file output_name)
+    add_executable(${name} ${source_file})
+    set_property(TARGET ${name} PROPERTY OUTPUT_NAME ${output_name})
+    target_compile_features(${name} PRIVATE cxx_std_20)
+    target_link_libraries(${name} PRIVATE gdpr_controller_lib)
+endfunction()
 
-# ---- Add rocksdb dependency ----
-find_path(ROCKSDB_HEADER rocksdb)
-find_library(ROCKSDB_LIB rocksdb)
+# ---------------------------------------------------------------------------------
+# Executables
+# ---------------------------------------------------------------------------------
 
-# ---- Add boost dependency ----
-find_package(Boost CONFIG REQUIRED COMPONENTS system)
+add_gdpruler_executable(gdpr_controller_exe source/controller.cpp gdpr_controller)
+add_gdpruler_executable(native_controller_exe source/native_controller.cpp native_controller)
+add_gdpruler_executable(test_kv_client_driver_exe source/test_kv_client_driver.cpp test_kv_client_driver)
+add_gdpruler_executable(direct_kv_client_exe source/direct_kv_client.cpp direct_kv_client)
 
-# ---- Add OpenSSL dependency ----
-find_package(OpenSSL REQUIRED COMPONENTS Crypto)
-
-# ---- Declare executables ----
-
-# main
-add_executable(gdpr_controller_exe source/controller.cpp)
-add_executable(gdpr_controller::exe ALIAS gdpr_controller_exe)
-
-set_property(TARGET gdpr_controller_exe PROPERTY OUTPUT_NAME gdpr_controller)
-
-target_compile_features(gdpr_controller_exe PRIVATE cxx_std_20)
-
-target_link_libraries(gdpr_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
-
-# native controller
-add_executable(native_controller_exe source/native_controller.cpp)
-add_executable(native_controller::exe ALIAS native_controller_exe)
-
-set_property(TARGET native_controller_exe PROPERTY OUTPUT_NAME native_controller)
-
-target_compile_features(native_controller_exe PRIVATE cxx_std_20)
-
-target_link_libraries(native_controller_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} ${ROCKSDB_LIB} ${Boost_LIBRARIES} OpenSSL::Crypto)
-
-# rocksdb server
+# RocksDB server
 add_executable(rocksdb_server_exe source/rocksdb_server/server.cpp)
-add_executable(rocksdb_server::exe ALIAS rocksdb_server_exe)
-
 set_property(TARGET rocksdb_server_exe PROPERTY OUTPUT_NAME rocksdb_server)
-
 target_compile_features(rocksdb_server_exe PRIVATE cxx_std_20)
-
 target_link_libraries(rocksdb_server_exe PRIVATE ${Boost_LIBRARIES} ${ROCKSDB_LIB})
 
-# kv_client testing interface for baseline_benchmarks
-add_executable(test_kv_client_driver_exe source/test_kv_client_driver.cpp)
-add_executable(test_kv_client_driver::exe ALIAS test_kv_client_driver_exe)
-
-set_property(TARGET test_kv_client_driver_exe PROPERTY OUTPUT_NAME test_kv_client_driver)
-
-target_compile_features(test_kv_client_driver_exe PRIVATE cxx_std_20)
-
-target_link_libraries(test_kv_client_driver_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} OpenSSL::Crypto)
-target_include_directories(test_kv_client_driver_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
-
-# kv client executable to connect directly to the server for the baseline 
-add_executable(direct_kv_client_exe source/direct_kv_client.cpp)
-add_executable(direct_kv_client::exe ALIAS direct_kv_client_exe)
-
-set_property(TARGET direct_kv_client_exe PROPERTY OUTPUT_NAME direct_kv_client)
-
-target_compile_features(direct_kv_client_exe PRIVATE cxx_std_20)
-
-target_link_libraries(direct_kv_client_exe PRIVATE gdpr_controller_lib ${HIREDIS_LIB} ${REDIS_PLUS_PLUS_LIB} OpenSSL::Crypto)
-target_include_directories(direct_kv_client_exe SYSTEM PRIVATE ${HIREDIS_HEADER} ${REDIS_PLUS_PLUS_HEADER})
-
-# ---- Install rules ----
+# ---------------------------------------------------------------------------------
+# Install and Dev Mode
+# ---------------------------------------------------------------------------------
 
 if(NOT CMAKE_SKIP_INSTALL_RULES)
-  include(cmake/install-rules.cmake)
+    include(cmake/install-rules.cmake)
 endif()
 
-# ---- Developer mode ----
-
 if(NOT gdpr_controller_DEVELOPER_MODE)
-  return()
+    return()
 elseif(NOT PROJECT_IS_TOP_LEVEL)
-  message(
-      AUTHOR_WARNING
-      "Developer mode is intended for developers of gdpr_controller"
-  )
+    message(AUTHOR_WARNING "Developer mode is intended for developers of gdpr_controller")
 endif()
 
 include(cmake/dev-mode.cmake)

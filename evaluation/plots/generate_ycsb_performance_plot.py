@@ -25,6 +25,13 @@ TITLE_FONTSIZE = FONTSIZE
 LABEL_FONTSIZE = FONTSIZE
 TICK_FONTSIZE = FONTSIZE - 1
 LEGEND_FONTSIZE = FONTSIZE 
+
+FONTSIZE = 6
+TITLE_FONTSIZE = FONTSIZE
+LABEL_FONTSIZE = FONTSIZE
+TICK_FONTSIZE = FONTSIZE - 1
+LEGEND_FONTSIZE = FONTSIZE
+ANNOTATION_FONTSIZE = FONTSIZE / 2 - 1
 # hatches = ["", "o", "*", ".", "//", "-", "\\", ".", "o-", "*-"]
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
@@ -51,6 +58,9 @@ def load_data_from_directory(input_dir):
         if filename.endswith(".csv"):
             match = re.match(pattern, filename)
             if match:
+                # Skip files with logging=ON
+                if match.group("logging") == "ON":
+                    continue
                 df = pd.read_csv(os.path.join(input_dir, filename))
                 df = process_dataframe(df, match, input_dir)
                 data.append(df)
@@ -292,7 +302,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     
     # Position legend at the top
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.11), 
-              ncol=min(len(variants), 4), fontsize=LEGEND_FONTSIZE, frameon=True)
+              ncol=min(len(variants), 3), fontsize=LEGEND_FONTSIZE, frameon=True)
     
     # Adjust layout and save
     plt.tight_layout()

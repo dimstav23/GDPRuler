@@ -71,7 +71,7 @@ cd ${SCRIPT_DIR}/GDPRbench/src
 ### setup redis parameters
 REDIS_SERVER=${SCRIPT_DIR}/redis/src/redis-server
 REDIS_PORT=6379
-LOG_DIR="/scratch/dimitrios/gdprbench_dumps"
+LOG_DIR="/scratch/dimitrios/gdpruler_fs/gdprbench_dumps"
 mkdir -p ${LOG_DIR}
 
 ### workload A

@@ -1,0 +1,6 @@
+query(PUT("key0","VAL"))
+query(PUT("gdpr1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0")&objExp("0")
+query(PUT("gdpr2","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user2")&objExp("0")
+query(PUT("gdpr3","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")
+query(PUT("gdpr4","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")
+query(PUT("gdpr5","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")

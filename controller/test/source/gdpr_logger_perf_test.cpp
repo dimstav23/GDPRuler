@@ -17,8 +17,8 @@ auto main() -> int
   // about its instantiation parameters
   auto const def_policy = default_policy {};
   // get the logger instance
-  logger::get_instance()->init_log_path("/scratch/dimitrios/logs/");
-  logger* m_history_logger = logger::get_instance();
+  logger::get_instance()->init_gdpr_logger("/scratch/dimitrios/gdpruler_fs/logs/");
+  logger* m_gdpr_logger = logger::get_instance();
   
   constexpr int value_size = 1024;
   // NOLINTNEXTLINE(cert-err58-cpp)
@@ -39,7 +39,7 @@ auto main() -> int
   // Measure the time taken by log_attempt
   auto start = std::chrono::steady_clock::now();
   for (int i = 0; i < iterations; i++) {
-    m_history_logger->log_raw_query(query_args1, def_policy, true, dummy_value);
+    m_gdpr_logger->log_raw_query(query_args1, def_policy, true, dummy_value);
   }
   auto end = std::chrono::steady_clock::now();
   std::chrono::duration<double> duration = end - start;
@@ -54,7 +54,7 @@ auto main() -> int
   // Measure the time taken by log_encoded_attempt
   start = std::chrono::steady_clock::now();
   for (int i = 0; i < iterations; i++) {
-    m_history_logger->log_encoded_query(query_args2, def_policy, true, dummy_value);
+    m_gdpr_logger->log_encoded_query(query_args2, def_policy, true, dummy_value);
   }
   end = std::chrono::steady_clock::now();
   duration = end - start;

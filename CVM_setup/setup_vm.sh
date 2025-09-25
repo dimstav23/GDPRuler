@@ -4,7 +4,10 @@
 
 # Install dependencies
 sudo apt-get update -y
-sudo apt-get install -y automake bash pkg-config vim uuid-dev nasm file tcl tcl-tls openssl libjemalloc-dev libhiredis-dev  liblz4-dev libbz2-dev libsnappy-dev zlib1g-dev libgflags-dev cmake git cppcheck doxygen codespell libabsl-dev libssl-dev clang net-tools dnsmasq libboost-all-dev librocksdb-dev clang-tools clang-tidy maven
+sudo apt-get install -y automake bash pkg-config vim uuid-dev nasm file tcl tcl-tls openssl libjemalloc-dev \
+                        libhiredis-dev  liblz4-dev libbz2-dev libsnappy-dev zlib1g-dev libgflags-dev cmake git \
+                        cppcheck doxygen codespell libabsl-dev libssl-dev clang net-tools dnsmasq libboost-all-dev \
+                        librocksdb-dev clang-tools clang-tidy libgtest-dev
 
 # Choose the installed clang (currently gcc-12 has issues with libboost)
 CLANG_VERSION=$(clang --version | grep version | cut -d' ' -f4 | cut -d'.' -f1)
@@ -40,6 +43,7 @@ fi
 
 cd GDPRuler
 git checkout dev
+git checkout dimstav23/logging_integration
 git submodule update --init --recursive
 
 # Compile redis to get the redis-server exec:
@@ -50,7 +54,7 @@ make BUILD_TLS=yes MALLOC=libc -j$(nproc)
 
 # Compile the controllers (release version)
 cd /root/GDPRuler/controller
-cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D ASAN_ENABLED=OFF
+cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D ASAN_ENABLED=OFF -D CACHE_STATS=OFF -D LOGGER_COMPRESSION_LEVEL=3
 cmake --build build -j$(nproc)
 
 # Optional -- workload generation

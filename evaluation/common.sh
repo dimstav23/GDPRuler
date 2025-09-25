@@ -5,13 +5,14 @@ set -e
 # Configuration
 declare -A CONFIG=(
     [PROJECT_ROOT]="$(git rev-parse --show-toplevel 2>/dev/null)"
-    [VM_CORES]="16"
-    [VM_MEMORY]="16384"
+    [VM_CORES]="24"
+    [VM_MEMORY]="32768"
     [MAX_WAIT_ATTEMPTS]="60"
     [TMP_DIR]="/tmp"
-    [DB_DUMP_DIR]="/scratch/$(whoami)/db_data"
-    [CTL_DUMP_DIR]="/scratch/$(whoami)/controller_data"
+    [DB_DUMP_DIR]="/scratch/$(whoami)/gdpruler_fs/db_data"
+    [CTL_DUMP_DIR]="/scratch/$(whoami)/gdpruler_fs/controller_data"
     [NODE_BIND]="numactl --cpunodebind=0 --membind=0"
+    [NODE_BIND_CLIENT]="numactl --cpunodebind=1 --membind=1"
     [CVM_IP]="192.168.122.48"
     [SSH_OPTS]="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 )
@@ -27,6 +28,13 @@ declare -A PATHS=(
     [PASSTHROUGH_CONTROLLER]="${CONFIG[PROJECT_ROOT]}/scripts/passthrough.py"
 )
 
+# Storage configuration
+NVME_DEVICE="/dev/nvme1n1"
+MOUNT_POINT="/scratch/dimitrios/gdpruler_fs"
+DEVICE_IN_CVM="/dev/vda"
+FILESYSTEM_TYPE="ext4"
+DEFAULT_COMPRESSION_LEVEL="0"
+
 # Global variables
 failed_tests=""
 server_connection=""
@@ -37,7 +45,11 @@ CVM_IP="${CONFIG[CVM_IP]}"
 # Function to start the CVM using the listed expect script
 boot_cvm() {
     local curr_dir=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+    local nvme_device="${NVME_DEVICE:-/dev/nvme1n1}"
     
+    # Pass storage parameters to launch-qemu.sh
+    local storage_opts="-nvme $nvme_device"
+
     # use -noiommu if you want to disable the iommu for performance reasons
     expect -c "
         log_user 0
@@ -51,6 +63,7 @@ boot_cvm() {
             -smp ${CONFIG[VM_CORES]} \
             -mem ${CONFIG[VM_MEMORY]} \
             -vhost \
+            $storage_opts \
             -log ${curr_dir}/cvm_boot.out
 
         expect \"login: \"
@@ -73,6 +86,8 @@ boot_cvm() {
         if ssh ${CONFIG[SSH_OPTS]} root@${CONFIG[CVM_IP]} "echo 'ready'" >/dev/null 2>&1; then
             CVM_READY=true
             echo "CVM is ready and accessible via SSH"
+            # Prepare CVM storage
+            prepare_storage_cvm ${DEVICE_IN_CVM} ${MOUNT_POINT} ${FILESYSTEM_TYPE}
             return 0
         fi
         sleep 2
@@ -301,7 +316,7 @@ run_controller_native() {
     local db_dir="$6"
     local ctl_dir="$7"
     local output_file="$8"
-    
+
     local controller_bin=""
     case "$controller_type" in
         "gdpr") controller_bin="${PATHS[GDPR_CONTROLLER]}" ;;
@@ -394,6 +409,7 @@ run_client() {
     local port="$5"
     local output_file="$6"
     local extra_args="$7"
+    local use_drain="$8"
     
     local client_bin=""
     local client_cmd=""
@@ -408,11 +424,14 @@ run_client() {
             client_bin="${PATHS[CLIENT]}"
             validate_executable "$client_bin" "Client"
             client_cmd="$client_bin --workload $workload --clients $n_clients --address $address --port $port --config $extra_args"
+            if [[ "$use_drain" == "true" ]]; then
+                client_cmd="$client_cmd --drain"
+            fi
             ;;
     esac
     
-    echo "Starting the client(s): ${CONFIG[NODE_BIND]} $client_cmd > $output_file"
-    ${CONFIG[NODE_BIND]} python3 $client_cmd > "$output_file"
+    echo "Starting the client(s): ${CONFIG[NODE_BIND_CLIENT]} $client_cmd > $output_file"
+    ${CONFIG[NODE_BIND_CLIENT]} python3 $client_cmd > "$output_file"
     local exit_code=$?
     
     if [ $exit_code -eq 0 ]; then
@@ -434,8 +453,90 @@ prepare_experiment() {
     
     if [ ! -f "$result_file" ]; then
         install -D -m 644 /dev/null "$result_file"
-        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s)" >> "$result_file"
+        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s),ctl_files_count,ctl_files_size_mb,db_files_count,db_files_size_mb,compression_level" >> "$result_file"
     fi
+}
+
+# Storage device preparation on the host
+prepare_storage_host() {
+    local device="$1"
+    local mount_point="$2"
+    local fs_type="$3"
+    
+    echo "Preparing host storage: device=$device, mount_point=$mount_point, fs_type=$fs_type"
+    
+    # Check if already mounted with correct filesystem
+    if mountpoint -q "$mount_point" 2>/dev/null; then
+        local current_fs=$(findmnt -n -o FSTYPE "$mount_point" 2>/dev/null)
+        
+        if [[ "$current_fs" == "$fs_type" ]]; then
+            echo "Storage already mounted with correct filesystem ($current_fs) at $mount_point"
+            return 0
+        else
+            echo "Wrong filesystem type ($current_fs), unmounting..."
+            sudo umount "$mount_point" || true
+        fi
+    fi
+    
+    # Create filesystem and mount
+    echo "Creating $fs_type filesystem on $device"
+    sudo mkfs.$fs_type -F "$device"
+    
+    sudo mkdir -p "$mount_point"
+    sudo mount "$device" "$mount_point"
+    sudo chown -R $(whoami):$(id -gn $(whoami)) "$mount_point"
+    
+    echo "Storage prepared and mounted at $mount_point"
+}
+
+# Storage device cleanup on the host
+cleanup_storage_host() {
+    local mount_point="$1"
+    
+    if mountpoint -q "$mount_point" 2>/dev/null; then
+        echo "Unmounting storage at $mount_point"
+        sudo umount -f "$mount_point" || true
+    fi
+}
+
+# Storage device preparation in the CVM
+prepare_storage_cvm() {
+    local device="$1"
+    local mount_point="$2"  
+    local fs_type="$3"
+    
+    echo "Preparing CVM storage at $mount_point"
+    
+    # Check if storage device exists in CVM
+    if ! execute_in_cvm "[ -b $device ]"; then
+        echo "Error: Storage device $device not available in CVM"
+        return 1
+    fi
+    
+    execute_in_cvm "mkdir -p $mount_point"
+    
+    # Check if already mounted with correct filesystem
+    if execute_in_cvm "mountpoint -q $mount_point 2>/dev/null"; then
+        local current_fs=$(execute_in_cvm "findmnt -n -o FSTYPE $mount_point 2>/dev/null")
+        
+        if [[ "$current_fs" == "$fs_type" ]]; then
+            echo "CVM storage already mounted with correct filesystem ($current_fs)"
+            return 0
+        else
+            echo "Wrong filesystem type in CVM ($current_fs), unmounting..."
+            execute_in_cvm "umount $mount_point" || true
+        fi
+    fi
+    
+    # Create filesystem on the device
+    echo "virtio-blk mode: Creating $fs_type filesystem in CVM"
+    execute_in_cvm "mkfs.$fs_type -F $device"
+    
+    # Mount the filesystem
+    echo "Mounting filesystem in CVM"
+    execute_in_cvm "mount $device $mount_point"
+    
+    echo "CVM storage ready at $mount_point"
 }
 
 # Function to collect results from the client output
@@ -445,6 +546,8 @@ collect_results() {
     local db="$3"
     local n_clients="$4"
     local results_file="$5"
+    local environment="$6"  # "native" or "CVM"
+    local compression_level="${7:-$DEFAULT_COMPRESSION_LEVEL}"
     
     local elapsed_time=$(grep "Elapsed time: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
     local avg_latency=$(grep "Average Latency: " "${CONFIG[TMP_DIR]}/clients.txt" | awk '{print $3}')
@@ -452,9 +555,65 @@ collect_results() {
     if [ -z "$avg_latency" ]; then
         failed_tests="$failed_tests $workload,controller=$controller,$db,clients=$n_clients"
     else
-        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency" >> "$results_file"
-        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency\e[0m"
+        # Collect storage metrics before cleanup
+        local storage_metrics=$(collect_storage_metrics "$environment" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[DB_DUMP_DIR]}")
+
+        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency,$storage_metrics,$compression_level" >> "$results_file"
+        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency, storage=$storage_metrics, compression_level=$compression_level\e[0m"
     fi
+}
+
+# Function to collect storage metrics before cleanup
+collect_storage_metrics() {
+    local environment="$1"  # "native" or "CVM"
+    local ctl_dir="$2"
+    local db_dir="$3"
+    
+    local ctl_files_count=0
+    local ctl_files_size_mb=0
+    local db_files_count=0  
+    local db_files_size_mb=0
+    
+    if [[ "$environment" == "native" ]]; then
+        # Collect metrics on host
+        if [[ -d "$ctl_dir" ]]; then
+            ctl_files_count=$(find "$ctl_dir" -type f 2>/dev/null | wc -l)
+            local ctl_size_bytes=$(du -sb "$ctl_dir" 2>/dev/null | cut -f1)
+            ctl_files_size_mb=$(echo "scale=2; $ctl_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+        
+        if [[ -d "$db_dir" ]]; then
+            # Send SIGINT to flush and close the DB properly
+            kill -INT $(pgrep -f rocksdb_server) 2>/dev/null || true
+            kill -INT $(pgrep -f redis-server) 2>/dev/null || true
+            sleep 5
+            db_files_count=$(find "$db_dir" -type f 2>/dev/null | wc -l)
+            local db_size_bytes=$(du -sb "$db_dir" 2>/dev/null | cut -f1)
+            db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+    else
+        set +e # Disable exit on error for CVM commands
+        # Collect metrics in CVM
+        if execute_in_cvm "[ -d '$ctl_dir' ]" 2>/dev/null; then
+            ctl_files_count=$(execute_in_cvm "find '$ctl_dir' -type f 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+            local ctl_size_bytes=$(execute_in_cvm "du -sb '$ctl_dir' 2>/dev/null | cut -f1" 2>/dev/null || echo "0")
+            ctl_files_size_mb=$(echo "scale=2; $ctl_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+        
+        if execute_in_cvm "[ -d '$db_dir' ]" 2>/dev/null; then
+            # Send SIGINT to flush and close the DB properly
+            execute_in_cvm "kill -INT \$(pgrep -f rocksdb_server) 2>/dev/null || true"
+            execute_in_cvm "kill -INT \$(pgrep -f redis-server) 2>/dev/null || true"
+            sleep 5
+            db_files_count=$(execute_in_cvm "find '$db_dir' -type f 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+            local db_size_bytes=$(execute_in_cvm "du -sb '$db_dir' 2>/dev/null | cut -f1" 2>/dev/null || echo "0")
+            db_files_size_mb=$(echo "scale=2; $db_size_bytes / 1024 / 1024" | bc -l 2>/dev/null || echo "0")
+        fi
+        set -e # Re-enable exit on error
+    fi
+    
+    # Return the metrics as a comma-separated string
+    echo "$ctl_files_count,$ctl_files_size_mb,$db_files_count,$db_files_size_mb"
 }
 
 # Function that cleans up processes and files from previous experiments in CVM via SSH
@@ -567,35 +726,41 @@ run_experiment() {
         "native_direct")
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
             run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
-            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file"
+            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "native"
             ;;
         "native_ctl")
             local controller="$1"
             local controller_address="$2"
             local controller_port="$3"
             local config="$4"
+            local compression_level="$5"
+            local use_drain="$6"
             
             run_server "$db" "native" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
-            run_controller "$controller" "native" "$controller_address" "$controller_port" "$db" "$db_address_formatted" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" ""
-            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config"
-            collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file"
+            run_controller "$controller" "native" "$controller_address" "$controller_port" "$db" "$db_address_formatted" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "" "$compression_level"
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "$use_drain"
+            collect_results "$workload" "$controller" "$db" "$n_clients" "$results_csv_file" "native" "$compression_level"
             ;;
         "CVM_direct")
             run_server "$db" "CVM" "$db_address" "$db_port" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/server.txt"
             run_client "direct" "$workload" "$n_clients" "$db_address_formatted" "" "${CONFIG[TMP_DIR]}/clients.txt" "$db"
-            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file"
+            collect_results "$workload" "direct" "$db" "$n_clients" "$results_csv_file" "CVM"
             ;;
         "CVM_passthrough"|"CVM_gdpr")
             local controller_type="${experiment_type#CVM_}"
             local controller_address="$1"
             local controller_port="$2"
             local config="$3"
+            local compression_level="$4"
+            local use_drain="$5"
             
-            run_controller "$controller_type" "CVM" "$controller_address" "$controller_port" "$db" "$db_address" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "${CONFIG[TMP_DIR]}/server.txt"
-            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config"
-            collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file"
+            run_controller "$controller_type" "CVM" "$controller_address" "$controller_port" "$db" "$db_address" "${CONFIG[DB_DUMP_DIR]}" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[TMP_DIR]}/controller.txt" "${CONFIG[TMP_DIR]}/server.txt" "$compression_level"
+            run_client "controller" "$workload" "$n_clients" "$controller_address" "$controller_port" "${CONFIG[TMP_DIR]}/clients.txt" "$config" "$use_drain"
+            collect_results "$workload" "$controller_type" "$db" "$n_clients" "$results_csv_file" "CVM" "$compression_level"
             ;;
     esac
+    # Cleanup phase
+    cleanup "$controller_address" "$controller_port" "$db" "$db_address" "$db_port"
 }
 
 # Function to print a summary of the results

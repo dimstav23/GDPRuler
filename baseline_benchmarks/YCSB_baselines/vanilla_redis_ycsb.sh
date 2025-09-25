@@ -58,7 +58,7 @@ cd ${SCRIPT_DIR}/YCSB
 ### setup redis parameters
 REDIS_SERVER=${SCRIPT_DIR}/redis/src/redis-server
 REDIS_PORT=6379
-LOG_DIR="/scratch/dimitrios/ycsb_dumps"
+LOG_DIR="/scratch/dimitrios/gdpruler_fs/ycsb_dumps"
 mkdir -p ${LOG_DIR}
 
 ### workload A
