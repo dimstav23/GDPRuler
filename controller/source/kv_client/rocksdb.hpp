@@ -83,7 +83,7 @@ public:
 
     response_message response = execute(query);
     if (response.op_is_successful()) {
-      return parse_values_response(std::move(response.get_data()));
+      return parse_getm_response(std::move(response.get_data()));
     }
     
     // Return empty vector if operation failed
@@ -165,7 +165,8 @@ private:
   }
 
   // Helper method to parse the combined response
-  auto parse_values_response(std::string&& data) -> std::vector<std::string>
+  // response format: [4 bytes: size1][data1][4 bytes: size2][data2]...[4 bytes: sizeN][dataN]
+  auto parse_getm_response(std::string&& data) -> std::vector<std::string>
   {
     std::vector<std::string> values;
     

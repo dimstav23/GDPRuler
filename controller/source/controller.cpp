@@ -244,6 +244,7 @@ inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
     }
   }
   
+  // pretty print the values for the receiver / can be optimized out
   if (!valid_values.empty()) {
     // Combine all valid metadata
     std::string combined_values;

@@ -23,7 +23,7 @@ public:
     // Enable prefix bloom filter for better scan performance
     int default_prefix_length = 3;
     options.prefix_extractor.reset(rocksdb::NewFixedPrefixTransform(default_prefix_length));
-    
+
     rocksdb::Status status = rocksdb::DB::Open(options, db_path, &m_rocksdb);
     if (!status.ok()) {
       std::cerr << "Failed to open database: " << status.ToString()
@@ -90,6 +90,7 @@ private:
     return response_message{/*is_success*/false, ""};
   }
 
+  /* response format: [4 bytes: size1][data1][4 bytes: size2][data2]...[4 bytes: sizeN][dataN] */
   auto getm(std::string_view key_prefix) -> response_message
   {
       rocksdb::ReadOptions read_options;
