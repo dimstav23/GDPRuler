@@ -47,32 +47,31 @@ public:
   }
 
   inline auto gdpr_del(std::string_view key) -> bool {
-    #ifndef ENCRYPTION_ENABLED
-      // delete the pair directly w/o decryption
-      return del(key);
-    #else
-      // delete the pair directly w/o decryption
-      return del(key);
-    #endif
+    // delete the pair directly w/o decryption
+    return del(key);
   }
 
-  auto gdpr_getm(std::string_view key) -> std::optional<std::string> {
+  auto gdpr_getm(std::string_view key_prefix) -> std::vector<std::string> {
     #ifndef ENCRYPTION_ENABLED
-      // get the value directly w/o decryption
-      return getm(key);
+      // get the values directly w/o decryption
+      return getm(key_prefix);
     #else
-      // get the value after decryption
-      auto encrypted_value = getm(key);
-      if (!encrypted_value.has_value()) {
-        return std::nullopt;
+      // get the values after decryption
+      auto encrypted_values = getm(key_prefix);
+      std::vector<std::string> decrypted_values;
+      decrypted_values.reserve(encrypted_values.size());
+      
+      for (auto& encrypted_value : encrypted_values) {
+        auto decrypt_result = m_cipher->decrypt(encrypted_value, cipher_key_type::db_key);
+        if (decrypt_result.m_success) {
+          decrypted_values.emplace_back(std::move(decrypt_result.m_plaintext));
+        } else {
+          std::cerr << "Error in getm: Decryption failed for value: " 
+                    << encrypted_value << std::endl;
+        }
       }
-
-      auto decrypt_result = m_cipher->decrypt(encrypted_value.value(), cipher_key_type::db_key);
-      if (decrypt_result.m_success) {
-        return decrypt_result.m_plaintext;
-      }
-      std::cerr << "Error in get: Decryption failed for value: " << encrypted_value.value() << std::endl;
-      return std::nullopt;
+      
+      return decrypted_values;
     #endif
   }
 
@@ -105,8 +104,8 @@ protected:
   virtual auto put(std::string_view key, std::string_view value) -> bool = 0;
   virtual auto del(std::string_view key) -> bool = 0;
 
-  virtual auto getm(std::string_view key) -> std::optional<std::string> = 0;
-  virtual auto putm(std::string_view key, std::string_view value) -> bool = 0;
+  virtual auto getm(std::string_view key_prefix) -> std::vector<std::string> = 0;
+  virtual auto putm(std::string_view key_prefix, std::string_view value) -> bool = 0;
 
 private:
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();

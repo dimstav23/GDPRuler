@@ -59,23 +59,35 @@ public:
     return res;
   }
 
-  auto getm(std::string_view key) -> std::optional<std::string> override
+  auto getm(std::string_view key_prefix) -> std::vector<std::string> override
   {
-    // auto cursor = 0LL;
-    // auto pattern = "*pattern*";
-    // auto count = 5;
-    // std::unordered_set<std::string> keys;
-    // while (true) {
-    //   cursor = redis.scan(cursor, pattern, count, std::inserter(keys, keys.begin()));
-    //   // Default pattern is "*", and default count is 10
-    //   // cursor = redis.scan(cursor, std::inserter(keys, keys.begin()));
+    auto cursor = 0LL;
+    // add "*" for redis pattern matching -- still key_prefix is the actual prefix
+    auto pattern = std::string(key_prefix) + "*"; 
+    std::vector<std::string> result_values;
 
-    //   if (cursor == 0) {
-    //     break;
-    //   }
-    // }
-    auto result = m_redis.get(key);
-    return result;
+    while (true) {
+      std::unordered_set<std::string> keys;
+      cursor = m_redis.scan(cursor, pattern, std::inserter(keys, keys.begin()));
+      
+      if (!keys.empty()) {
+        std::vector<std::optional<std::string>> values;
+        m_redis.mget(keys.begin(), keys.end(), std::back_inserter(values));
+        // Move values directly into result set
+        result_values.reserve(result_values.size() + values.size());
+        for (auto& val : values) {
+          if (val) {
+            result_values.emplace_back(std::move(*val)); // Move the value
+          }
+        }
+      }
+      
+      if (cursor == 0) {
+        break;
+      }
+    }
+
+    return result_values;
   }
 
   auto putm(std::string_view key, std::string_view value) -> bool override

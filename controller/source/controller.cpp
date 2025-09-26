@@ -222,21 +222,39 @@ inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
                 const query &query_args,
                 const default_policy &def_policy) -> std::string
 {
-  auto res = client->gdpr_getm(query_args.key());
-  gdpr_filter filter(res);
-
-  // Check if the retrieved key requires logging
-  auto monitor = gdpr_monitor(filter, query_args, def_policy);
-  bool is_valid = filter.validate(query_args, def_policy);
-  // Perform the logging of the (in)valid operation -- if needed
-  monitor.monitor_query(is_valid);
-  if (is_valid) {
-    // if the key exists and complies with the gdpr rules
-    // then return the GDPR metadata of the key
-    return controller::preserve_only_gdpr_metadata(std::move(res.value()));
+  auto values = client->gdpr_getm(query_args.key()); // key is our key_prefix here
+  std::vector<std::string> valid_values;
+  valid_values.reserve(values.size());
+  
+  // Process each value
+  for (auto& value : values) {
+    gdpr_filter filter(value);
+    
+    // Check if the retrieved key requires logging
+    auto monitor = gdpr_monitor(filter, query_args, def_policy);
+    bool is_valid = filter.validate(query_args, def_policy);
+    
+    // Perform the logging of the (in)valid operation -- if needed
+    monitor.monitor_query(is_valid);
+    
+    if (is_valid) {
+      // if the key exists and complies with the gdpr rules
+      // then extract its value
+      valid_values.push_back(controller::remove_gdpr_metadata(std::move(value)));
+    }
   }
-
-  return GETM_FAILED; // GETM_FAILED: Invalid key or does not comply with GDPR rules
+  
+  if (!valid_values.empty()) {
+    // Combine all valid metadata
+    std::string combined_values;
+    for (size_t i = 0; i < valid_values.size(); ++i) {
+      if (i > 0) combined_values += "|"; // separator between metadata
+      combined_values += valid_values[i];
+    }
+    return combined_values;
+  }
+  
+  return GETM_FAILED; // GETM_FAILED: No valid keys or none comply with GDPR rules
 }
 
 inline auto handle_put_metadata(const std::unique_ptr<kv_client> &client,
@@ -493,7 +511,7 @@ auto handle_connection
       else if (query_args.cmd() == "putm") { /* ignore for now */
         response = handle_put_metadata(client, query_args, def_policy);
       }
-      else if (query_args.cmd() == "getm") { /* ignore for now */
+      else if (query_args.cmd() == "getm") {
         response = handle_get_metadata(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "putc") {

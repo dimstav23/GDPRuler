@@ -74,20 +74,20 @@ public:
     return response.op_is_successful();
   }
 
-  auto getm(std::string_view key) -> std::optional<std::string> override
+  auto getm(std::string_view key_prefix) -> std::vector<std::string> override
   {
     query_message query;
     query.set_command("getm");
-    query.set_key(key);
+    query.set_key(key_prefix);
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
     if (response.op_is_successful()) {
-      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
-      return response.get_data();
+      return parse_values_response(std::move(response.get_data()));
     }
-    // std::cout << "GET operation failed" << std::endl;
-    return std::nullopt;
+    
+    // Return empty vector if operation failed
+    return {};
   }
 
   auto putm(std::string_view key, std::string_view value) -> bool override
@@ -162,5 +162,44 @@ private:
 
     std::string raw_response(response_buffer.begin(), response_buffer.end());
     return response_message::deserialize(raw_response);
+  }
+
+  // Helper method to parse the combined response
+  auto parse_values_response(std::string&& data) -> std::vector<std::string>
+  {
+    std::vector<std::string> values;
+    
+    if (data.empty()) {
+      return values;
+    }
+
+    const char* read_ptr = data.data();
+    const char* const end_ptr = data.data() + data.size();
+    
+    while (read_ptr < end_ptr) {
+      // Check if we have enough bytes for size field
+      if (read_ptr + sizeof(uint32_t) > end_ptr) {
+        std::cerr << "Corrupted data: incomplete size field" << std::endl;
+        break;
+      }
+      
+      // Extract value size (network byte order)
+      uint32_t value_size;
+      std::memcpy(&value_size, read_ptr, sizeof(value_size));
+      read_ptr += sizeof(uint32_t);
+      
+      // Check if we have enough bytes for the value data
+      if (read_ptr + value_size > end_ptr) {
+        std::cerr << "Corrupted data: incomplete value data, expected " 
+                  << value_size << " bytes" << std::endl;
+        break;
+      }
+      
+      // Extract value directly into vector - single copy
+      values.emplace_back(read_ptr, value_size);
+      read_ptr += value_size;
+    }
+    
+    return values;
   }
 };
