@@ -20,9 +20,12 @@ public:
                           const default_policy &def_policy, 
                           std::string_view new_query_value);
   /* Constructor for the PUT operation in case of an UPDATE of a value */
-  explicit query_rewriter(std::string_view res,
+  explicit query_rewriter(std::string_view existing_metadata,
                           std::string_view new_query_value);
-  /* Constructor for the PUTM/PUTC operation */
+  /* Constructor for the PUTM operation in case of an UPDATE of the metadata */
+  explicit query_rewriter(const query &query_args,
+                          std::string_view existing_value);                        
+  /* Constructor for the PUTC operation that upades both metadata and value*/
   explicit query_rewriter(const query &query_args,
                           std::string_view res,
                           std::optional<std::string_view> new_query_value);

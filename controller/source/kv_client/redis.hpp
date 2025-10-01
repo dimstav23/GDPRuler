@@ -6,7 +6,9 @@
 
 class redis_client : public kv_client
 {
+private:
   sw::redis::Redis m_redis;
+  static constexpr size_t PIPELINE_BATCH_SIZE = 100;
 
 public:
   explicit redis_client(const std::string& addr = "unix:///tmp/redis.sock") // use default Unix socket path
@@ -90,18 +92,108 @@ public:
     return result_values;
   }
 
-  auto putm(std::string_view key, std::string_view value) -> bool override
+  auto get_prefix_kv_pairs(std::string_view key_prefix) -> std::vector<std::pair<std::string, std::string>> override
   {
-    bool res = true;
-    auto result = m_redis.set(key, value);
-    if (result) {
-      // std::cout << "PUTM operation done with key: " << key
-      //           << " and value: " << value << std::endl;
-    } else {
-      // std::cout << "PUTM operation failed" << std::endl;
-      res = false;
+    auto cursor = 0LL;
+    std::string pattern = std::string(key_prefix) + "*";
+    std::vector<std::pair<std::string, std::string>> result_pairs;
+
+    while (true) {
+      std::unordered_set<std::string> keys;
+      cursor = m_redis.scan(cursor, pattern, std::inserter(keys, keys.begin()));
+      
+      if (!keys.empty()) {
+        std::vector<std::optional<std::string>> values;
+        m_redis.mget(keys.begin(), keys.end(), std::back_inserter(values));
+        
+        // Pair up keys with their values
+        auto key_it = keys.begin();
+        for (const auto& val : values) {
+          if (val) {
+            result_pairs.emplace_back(*key_it, *val);
+          }
+          ++key_it;
+        }
+      }
+      
+      if (cursor == 0) {
+        break;
+      }
     }
-    return res;
+
+    return result_pairs;
   }
+
+  // auto putm(std::string_view key, std::string_view value) -> bool override
+  // {
+  //   bool res = true;
+  //   auto result = m_redis.set(key, value);
+  //   if (result) {
+  //     // std::cout << "PUTM operation done with key: " << key
+  //     //           << " and value: " << value << std::endl;
+  //   } else {
+  //     // std::cout << "PUTM operation failed" << std::endl;
+  //     res = false;
+  //   }
+  //   return res;
+  // }
+  
+  auto putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override 
+  {
+    if (key_value_pairs.empty()) return {};
+        
+    std::vector<bool> results;
+    results.reserve(key_value_pairs.size());
+    
+    // Process in configurable-sized batches
+    for (size_t i = 0; i < key_value_pairs.size(); i += PIPELINE_BATCH_SIZE) {
+      size_t batch_end = std::min(i + PIPELINE_BATCH_SIZE, key_value_pairs.size());
+      
+      // Process one batch
+      auto batch_results = process_pipeline_batch(key_value_pairs, i, batch_end);
+      
+      // Append batch results to total results
+      results.insert(results.end(), batch_results.begin(), batch_results.end());
+    }
+    return results;
+  }
+
+  auto process_pipeline_batch(const std::vector<std::pair<std::string, std::string>>& pairs,
+                               size_t start, size_t end) -> std::vector<bool> 
+  {
+    std::vector<bool> batch_results;
+    size_t batch_size = end - start;
+    batch_results.reserve(batch_size);
+    
+    try {
+      // Create pipeline on existing connection
+      auto pipe = m_redis.pipeline(false);  // Reuses m_redis connection
+      
+      // Add all operations in this batch
+      for (size_t i = start; i < end; ++i) {
+        pipe.set(pairs[i].first, pairs[i].second);
+      }
+      
+      // Execute pipeline
+      auto replies = pipe.exec();
+      
+      // Check each operation result
+      for (size_t i = 0; i < batch_size; ++i) {
+        try {
+          replies.get<void>(i);  // SET returns void on success
+          batch_results.push_back(true);
+        } catch (const std::exception& e) {
+          batch_results.push_back(false);
+        }
+      }
+    } catch (const std::exception& e) {
+      // Entire batch failed - e.g., connection issue
+      batch_results.resize(batch_size, false);
+    }
+    
+    return batch_results;
+  }
+        
+        
 
 };

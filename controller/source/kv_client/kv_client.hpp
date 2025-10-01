@@ -75,18 +75,54 @@ public:
     #endif
   }
 
-  auto gdpr_putm(std::string_view key, std::string_view value) -> bool {
+  auto gdpr_get_prefix_kv_pairs(std::string_view key_prefix) -> std::vector<std::pair<std::string, std::string>> {
     #ifndef ENCRYPTION_ENABLED
-      // put the pair directly w/o encryption
-      return putm(key, value);
+      return get_prefix_kv_pairs(key_prefix);
     #else
-      // put the pair after encryption
+      auto encrypted_pairs = get_prefix_kv_pairs(key_prefix);
+      std::vector<std::pair<std::string, std::string>> decrypted_pairs;
+      decrypted_pairs.reserve(encrypted_pairs.size());
+      
+      for (auto& [key, encrypted_value] : encrypted_pairs) {
+        auto decrypt_result = m_cipher->decrypt(encrypted_value, cipher_key_type::db_key);
+        if (decrypt_result.m_success) {
+          decrypted_pairs.emplace_back(std::move(key), std::move(decrypt_result.m_plaintext));
+        } else {
+          std::cerr << "Error in get_prefix_kv_pairs: Decryption failed for key: " << key << std::endl;
+        }
+      }
+      
+      return decrypted_pairs;
+    #endif
+  }
+  
+  auto gdpr_putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> {
+    #ifndef ENCRYPTION_ENABLED
+    // Direct bulk update without encryption
+    return putm(key_value_pairs);
+    #else
+    // Encrypt all values before bulk update
+    std::vector<std::pair<std::string, std::string>> encrypted_pairs;
+    encrypted_pairs.reserve(key_value_pairs.size());
+    std::vector<bool> results;
+    results.reserve(key_value_pairs.size());
+    
+    for (const auto& [key, value] : key_value_pairs) {
       auto encrypt_result = m_cipher->encrypt(value, cipher_key_type::db_key);
       if (encrypt_result.m_success) {
-        return put(key, encrypt_result.m_ciphertext);
+        encrypted_pairs.emplace_back(key, encrypt_result.m_ciphertext);
+      } else {
+        std::cerr << "Error in putm_bulk: Encryption failed for key: " << key << std::endl;
+        // Still try to process other pairs, but mark this as failed
       }
-      std::cerr << "Error in put: Encryption failed for value: " << value << std::endl;
-      return false;
+    }
+    
+    if (encrypted_pairs.empty()) {
+      results.resize(key_value_pairs.size(), false);
+      return results;
+    }
+    
+    return putm(encrypted_pairs);
     #endif
   }
 
@@ -103,9 +139,11 @@ protected:
   virtual auto get(std::string_view key) -> std::optional<std::string> = 0;
   virtual auto put(std::string_view key, std::string_view value) -> bool = 0;
   virtual auto del(std::string_view key) -> bool = 0;
-
+  /* GDPR queries */
   virtual auto getm(std::string_view key_prefix) -> std::vector<std::string> = 0;
-  virtual auto putm(std::string_view key_prefix, std::string_view value) -> bool = 0;
+  // virtual auto putm(std::string_view key_prefix, std::string_view value) -> bool = 0;
+  virtual auto putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> = 0;
+  virtual auto get_prefix_kv_pairs(std::string_view key_prefix) -> std::vector<std::pair<std::string, std::string>> = 0;
 
 private:
   controller::cipher_engine* m_cipher = controller::cipher_engine::get_instance();

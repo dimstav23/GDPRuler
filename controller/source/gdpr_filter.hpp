@@ -10,7 +10,13 @@
 
 namespace controller {
 
-/* class that performs the check of the gdpr metadata */
+/**
+ * GDPR Filter Class
+ * 
+ * Handles two main responsibilities:
+ * 1. Filter Matching: Determine if KV pairs match query filter conditions
+ * 2. Access Validation: Enforce GDPR compliance for data access
+ */
 class gdpr_filter
 {
 public:
@@ -18,8 +24,16 @@ public:
   explicit gdpr_filter(std::optional<std::string_view> ret_value);
   // ~gdpr_filter();
 
-  [[nodiscard]] auto is_valid() const -> bool;
+  // Filter Matching (for getm/putm operations)
+  [[nodiscard]] auto matches_filter_conditions(const controller::query &query_args) const -> bool;
+  // Access Validation (GDPR access control)
+  [[nodiscard]] auto validate_access(const controller::query &query_args, 
+                        const controller::default_policy &def_policy) const -> bool;
+  // Legacy query validation
+  [[nodiscard]] auto validate(const controller::query &query_args, 
+                              const controller::default_policy &def_policy) const -> bool;
 
+  [[nodiscard]] auto is_valid() const -> bool;
   [[nodiscard]] auto user_key() const -> const std::bitset<num_users>&;
   [[nodiscard]] auto purpose() const -> const std::bitset<num_purposes>&;
   [[nodiscard]] auto objection() const -> const std::bitset<num_purposes>&;
@@ -28,20 +42,6 @@ public:
   [[nodiscard]] auto encryption() const -> bool;
   [[nodiscard]] auto expiration() const -> int64_t;
   [[nodiscard]] auto monitor() const -> bool;
-
-  [[nodiscard]] auto validate(const controller::query &query_args, 
-                              const controller::default_policy &def_policy) const -> bool;
-  [[nodiscard]] auto validate_session_key(const std::optional<std::bitset<num_users>> &query_user_key,
-                                          const std::bitset<num_users> &def_user_key) const -> bool;
-  // [[nodiscard]] auto validate_shr(const std::bitset<num_users> &query_shr,
-  //                                 const std::bitset<num_users> &def_shr) const -> bool;
-  // [[nodiscard]] auto validate_org(const std::bitset<num_origins> &query_org,
-  //                                 const std::bitset<num_origins> &def_org) const -> bool;
-  [[nodiscard]] auto validate_pur(const std::bitset<num_purposes> &query_pur,
-                                  const std::bitset<num_purposes> &def_pur) const -> bool;
-  [[nodiscard]] auto validate_obj(const std::bitset<num_purposes> &query_pur,
-                                  const std::bitset<num_purposes> &def_pur) const -> bool;
-  [[nodiscard]] auto validate_exp_time() const -> bool;
   [[nodiscard]] auto check_monitoring() const -> bool;
 
 private:
@@ -59,7 +59,15 @@ private:
   bool m_encryption{false};
   int64_t m_expiration;
   bool m_monitor{false};
-
+  
+  // Validation helpers
+  auto validate_ownership_or_sharing(const std::bitset<num_users>& session_key) const -> bool;
+  auto validate_strict_ownership(const std::bitset<num_users>& session_key) const -> bool;
+  auto validate_purpose_compliance(const std::bitset<num_purposes>& purposes) const -> bool;
+  auto validate_no_objections(const std::bitset<num_purposes>& purposes) const -> bool;
+  auto validate_exp_time() const -> bool;
+  
+  // Metadata deserialization
   void deserialize_binary_metadata(std::string_view data);
 };
 

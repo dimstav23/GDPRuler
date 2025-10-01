@@ -90,16 +90,40 @@ public:
     return {};
   }
 
-  auto putm(std::string_view key, std::string_view value) -> bool override
+  auto get_prefix_kv_pairs(std::string_view key_prefix) -> std::vector<std::pair<std::string, std::string>> override
   {
     query_message query;
-    query.set_command("putm");
-    query.set_key(key);
-    query.set_value(value);
+    query.set_command("get_prefix_kv_pairs"); // New command
+    query.set_key(key_prefix);
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    return response.op_is_successful();
+    if (response.op_is_successful()) {
+      return parse_get_prefix_kv_pairs_response(std::move(response.get_data()));
+    }
+    
+    return {}; // Empty vector if operation failed
+  }
+
+  auto putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override {
+    if (key_value_pairs.empty()) return {};
+    
+    query_message query;
+    query.set_command("putm");
+    query.set_is_valid(true);
+    
+    // Serialize all key-value pairs efficiently
+    std::string serialized_data = serialize_key_value_pairs(key_value_pairs);
+    query.set_value(serialized_data);
+    response_message response = execute(query);
+    
+    if (response.op_is_successful()) {
+      return deserialize_bulk_results(response.get_data(), key_value_pairs.size());
+    } else {
+      // All failed
+      std::vector<bool> results(key_value_pairs.size(), false);
+      return results;
+    }
   }
 
 private:
@@ -137,7 +161,6 @@ private:
   auto execute(query_message query) -> response_message
   {
     std::string raw_query = query.serialize();
-
     // Prepend message size to query
     int message_size = static_cast<int>(raw_query.size());
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -202,5 +225,112 @@ private:
     }
     
     return values;
+  }
+
+  auto parse_get_prefix_kv_pairs_response(std::string&& data) -> std::vector<std::pair<std::string, std::string>>
+  {
+    std::vector<std::pair<std::string, std::string>> pairs;
+    
+    if (data.empty()) {
+      return pairs;
+    }
+    
+    const char* read_ptr = data.data();
+    const char* const end_ptr = data.data() + data.size();
+    
+    while (read_ptr < end_ptr) {
+      // Read key size
+      if (read_ptr + sizeof(uint32_t) > end_ptr) {
+        std::cerr << "Corrupted data: incomplete key size field" << std::endl;
+        break;
+      }
+      
+      uint32_t key_size;
+      std::memcpy(&key_size, read_ptr, sizeof(key_size));
+      read_ptr += sizeof(uint32_t);
+      
+      // Read key data
+      if (read_ptr + key_size > end_ptr) {
+        std::cerr << "Corrupted data: incomplete key data" << std::endl;
+        break;
+      }
+      
+      std::string key(read_ptr, key_size);
+      read_ptr += key_size;
+      
+      // Read value size
+      if (read_ptr + sizeof(uint32_t) > end_ptr) {
+        std::cerr << "Corrupted data: incomplete value size field" << std::endl;
+        break;
+      }
+      
+      uint32_t value_size;
+      std::memcpy(&value_size, read_ptr, sizeof(value_size));
+      read_ptr += sizeof(uint32_t);
+      
+      // Read value data
+      if (read_ptr + value_size > end_ptr) {
+        std::cerr << "Corrupted data: incomplete value data" << std::endl;
+        break;
+      }
+      
+      std::string value(read_ptr, value_size);
+      read_ptr += value_size;
+      
+      pairs.emplace_back(std::move(key), std::move(value));
+    }
+    
+    return pairs;
+  }
+
+    // Helper: serialize key-value pairs for network transmission
+  auto serialize_key_value_pairs(const std::vector<std::pair<std::string, std::string>>& pairs) -> std::string {
+    std::string result;
+    
+    // Calculate size to avoid reallocations
+    size_t total_size = sizeof(uint32_t); // count
+    for (const auto& [key, value] : pairs) {
+      total_size += sizeof(uint32_t) + key.size() + sizeof(uint32_t) + value.size();
+    }
+    result.reserve(total_size);
+    
+    // Write count
+    uint32_t count = static_cast<uint32_t>(pairs.size());
+    result.append(reinterpret_cast<const char*>(&count), sizeof(count));
+    
+    // Write pairs
+    for (const auto& [key, value] : pairs) {
+      uint32_t key_len = static_cast<uint32_t>(key.size());
+      uint32_t value_len = static_cast<uint32_t>(value.size());
+      
+      result.append(reinterpret_cast<const char*>(&key_len), sizeof(key_len));
+      result.append(key);
+      result.append(reinterpret_cast<const char*>(&value_len), sizeof(value_len));
+      result.append(value);
+    }
+    
+    return result;
+  }
+  
+  // Helper: deserialize results from server
+  auto deserialize_bulk_results(const std::string& data, size_t expected_count) -> std::vector<bool> {
+    std::vector<bool> results;
+    results.reserve(expected_count);
+    
+    const char* ptr = data.data();
+    const char* end = data.data() + data.size();
+    
+    while (ptr < end && results.size() < expected_count) {
+      bool success = (*ptr != 0);
+      results.push_back(success);
+      ptr++;
+    }
+    
+    // Fill remaining with false if needed
+    while (results.size() < expected_count) {
+      results.push_back(false);
+    }
+    
+    return results;
   }
 };
