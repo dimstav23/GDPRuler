@@ -98,31 +98,31 @@ public:
   
   auto gdpr_putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> {
     #ifndef ENCRYPTION_ENABLED
-    // Direct bulk update without encryption
-    return putm(key_value_pairs);
+      // Direct bulk update without encryption
+      return putm(key_value_pairs);
     #else
-    // Encrypt all values before bulk update
-    std::vector<std::pair<std::string, std::string>> encrypted_pairs;
-    encrypted_pairs.reserve(key_value_pairs.size());
-    std::vector<bool> results;
-    results.reserve(key_value_pairs.size());
-    
-    for (const auto& [key, value] : key_value_pairs) {
-      auto encrypt_result = m_cipher->encrypt(value, cipher_key_type::db_key);
-      if (encrypt_result.m_success) {
-        encrypted_pairs.emplace_back(key, encrypt_result.m_ciphertext);
-      } else {
-        std::cerr << "Error in putm_bulk: Encryption failed for key: " << key << std::endl;
-        // Still try to process other pairs, but mark this as failed
+      // Encrypt all values before bulk update
+      std::vector<std::pair<std::string, std::string>> encrypted_pairs;
+      encrypted_pairs.reserve(key_value_pairs.size());
+      std::vector<bool> results;
+      results.reserve(key_value_pairs.size());
+      
+      for (const auto& [key, value] : key_value_pairs) {
+        auto encrypt_result = m_cipher->encrypt(value, cipher_key_type::db_key);
+        if (encrypt_result.m_success) {
+          encrypted_pairs.emplace_back(std::move(key), std::move(encrypt_result.m_ciphertext));
+        } else {
+          std::cerr << "Error in putm_bulk: Encryption failed for key: " << key << std::endl;
+          // Still try to process other pairs, but mark this as failed
+        }
       }
-    }
-    
-    if (encrypted_pairs.empty()) {
-      results.resize(key_value_pairs.size(), false);
-      return results;
-    }
-    
-    return putm(encrypted_pairs);
+      
+      if (encrypted_pairs.empty()) {
+        results.resize(key_value_pairs.size(), false);
+        return results;
+      }
+      
+      return putm(encrypted_pairs);
     #endif
   }
 

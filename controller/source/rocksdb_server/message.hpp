@@ -27,11 +27,23 @@ public:
 
   auto serialize() -> std::string
   {
+    // Calculate exact total size
+    size_t total_size = m_command.size() + sizeof(char) /* sizeof " " */  + m_key.size();
+    if (!m_value.empty()) {
+      total_size += sizeof(char) /* sizeof " " */ + m_value.size();
+    }
+
     std::string result;
+    result.reserve(sizeof(int) + total_size);
+    // Add size header first
+    int message_size = static_cast<int>(total_size);
+    result.append(reinterpret_cast<const char*>(&message_size), sizeof(int));
+
     result.append(m_command).append(" ").append(m_key);
     if (!m_value.empty()) {
       result.append(" ").append(m_value);
     }
+
     return result;
   }
 
@@ -70,7 +82,7 @@ public:
     if (request.m_command == "put" || request.m_command == "putc" || request.m_command == "putm") {
       size_t value_start = key_end + 1;
       if (value_start >= raw_query.size()) [[unlikely]] {
-        std::cerr << "Invalid put query: missing value\n";
+        std::cerr << "Invalid put/putc/putm query: missing value\n";
         return request; // invalid
       }
       request.m_value = raw_query.substr(value_start);
@@ -148,9 +160,19 @@ public:
 
   auto serialize() -> std::string
   {
+    // Calculate exact total size
+    size_t total_size = sizeof(char) /* sizeof "1" or "0" */  + m_data.size();
+
     std::string result;
+    result.reserve(sizeof(int) + total_size);
+    
+    // Add size header first
+    int message_size = static_cast<int>(total_size);
+    result.append(reinterpret_cast<const char*>(&message_size), sizeof(int));
+
     result.append(m_is_success ? "1" : "0")
           .append(m_data);
+
     return result;
   }
 
@@ -169,7 +191,7 @@ public:
     }
 
     std::string response_data = raw_response.substr(sizeof(valid));
-    return response_message {valid == '1', response_data};
+    return response_message {valid == '1', std::move(response_data)};
   }
 
   auto op_is_successful() const -> bool {

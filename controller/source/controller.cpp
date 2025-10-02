@@ -322,7 +322,7 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
       #endif
       
       // Add to valid updates list
-      valid_updates.emplace_back(key, std::move(new_value));
+      valid_updates.emplace_back(std::move(key), std::move(new_value));
     } else {
       // No need to log here as it's an attempt that will never go through and was not explicitly asked
       // gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid);

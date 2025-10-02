@@ -97,16 +97,16 @@ public:
     
     query_message query;
     query.set_command("putm");
-    query.set_key("");
+    query.set_key("putm"); // dummy key placeholder for the parsing
     query.set_is_valid(true);
     
     // Serialize all key-value pairs efficiently
-    std::string serialized_data = serialize_key_value_pairs(key_value_pairs);
+    std::string serialized_data = serialize_putm_request(key_value_pairs);
     query.set_value(serialized_data);
     response_message response = execute(query);
     
     if (response.op_is_successful()) {
-      return deserialize_bulk_results(std::move(response.get_data()), key_value_pairs.size());
+      return parse_putm_response(std::move(response.get_data()), key_value_pairs.size());
     } else {
       // All failed
       std::vector<bool> results(key_value_pairs.size(), false);
@@ -149,10 +149,6 @@ private:
   auto execute(query_message query) -> response_message
   {
     std::string raw_query = query.serialize();
-    // Prepend message size to query
-    int message_size = static_cast<int>(raw_query.size());
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    raw_query.insert(0, reinterpret_cast<const char*>(&message_size), sizeof(int));
 
     // Send query
     std::visit([&raw_query](auto& socket) {
@@ -175,8 +171,8 @@ private:
     return response_message::deserialize(std::move(raw_response));
   }
 
-  // Helper method to parse the combined response
-  // response format: [4 bytes: size1][data1][4 bytes: size2][data2]...[4 bytes: sizeN][dataN]
+  // Helper: deserialize results from the rocksdb server for the getm operation
+  // Response format: [4 bytes: size1][data1][4 bytes: size2][data2]...[4 bytes: sizeN][dataN]
   auto parse_getm_response(std::string&& data) -> std::vector<std::string>
   {
     std::vector<std::string> values;
@@ -215,6 +211,8 @@ private:
     return values;
   }
 
+  // Helper: deserialize results from the rocksdb server for the get_prefix_kv_pairs operation
+  /* response format: [4 bytes: keysize1][key1][4 bytes: valuesize1][value1]...[4 bytes: sizeN][dataN] */
   auto parse_get_prefix_kv_pairs_response(std::string&& data) -> std::vector<std::pair<std::string, std::string>>
   {
     std::vector<std::pair<std::string, std::string>> pairs;
@@ -271,8 +269,9 @@ private:
     return pairs;
   }
 
-    // Helper: serialize key-value pairs for network transmission
-  auto serialize_key_value_pairs(const std::vector<std::pair<std::string, std::string>>& pairs) -> std::string {
+  // Helper: serialize the request for the rocksdb server for the putm operation
+  /* response format: [4 bytes: pairs count][4 bytes: keysize1][key1][4 bytes: valuesize1][value1]...[4 bytes: sizeN][dataN] */
+  auto serialize_putm_request(const std::vector<std::pair<std::string, std::string>>& pairs) -> std::string {
     std::string result;
     
     // Calculate size to avoid reallocations
@@ -300,8 +299,9 @@ private:
     return result;
   }
   
-  // Helper: deserialize results from server
-  auto deserialize_bulk_results(const std::string& data, size_t expected_count) -> std::vector<bool> {
+  // Helper: deserialize results from the rocksdb server for the putm operation
+  /* response format: series of 0 or 1 depending on the writebatch outcome */
+  auto parse_putm_response(const std::string& data, size_t expected_count) -> std::vector<bool> {
     std::vector<bool> results;
     results.reserve(expected_count);
     

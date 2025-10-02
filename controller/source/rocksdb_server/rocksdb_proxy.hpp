@@ -149,7 +149,9 @@ private:
       return response_message{/*is_success*/true, std::move(result)};
   }
 
-  // Add bulk implementation using WriteBatch
+  // Bulk batch write implementation using RocksDB's WriteBatch
+  /* request format: [4 bytes: pairs count][4 bytes: keysize1][key1][4 bytes: valuesize1][value1]...[4 bytes: sizeN][dataN] */
+  /* response format: series of 0 or 1 depending on the writebatch outcome */
   auto putm(std::string_view serialized_data) -> response_message {
     // Parse data
     const char* ptr = serialized_data.data();
@@ -201,6 +203,7 @@ private:
     return response_message{status.ok(), std::move(result)};
   }
 
+  /* response format: [4 bytes: keysize1][key1][4 bytes: valuesize1][value1]...[4 bytes: sizeN][dataN] */
   auto get_prefix_kv_pairs(std::string_view key_prefix) -> response_message
   {
     rocksdb::ReadOptions read_options;

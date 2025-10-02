@@ -74,10 +74,11 @@ public:
       
       if (!keys.empty()) {
         std::vector<std::optional<std::string>> values;
+        values.reserve(keys.size()); // Pre-allocate
         m_redis.mget(keys.begin(), keys.end(), std::back_inserter(values));
         // Move values directly into result set
         result_values.reserve(result_values.size() + values.size());
-        for (auto& val : values) {
+        for (auto&& val : values) {
           if (val) {
             result_values.emplace_back(std::move(*val)); // Move the value
           }
@@ -104,13 +105,14 @@ public:
       
       if (!keys.empty()) {
         std::vector<std::optional<std::string>> values;
+        values.reserve(keys.size());
         m_redis.mget(keys.begin(), keys.end(), std::back_inserter(values));
         
         // Pair up keys with their values
         auto key_it = keys.begin();
-        for (const auto& val : values) {
+        for (auto&& val : values) {
           if (val) {
-            result_pairs.emplace_back(*key_it, *val);
+            result_pairs.emplace_back(*key_it, std::move(*val));
           }
           ++key_it;
         }
@@ -123,20 +125,6 @@ public:
 
     return result_pairs;
   }
-
-  // auto putm(std::string_view key, std::string_view value) -> bool override
-  // {
-  //   bool res = true;
-  //   auto result = m_redis.set(key, value);
-  //   if (result) {
-  //     // std::cout << "PUTM operation done with key: " << key
-  //     //           << " and value: " << value << std::endl;
-  //   } else {
-  //     // std::cout << "PUTM operation failed" << std::endl;
-  //     res = false;
-  //   }
-  //   return res;
-  // }
   
   auto putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override 
   {
@@ -153,7 +141,9 @@ public:
       auto batch_results = process_pipeline_batch(key_value_pairs, i, batch_end);
       
       // Append batch results to total results
-      results.insert(results.end(), batch_results.begin(), batch_results.end());
+      results.insert(results.end(), 
+                      std::make_move_iterator(batch_results.begin()),
+                      std::make_move_iterator(batch_results.end()));
     }
     return results;
   }
@@ -171,7 +161,7 @@ public:
       
       // Add all operations in this batch
       for (size_t i = start; i < end; ++i) {
-        pipe.set(pairs[i].first, pairs[i].second);
+        pipe.set(std::move(pairs[i].first), std::move(pairs[i].second));
       }
       
       // Execute pipeline
