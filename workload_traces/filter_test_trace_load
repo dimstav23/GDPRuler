@@ -1,6 +1,12 @@
+# GDPR-Compliant Key-Value Store Unit Tests
+# Loading Phase - Key Creation Tests
 query(PUT("key0","VAL"))
 query(PUT("gdpr1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0")&objExp("0")
 query(PUT("gdpr2","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user2")&objExp("0")
 query(PUT("gdpr3","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")
-query(PUT("gdpr4","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")
-query(PUT("gdpr5","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")
+query(PUT("gdpr4","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")
+query(PUT("key1","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user1")&objExp("0")
+query(PUT("key2","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")
+query(PUT("key3","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose2,purpose3")&objShare("user1,user2")&objExp("0")
+query(PUT("key4","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user1,user2")&objExp("0")
+query(PUT("key5","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user1,user2")&objExp("0")
