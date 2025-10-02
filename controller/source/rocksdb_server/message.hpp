@@ -177,7 +177,7 @@ public:
   }
 
   auto get_data() -> std::string {
-    return m_data;
+    return std::move(m_data);
   }
 
 private:

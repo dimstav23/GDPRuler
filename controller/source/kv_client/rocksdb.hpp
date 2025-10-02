@@ -31,10 +31,8 @@ public:
 
     response_message response = execute(query);
     if (response.op_is_successful()) {
-      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
-      return response.get_data();
+      return std::move(response.get_data());
     }
-    // std::cout << "GET operation failed" << std::endl;
     return std::nullopt;
   }
 
@@ -49,12 +47,6 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    // std::cout << "PUT operation request Key: " << key << std::endl;
-    // if (response.op_is_successful()) {
-      // std::cout << "PUT operation succeeded! Key: " << key << std::endl;
-    // } else {
-      // std::cout << "PUT operation failed" << std::endl;
-    // }
     return response.op_is_successful();
   }
 
@@ -66,11 +58,6 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    // if (response.op_is_successful()) {
-      // std::cout << "DELETE operation succeeded! Key: " << key << std::endl;
-    // } else {
-      // std::cout << "DELETE operation failed" << std::endl;
-    // }
     return response.op_is_successful();
   }
 
@@ -110,6 +97,7 @@ public:
     
     query_message query;
     query.set_command("putm");
+    query.set_key("");
     query.set_is_valid(true);
     
     // Serialize all key-value pairs efficiently
@@ -118,7 +106,7 @@ public:
     response_message response = execute(query);
     
     if (response.op_is_successful()) {
-      return deserialize_bulk_results(response.get_data(), key_value_pairs.size());
+      return deserialize_bulk_results(std::move(response.get_data()), key_value_pairs.size());
     } else {
       // All failed
       std::vector<bool> results(key_value_pairs.size(), false);
@@ -184,7 +172,7 @@ private:
     }, m_socket_variant);
 
     std::string raw_response(response_buffer.begin(), response_buffer.end());
-    return response_message::deserialize(raw_response);
+    return response_message::deserialize(std::move(raw_response));
   }
 
   // Helper method to parse the combined response
