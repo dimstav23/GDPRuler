@@ -369,7 +369,9 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
   auto key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
   
   if (key_value_pairs.empty()) {
-    std::cout << "reason is empty!" << std::endl;
+    #ifdef DEBUG
+    std::cout << "handle_put_metadata failed: reason is empty!" << std::endl;
+    #endif
     return PUTM_FAILED; // No matching keys found
   }
   
@@ -396,7 +398,9 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
       query_rewriter rewriter(query_args, current_value);
       std::string new_value = std::move(rewriter).new_value();
       
+      #ifdef DEBUG
       std::cout << "key : " << key << " value: " << hex_dump(current_value) << " new value: " << hex_dump(new_value) << std::endl;
+      #endif
 
       // Monitor the update operation (if needed)
       gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid, new_value);
@@ -461,7 +465,9 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
   auto key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
   
   if (key_value_pairs.empty()) {
-    std::cout << "reason is empty!" << std::endl;
+    #ifdef DEBUG
+    std::cout << "handle_delete_metadata failed: reason is empty!" << std::endl;
+    #endif
     return DELETEM_FAILED; // No matching keys found
   }
   
