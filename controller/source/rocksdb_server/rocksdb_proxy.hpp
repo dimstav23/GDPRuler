@@ -50,7 +50,7 @@ public:
       // value contains the serialized data
       return putm(query.get_value());
     }
-    if (query.get_command() == "deletem") {
+    if (query.get_command() == "delm") {
       // value contains the serialized data
       return deletem(query.get_value());
     }

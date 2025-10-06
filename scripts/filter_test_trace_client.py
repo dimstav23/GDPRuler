@@ -9,6 +9,22 @@ import json
 from contextlib import contextmanager
 
 
+GET_FAILED       = "0"
+PUT_SUCCESS      = "1"
+PUT_FAILED       = "2"
+DELETE_SUCCESS   = "3"
+DELETE_FAILED    = "4"
+GETM_FAILED      = "5"
+PUTM_SUCCESS     = "6"
+PUTM_FAILED      = "7"
+DELETEM_SUCCESS  = "8"
+DELETEM_FAILED   = "9"
+PUTC_SUCCESS     = "10"
+PUTC_FAILED      = "11"
+GET_LOGS_FAILED  = "12"
+INVALID_COMMAND  = "13"
+UNKNOWN_ERROR    = "14"
+
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
 sys.path.insert(0, parent_dir) 
@@ -25,105 +41,164 @@ def get_expected_outputs():
   """Return dictionary mapping query patterns to expected outputs for unit tests"""
   expected = {
     # Loading Phase
-    'query(PUT("key0","VAL"))': '1',
-    'query(PUT("gdpr1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0")&objExp("0")': '1',
-    'query(PUT("gdpr2","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user2")&objExp("0")': '1',
-    'query(PUT("gdpr3","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")': '1',
-    'query(PUT("gdpr4","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")': '1',
-    'query(PUT("key1","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user1")&objExp("0")': '1',
-    'query(PUT("key2","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': '1',
-    'query(PUT("key3","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose2,purpose3")&objShare("user1,user2")&objExp("0")': '1',
-    'query(PUT("key4","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user1,user2")&objExp("0")': '1',
-    'query(PUT("key5","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user1,user2")&objExp("0")': '1',
+    'query(PUT("key0","VAL"))': PUT_SUCCESS,
+    'query(PUT("gdpr1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("gdpr2","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("gdpr3","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("gdpr4","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("key1","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user1")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("key2","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("key3","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose2,purpose3")&objShare("user1,user2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("key4","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user1,user2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("key5","VAL"))&sessionKey("user0")&objOrig("src1")&monitor("true")&objObjections("purpose4")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user1,user2")&objExp("0")': PUT_SUCCESS,
     
     # Execution Phase - GET Tests
     'query(GET("gdpr1"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',     # Owner, purpose1 allowed
-    'query(GET("gdpr1"))&sessionKey("user1")&objPurIs("purpose3")': '0',       # Owner, purpose3 objected  
+    'query(GET("gdpr1"))&sessionKey("user1")&objPurIs("purpose3")': GET_FAILED,       # Owner, purpose3 objected  
     'query(GET("gdpr2"))&sessionKey("user2")&objPurIs("purpose1")': 'VAL',     # Shared user, purpose1 allowed
-    'query(GET("gdpr1"))&sessionKey("user2")&objPurIs("purpose1")': '0',       # user2 not authorized for gdpr1
+    'query(GET("gdpr1"))&sessionKey("user2")&objPurIs("purpose1")': GET_FAILED,       # user2 not authorized for gdpr1
     'query(GET("key0"))': 'VAL',                                               # Default session (user0), default policy
     'query(GET("key0"))&objPurIs("purpose1,purpose2")': 'VAL',                # Both allowed in default policy (purpose0-31)
     'query(GET("key0"))&objPurIs("purpose3")': 'VAL',                         # purpose3 allowed in default policy
-    'query(GET("key0"))&objPurIs("purpose32")': '0',                          # purpose32 objected in default policy (purpose32-63)
+    'query(GET("key0"))&objPurIs("purpose32")': GET_FAILED,                          # purpose32 objected in default policy (purpose32-63)
     
     # PUTM Tests
-    'query(PUTM("gdpr1"))&sessionKey("user1")&objPurIs("purpose1")&objPur("purpose5,purpose6")': '6',  # Owner can update
-    'query(PUTM("gdpr1"))&sessionKey("user2")&objPurIs("purpose1")&objPur("purpose5,purpose6")': '7',  # Non-owner cannot update  
-    'query(PUTM("gdpr"))&sessionKey("user1")&objPurIs("purpose1")&objPur("purpose5,purpose6")': '6',   # Updates gdpr1,2,3,4 → all now have purpose5,6
+    'query(PUTM("gdpr1"))&sessionKey("user1")&objPurIs("purpose1")&objPur("purpose5,purpose6")': PUTM_SUCCESS,  # Owner can update
+    'query(PUTM("gdpr1"))&sessionKey("user2")&objPurIs("purpose1")&objPur("purpose5,purpose6")': PUTM_FAILED,  # Non-owner cannot update  
+    'query(PUTM("gdpr"))&sessionKey("user1")&objPurIs("purpose1")&objPur("purpose5,purpose6")': PUTM_SUCCESS,   # Updates gdpr1,2,3,4 → all now have purpose5,6
     
     # GETM Tests - AFTER PUTM changed gdpr* purposes to [purpose5,purpose6]
-    'query(GETM("gdpr","data"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': '5',             # GETMFAILED - no gdpr* keys have purpose1,2 anymore
-    'query(GETM("gdpr","metadata"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': '5',         # GETMFAILED - no gdpr* keys match
-    'query(GETM("gdpr","data"))&sessionKey("user3")&objPurIs("purpose1")': '5',                      # GETMFAILED - user3 unauthorized
+    'query(GETM("gdpr","data"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': GETM_FAILED,             # GETMFAILED - no gdpr* keys have purpose1,2 anymore
+    'query(GETM("gdpr","metadata"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': GETM_FAILED,         # GETMFAILED - no gdpr* keys match
+    'query(GETM("gdpr","data"))&sessionKey("user3")&objPurIs("purpose1")': GETM_FAILED,                      # GETMFAILED - user3 unauthorized
     'query(GETM("key","data"))&sessionKey("user0")&objPurIs("purpose1,purpose2")': 'VAL|VAL|VAL|VAL|VAL', # key* still have original purposes
     'query(GETM("key","data"))&sessionKey("user0")&objPurIs("purpose5,purpose6")': 'VAL',             # only "key", the rest key* don't have purpose5,6 (PUTM didn't affect key*)
     
     # PUTC Tests
-    'query(PUTC("gdpr1","VAL"))&sessionKey("user1")&objOrig("src2")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0,user2")&objExp("0")': '8',  # Owner can use PUTC
-    'query(PUTC("gdpr1","VAL"))&sessionKey("user2")&objOrig("src2")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0,user2")&objExp("0")': '9',  # Non-owner cannot use PUTC
-    'query(PUTC("gdpr5","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2,user4")&objExp("0")': '8',  # Creates new key gdpr5
-    'query(PUTC("gdpr5","VAL"))&sessionKey("user1")&objOrig("src2")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0,user2")&objExp("0")': '8',     # Updates existing gdpr5
-    'query(PUTC("gdpr5","VAL"))&sessionKey("user1")&objOrig("src3")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1")&objShare("user0")&objExp("0")': '8',                   # Updates gdpr5 again
+    'query(PUTC("gdpr1","VAL"))&sessionKey("user1")&objOrig("src2")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0,user2")&objExp("0")': PUTC_SUCCESS,  # Owner can use PUTC
+    'query(PUTC("gdpr1","VAL"))&sessionKey("user2")&objOrig("src2")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0,user2")&objExp("0")': PUTC_FAILED,  # Non-owner cannot use PUTC
+    'query(PUTC("gdpr5","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2,user4")&objExp("0")': PUTC_SUCCESS,  # Creates new key gdpr5
+    'query(PUTC("gdpr5","VAL"))&sessionKey("user1")&objOrig("src2")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0,user2")&objExp("0")': PUTC_SUCCESS,     # Updates existing gdpr5
+    'query(PUTC("gdpr5","VAL"))&sessionKey("user1")&objOrig("src3")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1")&objShare("user0")&objExp("0")': PUTC_SUCCESS,                   # Updates gdpr5 again
     
     # DELETE Tests
-    'query(DELETE("gdpr4"))&sessionKey("user1")': '3',  # Owner can delete
-    'query(DELETE("gdpr1"))&sessionKey("user2")': '4',  # Non-owner cannot delete
+    'query(DELETE("gdpr4"))&sessionKey("user1")': DELETE_SUCCESS,  # Owner can delete
+    'query(DELETE("gdpr1"))&sessionKey("user2")': DELETE_FAILED,  # Non-owner cannot delete
     
     # Complex Tests - Track state changes
-    'query(PUT("cascade1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': '1',               # Creates cascade1 with purpose1,2
-    'query(PUTM("cascade1"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose3")': '6',                                        # Updates cascade1 to have purpose1,2,3
+    'query(PUT("cascade1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': PUT_SUCCESS,               # Creates cascade1 with purpose1,2
+    'query(PUTM("cascade1"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose3")': PUTM_SUCCESS,                                        # Updates cascade1 to have purpose1,2,3
     'query(GET("cascade1"))&sessionKey("user2")&objPurIs("purpose3")': 'VAL',                                                      # user2 can now access with purpose3
-    'query(PUT("objtest1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objObjections("purpose2")&objExp("0")': '1',    # Creates objtest1, purpose2 objected
-    'query(GET("objtest1"))&sessionKey("user1")&objPurIs("purpose2")': '0',                                                       # purpose2 is objected
-    'query(PUT("sharetest1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2,user3")&objExp("0")': '1',   # Creates sharetest1, shared with user2,3
+    'query(PUT("objtest1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objObjections("purpose2")&objExp("0")': PUT_SUCCESS,    # Creates objtest1, purpose2 objected
+    'query(GET("objtest1"))&sessionKey("user1")&objPurIs("purpose2")': GET_FAILED,                                                       # purpose2 is objected
+    'query(PUT("sharetest1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2,user3")&objExp("0")': PUT_SUCCESS,   # Creates sharetest1, shared with user2,3
     'query(GET("sharetest1"))&sessionKey("user2")&objPurIs("purpose1")': 'VAL',                                                   # user2 is shared
-    'query(GET("sharetest1"))&sessionKey("user4")&objPurIs("purpose1")': '0',                                                     # user4 not shared
+    'query(GET("sharetest1"))&sessionKey("user4")&objPurIs("purpose1")': GET_FAILED,                                                     # user4 not shared
     
     # Multi-User Tests
-    'query(PUT("multitest1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose3")&objShare("user2")&objExp("0")': '1', # Creates multitest1
+    'query(PUT("multitest1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose3")&objShare("user2")&objExp("0")': PUT_SUCCESS, # Creates multitest1
     'query(GET("multitest1"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': 'VAL',                                         # Owner access
     'query(GET("multitest1"))&sessionKey("user2")&objPurIs("purpose1,purpose2")': 'VAL',                                         # Shared access
-    'query(GET("multitest1"))&sessionKey("user3")&objPurIs("purpose1")': '0',                                                    # user3 not shared
-    'query(PUTM("multitest1"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose4")': '6',                                  # Updates purposes to 1,2,4
+    'query(GET("multitest1"))&sessionKey("user3")&objPurIs("purpose1")': GET_FAILED,                                                    # user3 not shared
+    'query(PUTM("multitest1"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose4")': PUTM_SUCCESS,                                  # Updates purposes to 1,2,4
     'query(GET("multitest1"))&sessionKey("user2")&objPurIs("purpose4")': 'VAL',                                                  # user2 can access with new purpose4
     
     # Purpose Limitation Tests
-    'query(PUT("purtest1","VAL"))&sessionKey("user1")&objPur("purpose1")&objObjections("purpose2,purpose3")&objExp("0")': '1',  # Only purpose1 allowed, 2,3 objected
+    'query(PUT("purtest1","VAL"))&sessionKey("user1")&objPur("purpose1")&objObjections("purpose2,purpose3")&objExp("0")': PUT_SUCCESS,  # Only purpose1 allowed, 2,3 objected
     'query(GET("purtest1"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',                                                   # purpose1 allowed
-    'query(GET("purtest1"))&sessionKey("user1")&objPurIs("purpose2")': '0',                                                     # purpose2 objected
-    'query(GET("purtest1"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': '0',                                            # Mixed allowed/objected = fail
-    'query(GET("purtest1"))&sessionKey("user1")&objPurIs("purpose4")': '0',                                                     # purpose4 not in allowed list
+    'query(GET("purtest1"))&sessionKey("user1")&objPurIs("purpose2")': GET_FAILED,                                                     # purpose2 objected
+    'query(GET("purtest1"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': GET_FAILED,                                            # Mixed allowed/objected = fail
+    'query(GET("purtest1"))&sessionKey("user1")&objPurIs("purpose4")': GET_FAILED,                                                     # purpose4 not in allowed list
     
     # Bulk Operations
-    'query(PUT("bulk1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': '1',             # Creates bulk1
-    'query(PUT("bulk2","VAL"))&sessionKey("user1")&objPur("purpose2,purpose3")&objShare("user3")&objExp("0")': '1',             # Creates bulk2  
-    'query(PUT("bulk3","VAL"))&sessionKey("user2")&objPur("purpose1,purpose3")&objShare("user1")&objExp("0")': '1',             # Creates bulk3 (user2 owns)
+    'query(PUT("bulk1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': PUT_SUCCESS,             # Creates bulk1
+    'query(PUT("bulk2","VAL"))&sessionKey("user1")&objPur("purpose2,purpose3")&objShare("user3")&objExp("0")': PUT_SUCCESS,             # Creates bulk2  
+    'query(PUT("bulk3","VAL"))&sessionKey("user2")&objPur("purpose1,purpose3")&objShare("user1")&objExp("0")': PUT_SUCCESS,             # Creates bulk3 (user2 owns)
     'query(GETM("bulk","data"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': 'VAL',                                      # Gets bulk1 (user1 owns) + bulk3 (shared)
     'query(GETM("bulk","data"))&sessionKey("user2")&objPurIs("purpose1")': 'VAL|VAL',                                               # Gets bulk3 (user2 owns) + bulk1 (shared)
-    'query(PUTM("bulk"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose4")': '6',                                       # Updates bulk1,bulk2 only (user1 owns)
+    'query(PUTM("bulk"))&sessionKey("user1")&objPur("purpose1,purpose2,purpose4")': PUTM_SUCCESS,                                       # Updates bulk1,bulk2 only (user1 owns)
     
     # Ownership Transfer (PUTC cannot transfer ownership)
-    'query(PUT("transfer1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': '1',         # Creates transfer1
-    'query(PUTC("transfer1","VAL"))&sessionKey("user2")&objOrig("src2")&objPur("purpose2,purpose3")&objShare("user1")&objExp("0")': '9',  # user2 cannot use PUTC (not owner)
+    'query(PUT("transfer1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': PUT_SUCCESS,         # Creates transfer1
+    'query(PUTC("transfer1","VAL"))&sessionKey("user2")&objOrig("src2")&objPur("purpose2,purpose3")&objShare("user1")&objExp("0")': PUTC_FAILED,  # user2 cannot use PUTC (not owner)
     'query(GET("transfer1"))&sessionKey("user2")&objPurIs("purpose2")': 'VAL',                                                  # user2 still shared, can access original
     
     # Error Conditions
-    'query(GET("nonexistent"))&sessionKey("user1")&objPurIs("purpose1")': '0',          # Key doesn't exist
-    'query(PUT("errortest1","VAL"))&sessionKey("user1")&objPur("purpose1")&objShare("user2")&objExp("0")': '1',  # Creates errortest1
-    'query(GET("errortest1"))': '0',                                                  # Default session (user0), uses default policy but purposes are not all included
-    'query(GET("errortest1"))&sessionKey("user1")': '0',                             # Owner access but not with proper allowed purposes
-    'query(DELETE("errortest1"))&sessionKey("user2")': '4',                            # user2 cannot delete (not owner)
-    'query(DELETE("errortest1"))&sessionKey("user1")': '3',                            # Owner can delete
-    'query(GET("errortest1"))&sessionKey("user1")&objPurIs("purpose1")': '0',          # Key deleted, no longer exists
+    'query(GET("nonexistent"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED,          # Key doesn't exist
+    'query(PUT("errortest1","VAL"))&sessionKey("user1")&objPur("purpose1")&objShare("user2")&objExp("0")': PUT_SUCCESS,  # Creates errortest1
+    'query(GET("errortest1"))': GET_FAILED,                                                  # Default session (user0), uses default policy but purposes are not all included
+    'query(GET("errortest1"))&sessionKey("user1")': GET_FAILED,                             # Owner access but not with proper allowed purposes
+    'query(DELETE("errortest1"))&sessionKey("user2")': DELETE_FAILED,                            # user2 cannot delete (not owner)
+    'query(DELETE("errortest1"))&sessionKey("user1")': DELETE_SUCCESS,                            # Owner can delete
+    'query(GET("errortest1"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED,          # Key deleted, no longer exists
     
     # Final Validation
-    'query(PUT("final1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose4,purpose5")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2,user3")&objExp("0")': '1',  # Creates final1
+    'query(PUT("final1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("true")&objObjections("purpose4,purpose5")&objPur("purpose0,purpose1,purpose2,purpose3")&objShare("user0,user2,user3")&objExp("0")': PUT_SUCCESS,  # Creates final1
     'query(GET("final1"))&sessionKey("user1")&objPurIs("purpose1,purpose2,purpose3")': 'VAL',  # Owner, all purposes allowed
     'query(GET("final1"))&sessionKey("user2")&objPurIs("purpose1,purpose2")': 'VAL',           # Shared, purposes allowed
     'query(GET("final1"))&sessionKey("user3")&objPurIs("purpose3")': 'VAL',                    # Shared, purpose allowed
-    'query(GET("final1"))&sessionKey("user1")&objPurIs("purpose4")': '0',                      # purpose4 objected
-    'query(GET("final1"))&sessionKey("user1")&objPurIs("purpose5")': '0',                      # purpose5 objected
+    'query(GET("final1"))&sessionKey("user1")&objPurIs("purpose4")': GET_FAILED,                      # purpose4 objected
+    'query(GET("final1"))&sessionKey("user1")&objPurIs("purpose5")': GET_FAILED,                      # purpose5 objected
     'query(GETM("final","data"))&sessionKey("user1")&objPurIs("purpose1,purpose2,purpose3")': 'VAL',  # Gets final1 data
+    
+    # GET_META_ONLY Tests
+    'query(PUT("gdpr1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0")&objExp("0")': PUT_SUCCESS,
+    'query(GET("gdpr1","meta_only"))&sessionKey("user1")&objPurIs("purpose0")': 'metadata_string',  # Returns metadata of gdpr1 (owner can access) + allowed purpose
+    'query(GET("gdpr1","meta_only"))&sessionKey("user2")': GET_FAILED,                # user2 not authorized for gdpr1
+    'query(GET("key0","meta_only"))&sessionKey("user0")': 'metadata_string',  # Returns metadata of key1 (owner)
+    'query(GET("nonexistent","meta_only"))&sessionKey("user1")': GET_FAILED,         # Key doesn't exist
+
+    # PUT_META_ONLY Tests
+    'query(PUT("gdpr2","meta_only"))&sessionKey("user1")&objPur("purpose7,purpose8")': PUT_SUCCESS,  # Owner updates metadata
+    'query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose7")': 'metadata_string',                # Metadata updated
+    'query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED, #Check that purposes are actually updated
+    'query(GET("gdpr2"))&sessionKey("user1")&objPurIs("purpose7")': 'VAL',                   # Data preserved, new purpose works
+    'query(PUT("gdpr2","meta_only"))&sessionKey("user2")&objPur("purpose9,purpose10")': PUT_FAILED, # Non-owner cannot update
+    'query(PUT("key2","meta_only"))&sessionKey("user0")&objShare("user1,user2,user3")': PUT_SUCCESS, # Updates sharing
+    'query(GET("key2"))&sessionKey("user3")&objPurIs("purpose1,purpose2")': 'VAL',           # New shared user can access
+    'query(PUT("metaonly_nokey","meta_only"))&sessionKey("user1")&objPur("purpose1,purpose2")': PUT_FAILED,  # Cannot update non-existent key
+
+    # DELETEM Tests
+    'query(PUT("del1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objPur("purpose1,purpose2")&objShare("user0")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("del2","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objPur("purpose1,purpose2")&objShare("user0")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("del3","VAL"))&sessionKey("user2")&objOrig("src1")&monitor("false")&objPur("purpose3,purpose4")&objShare("user0")&objExp("0")': PUT_SUCCESS,
+    'query(DELETEM("del"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': DELETEM_SUCCESS,  # Deletes del1, del2 (2 keys)
+    'query(GET("del1"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED,  # del1 deleted
+    'query(GET("del2"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED,  # del2 deleted
+    'query(GET("del3"))&sessionKey("user2")&objPurIs("purpose3")': 'VAL',  # del3 still exists
+
+    # Ownership Tests
+    'query(PUT("ownership1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("ownership2","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objExp("0")': PUT_SUCCESS,
+    'query(DELETEM("ownership"))&sessionKey("user2")&objPurIs("purpose1")': DELETEM_FAILED,  # No keys deleted (user2 not owner)
+    'query(GET("ownership1"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',  # Still exists
+    'query(GET("ownership2"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',  # Still exists
+
+    # Combined Operations
+    'query(PUT("lifecycle1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("lifecycle1","meta_only"))&sessionKey("user1")&objPur("purpose3,purpose4")': PUT_SUCCESS,
+    'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose3")': 'metadata_string',
+    'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose9")': GET_FAILED,
+    'query(GET("lifecycle1"))&sessionKey("user1")&objPurIs("purpose3")': 'VAL',  # New purpose works, data preserved
+    'query(DELETE("lifecycle1"))&sessionKey("user1")': DELETE_SUCCESS,
+
+    'query(PUT("batch1","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("batch2","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")': PUT_SUCCESS,
+    'query(PUT("batch1","meta_only"))&sessionKey("user1")&objPur("purpose5")': PUT_SUCCESS,
+    'query(PUT("batch2","meta_only"))&sessionKey("user1")&objPur("purpose5")': PUT_SUCCESS,
+    'query(DELETEM("batch"))&sessionKey("user1")&objPurIs("purpose5")': DELETEM_SUCCESS,  # Deletes both
+    'query(GET("batch1"))&sessionKey("user1")&objPurIs("purpose5")': GET_FAILED,  # Deleted
+    'query(GET("batch2"))&sessionKey("user1")&objPurIs("purpose5")': GET_FAILED,  # Deleted
+
+    # Edge Cases
+    'query(GET("key0","meta_only"))': 'metadata_string',  # Default metadata
+    'query(PUT("gdpr3","meta_only"))&sessionKey("user5")&objPur("purpose10")': PUT_FAILED,  # Invalid user
+    'query(GET("gdpr3","meta_only"))&sessionKey("user1")&objPurIs("purpose5,purpose6")': 'metadata_string',  # Unchanged
+    'query(DELETEM("nomatch"))&sessionKey("user1")&objPurIs("purpose99")': DELETEM_FAILED,  # No matches
+    'query(PUT("edge1","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")': PUT_SUCCESS,
+    'query(DELETEM("edge"))&sessionKey("user1")&objPurIs("purpose99")': DELETEM_FAILED,  # No matching purposes
+    'query(GET("edge1"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',  # Still exists
+
   }
   return expected
 
@@ -142,6 +217,10 @@ def get_expected_output(query, expected_dict, value_placeholder):
     normalized_query = normalized_query.replace(f'"{value_placeholder}"', '"VAL"')
   
   expected = expected_dict.get(normalized_query, 'UNKNOWN')
+  
+  # Special handling for metadata_string - accept any non-error response
+  if expected == 'metadata_string':
+    return 'METADATA_ACCEPTED'  # Placeholder for validation
   
   # Replace VAL in expected output with actual value if needed
   if expected == 'VAL' and value_placeholder != 'VAL':
@@ -204,9 +283,7 @@ def load_workload(server_address, server_port, workload_name, value_size, config
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.connect((server_address, server_port))
 
-
   value = generate_value(value_size)
-
 
   # Load and send default policy - get the client 0 as default policy
   if config_path != "no_cfg":
@@ -362,13 +439,41 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
       # Get expected output for comparison  
       original_query = original_queries[i] if i < len(original_queries) else query
       expected = get_expected_output(original_query, expected_dict, actual_value)
-      actual = response.decode()
       
-      # Print both actual and expected
-      status = "✓" if actual.strip() == expected.strip() else "✗"
-      print(f"[{status}] Actual: {actual.strip()}, Expected: {expected}")
-      if actual.strip() != expected.strip():
-        print(f"[Failed {i}th query : {query[:-1]}]")
+      # Try to decode as UTF-8, fallback to raw bytes if it fails
+      try:
+        actual = response.decode('utf-8')
+      except UnicodeDecodeError:
+        # Binary metadata response - convert to hex string for display
+        actual = response.hex()
+        is_binary = True
+      else:
+        is_binary = False
+      
+      # Special handling for metadata responses
+      if expected == 'METADATA_ACCEPTED':
+        # For metadata queries, just check it's not an error code
+        if is_binary:
+          # Binary metadata is valid (not an error)
+          status = "✓"
+          print(f"[{status}] Binary metadata response (length: {len(response)} bytes)")
+        else:
+          status = "✓" if actual.strip() not in [GET_FAILED] else "✗"
+          print(f"[{status}] Metadata response: {actual.strip()}")
+          if status == "✗":
+            print(f"[Failed {i}th query : {query[:-1]}]")
+          
+      else:
+        # Regular comparison (only for text responses)
+        if is_binary:
+          status = "✗"
+          print(f"[{status}] Unexpected binary response for non-metadata query")
+          print(f"[Failed {i}th query : {query[:-1]}]")
+        else:
+          status = "✓" if actual.strip() == expected.strip() else "✗"
+          print(f"[{status}] Actual: {actual.strip()}, Expected: {expected}")
+          if actual.strip() != expected.strip():
+            print(f"[Failed {i}th query : {query[:-1]}]")
       
     end_time = time.perf_counter() # End the timer
     # Calculate and accumulate the latency

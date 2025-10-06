@@ -155,6 +155,27 @@ auto query::parse_query(std::string_view reg_query_args) -> void
   // if the query is put, extract the value
   else if (this->m_cmd == "put" || this->m_cmd == "putc") {
     this->m_value = extract_value(reg_query_args);
+
+    // Check if this is a metadata-only update -- check for "meta_only" property in the value
+    if (this->m_value == "meta_only" && this->m_cmd == "put") {
+      // Convert PUT to PUT_META command
+      this->m_cmd = "put_meta_only";
+    }
+  }
+  // if the query is get, just check the case of "meta_only"
+  else if (this->m_cmd == "get") {
+    // Check if this is a metadata-only get -- check for "meta_only" property in the value
+    std::size_t third_quote_for_potential_value = reg_query_args.find('"', reg_query_args.find('"', reg_query_args.find('"') + 1) + 1);
+    
+    if (third_quote_for_potential_value != std::string_view::npos) {
+      // There's a value parameter
+      this->m_value = extract_value(reg_query_args);
+      
+      // Check if this is a metadata-only retrieval
+      if (this->m_value == "meta_only") {
+        this->m_cmd = "get_meta_only";
+      }
+    }
   }
   else if (this->m_cmd == "getm") {
     // for getm we have "data" or "metadata" as the value

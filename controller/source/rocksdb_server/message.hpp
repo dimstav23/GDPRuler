@@ -50,7 +50,7 @@ public:
   static auto deserialize(std::string_view raw_query) -> query_message
   {
     static const std::unordered_set<std::string_view> valid_query_types {
-      "get", "put", "del", "getm", "putm", "putc", "getlogs", "get_prefix_kv_pairs"
+      "get", "put", "del", "getm", "putm", "delm", "putc", "getlogs", "get_prefix_kv_pairs"
     };
 
     query_message request;
@@ -79,10 +79,10 @@ public:
     request.m_key = raw_query.substr(key_start, key_end - key_start);
 
     // Handle value (remaining string)
-    if (request.m_command == "put" || request.m_command == "putc" || request.m_command == "putm") {
+    if (request.m_command == "put" || request.m_command == "putc" || request.m_command == "putm" || request.m_command == "delm") {
       size_t value_start = key_end + 1;
       if (value_start >= raw_query.size()) [[unlikely]] {
-        std::cerr << "Invalid put/putc/putm query: missing value\n";
+        std::cerr << "Invalid put/putc/putm/delm query: missing value\n";
         return request; // invalid
       }
       request.m_value = raw_query.substr(value_start);

@@ -191,7 +191,7 @@ auto gdpr_filter::validate_access(const controller::query &query_args,
   const std::bitset<num_users>& effective_session_key = query_args.user_key().has_value() ? query_args.user_key().value() : def_policy.user_key();
   const std::bitset<num_purposes>& effective_purposes = query_args.cond_purpose().any() ?  query_args.cond_purpose() : def_policy.purpose();
   
-  if (query_args.cmd() == "get") {
+  if (query_args.cmd() == "get" || query_args.cmd() == "get_meta_only") {
     // Article #25: Data protection by design - owner OR shared access
     bool has_access = validate_ownership_or_sharing(effective_session_key);
     bool purpose_valid = validate_purpose_compliance(effective_purposes);
@@ -257,7 +257,7 @@ auto gdpr_filter::validate_access(const controller::query &query_args,
     
     return is_owner;
   }
-  else if (query_args.cmd() == "put" || query_args.cmd() == "delete") {
+  else if (query_args.cmd() == "put" || query_args.cmd() == "put_meta_only" || query_args.cmd() == "delete" || query_args.cmd() == "deletem") {
     // Article #17: Right to be forgotten & Article #25: owner control
     #ifdef RELAXED_OWNERSHIP
     bool is_owner = validate_ownership_or_sharing(effective_session_key); // For YCSB benchmarking: Allow shared access

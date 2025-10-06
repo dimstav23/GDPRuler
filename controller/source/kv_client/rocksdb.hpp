@@ -118,8 +118,8 @@ public:
     if (keys.empty()) return {};
     
     query_message query;
-    query.set_command("deletem");
-    query.set_key("deletem"); // dummy key placeholder for the parsing
+    query.set_command("delm");
+    query.set_key("delm"); // dummy key placeholder for the parsing
     query.set_is_valid(true);
     
     // Serialize all key-value pairs efficiently

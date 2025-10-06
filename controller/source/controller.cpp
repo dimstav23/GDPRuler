@@ -161,13 +161,9 @@ inline auto handle_get_metadata_only(const std::unique_ptr<kv_client>& client,
   gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid);
 
   if (is_valid) {
-    #ifdef DEBUG
-    std::cout << "Get metadata only query: " << query_args.key() 
-              << " with metadata: " << hex_dump(controller::preserve_only_gdpr_metadata(res.value())) << std::endl;
-    #endif
     return controller::preserve_only_gdpr_metadata(std::move(res.value()));
   }
-
+  
   return GET_FAILED;
 }
 

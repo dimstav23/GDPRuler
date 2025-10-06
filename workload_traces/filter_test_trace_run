@@ -75,3 +75,84 @@ query(GET("final1"))&sessionKey("user3")&objPurIs("purpose3")
 query(GET("final1"))&sessionKey("user1")&objPurIs("purpose4")
 query(GET("final1"))&sessionKey("user1")&objPurIs("purpose5")
 query(GETM("final","data"))&sessionKey("user1")&objPurIs("purpose1,purpose2,purpose3")
+# ============================================
+# GET_META_ONLY Tests - Reading only metadata
+# ============================================
+query(PUT("gdpr1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0")&objExp("0")
+query(GET("gdpr1","meta_only"))&sessionKey("user1")&objPurIs("purpose0")
+query(GET("gdpr1","meta_only"))&sessionKey("user2")
+query(GET("key0","meta_only"))&sessionKey("user0")
+query(GET("nonexistent","meta_only"))&sessionKey("user1")
+# ============================================
+# PUT_META_ONLY Tests - Updating only metadata
+# ============================================
+# Update gdpr2's purposes without changing data
+query(PUT("gdpr2","meta_only"))&sessionKey("user1")&objPur("purpose7,purpose8")
+# Verify the metadata was updated - first should succeed, second should fail
+query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose7")
+query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose1")
+# Verify data was preserved (should still return VAL)
+query(GET("gdpr2"))&sessionKey("user1")&objPurIs("purpose7")
+# Try to update metadata as non-owner (should fail)
+query(PUT("gdpr2","meta_only"))&sessionKey("user2")&objPur("purpose9,purpose10")
+# Verify metadata wasn't changed by unauthorized user
+query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose7")
+# Update sharing list using put_meta_only
+query(PUT("key2","meta_only"))&sessionKey("user0")&objShare("user1,user2,user3")
+# Verify updated sharing works
+query(GET("key2"))&sessionKey("user3")&objPurIs("purpose1,purpose2")
+# Try to update non-existent key metadata (should fail)
+query(PUT("metaonly_nokey","meta_only"))&sessionKey("user1")&objPur("purpose1,purpose2")
+# ============================================
+# DELETEM Tests - Bulk delete based on metadata
+# ============================================
+# Create test keys for deletion
+query(PUT("del1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objPur("purpose1,purpose2")&objShare("user0")&objExp("0")
+query(PUT("del2","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objPur("purpose1,purpose2")&objShare("user0")&objExp("0")
+query(PUT("del3","VAL"))&sessionKey("user2")&objOrig("src1")&monitor("false")&objPur("purpose3,purpose4")&objShare("user0")&objExp("0")
+# Delete all del* keys owned by user1 with purpose1
+query(DELETEM("del"))&sessionKey("user1")&objPurIs("purpose1,purpose2")
+# Verify del1 and del2 are deleted (owned by user1, matching filter)
+query(GET("del1"))&sessionKey("user1")&objPurIs("purpose1")
+query(GET("del2"))&sessionKey("user1")&objPurIs("purpose1")
+# Verify del3 still exists (owned by user2, not affected)
+query(GET("del3"))&sessionKey("user2")&objPurIs("purpose3")
+# Try to delete as non-owner (should not delete keys owned by others)
+query(PUT("ownership1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objExp("0")
+query(PUT("ownership2","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objExp("0")
+query(DELETEM("ownership"))&sessionKey("user2")&objPurIs("purpose1")
+# Verify keys still exist (user2 doesn't own them)
+query(GET("ownership1"))&sessionKey("user1")&objPurIs("purpose1")
+query(GET("ownership2"))&sessionKey("user1")&objPurIs("purpose1")
+# ============================================
+# Combined Metadata Operations Tests
+# ============================================
+# Create key, update metadata only, then delete
+query(PUT("lifecycle1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")
+query(PUT("lifecycle1","meta_only"))&sessionKey("user1")&objPur("purpose3,purpose4")
+query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose3")
+query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose9")
+query(GET("lifecycle1"))&sessionKey("user1")&objPurIs("purpose3")
+query(DELETE("lifecycle1"))&sessionKey("user1")
+# Update metadata, then use DELETEM
+query(PUT("batch1","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")
+query(PUT("batch2","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")
+query(PUT("batch1","meta_only"))&sessionKey("user1")&objPur("purpose5")
+query(PUT("batch2","meta_only"))&sessionKey("user1")&objPur("purpose5")
+query(DELETEM("batch"))&sessionKey("user1")&objPurIs("purpose5")
+query(GET("batch1"))&sessionKey("user1")&objPurIs("purpose5")
+query(GET("batch2"))&sessionKey("user1")&objPurIs("purpose5")
+# ============================================
+# Edge Cases for Metadata Operations
+# ============================================
+# Get metadata of key with no explicit metadata (using defaults)
+query(GET("key0","meta_only"))
+# Try put_meta_only with invalid session
+query(PUT("gdpr3","meta_only"))&sessionKey("user5")&objPur("purpose10")
+query(GET("gdpr3","meta_only"))&sessionKey("user1")&objPurIs("purpose5,purpose6")
+# DELETEM with no matching keys
+query(DELETEM("nomatch"))&sessionKey("user1")&objPurIs("purpose99")
+# DELETEM with filter that matches no keys for that owner
+query(PUT("edge1","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")
+query(DELETEM("edge"))&sessionKey("user1")&objPurIs("purpose99")
+query(GET("edge1"))&sessionKey("user1")&objPurIs("purpose1")
