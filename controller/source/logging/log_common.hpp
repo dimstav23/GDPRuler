@@ -13,7 +13,7 @@ namespace controller {
 
 /* Delimiter for the logged values */
 const char log_delimiter = ',';
-const unsigned int operation_mask = 0x07U;
+const unsigned int operation_mask = 0x15U;
 // Set the max open log files to 90% of the file descriptors
 constexpr double fd_load_factor = 0.9;
 
@@ -27,8 +27,11 @@ enum operation : uint8_t {
   del = 3U,
   getm = 4U,
   putm = 5U,
-  putc = 6U,
-  get_logs = 7U
+  delm = 6U,
+  putc = 7U,
+  get_meta_only=8U,
+  put_meta_only=9U,
+  get_logs = 10U
 };
 
 /**
@@ -40,7 +43,10 @@ inline auto convert_operation_to_enum(std::string_view oper) -> operation {
   if (oper == "delete") return operation::del;
   if (oper == "getm") return operation::getm;
   if (oper == "putm") return operation::putm;
+  if (oper == "deletem") return operation::delm;
   if (oper == "putc") return operation::putc;
+  if (oper == "get_meta_only") return operation::get_meta_only;
+  if (oper == "put_meta_only") return operation::put_meta_only;
   if (oper == "getLogs") return operation::get_logs;
   return operation::invalid;
 }
@@ -54,7 +60,10 @@ inline auto convert_enum_to_operation(const operation oper) -> std::string {
   if (oper == operation::del) return "delete";
   if (oper == operation::getm) return "getm";
   if (oper == operation::putm) return "putm";
+  if (oper == operation::delm) return "deletem";
   if (oper == operation::putc) return "putc";
+  if (oper == operation::get_meta_only) return "get_meta_only";
+  if (oper == operation::put_meta_only) return "put_meta_only";
   if (oper == operation::get_logs) return "getLogs";
   return "invalid_op";
 }
