@@ -39,7 +39,9 @@ const std::vector<std::string> query_types = {
   "get",
   "delete",
   "putm",
+  "put_meta_only",
   "getm",
+  "get_meta_only",
   "deletem",
   "putc",
   "getlogs"

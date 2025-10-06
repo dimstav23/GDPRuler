@@ -145,6 +145,34 @@ inline auto handle_get(const std::unique_ptr<kv_client>& client,
   return GET_FAILED;
 }
 
+/* Get only the metadata associated with a key */
+inline auto handle_get_metadata_only(const std::unique_ptr<kv_client>& client,
+                                     const query& query_args,
+                                     const default_policy& def_policy) -> std::string
+{
+  // Fetch from database
+  auto res = client->gdpr_get(query_args.key());
+  if (!res) return GET_FAILED;
+
+  gdpr_filter filter(res);
+  bool is_valid = filter.validate(query_args, def_policy);
+
+  // Create monitor and log
+  gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid);
+
+  if (is_valid) {
+    #ifdef DEBUG
+    std::cout << "Get metadata only query: " << query_args.key() 
+              << " with metadata: " << hex_dump(controller::preserve_only_gdpr_metadata(res.value())) << std::endl;
+    #endif
+    return controller::preserve_only_gdpr_metadata(std::move(res.value()));
+  }
+
+  return GET_FAILED;
+}
+
+
+
 /* Insert a KV pair or update an existing value -- GDPR metadata is preserved */
 inline auto handle_put(const std::unique_ptr<kv_client>& client,
                 const query& query_args,
@@ -190,6 +218,66 @@ inline auto handle_put(const std::unique_ptr<kv_client>& client,
       #endif
       cache.cache_put(query_args.key(), std::move(metadata));
     }
+    #endif
+    return PUT_SUCCESS;
+  }
+
+  return PUT_FAILED;
+}
+
+/* Update only the metadata of an existing key, preserving the data */
+inline auto handle_put_metadata_only(const std::unique_ptr<kv_client>& client,
+                                     const query& query_args,
+                                     const default_policy& def_policy) -> std::string
+{
+  bool query_is_valid = false;
+  bool cache_hit = false;
+  auto [monitor, existing_metadata] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
+
+  // Early exit for invalid operations
+  if (!query_is_valid) {
+    monitor.monitor_query(query_is_valid);
+    return PUT_FAILED;
+  }
+
+  // Key must exist for metadata-only update
+  if (!existing_metadata) {
+    monitor.monitor_query(false);
+    return PUT_FAILED; // Cannot update metadata of non-existent key
+  }
+
+  // Fetch the complete current value to preserve user data
+  auto current_value = client->gdpr_get(query_args.key());
+  if (!current_value) {
+    monitor.monitor_query(false);
+    return PUT_FAILED;
+  }
+
+  // Extract current data (without metadata)
+  std::string current_data = controller::remove_gdpr_metadata(std::move(current_value.value()));
+
+  // Update metadata, keep existing data
+  query_rewriter rewriter(query_args, existing_metadata.value(), current_data);
+  std::string new_value = std::move(rewriter).new_value();
+
+  // Monitor and execute the put operation
+  monitor.monitor_query(query_is_valid, new_value);
+  #ifdef DEBUG
+  std::cout << "Put metadata only query: " << query_args.key() 
+            << " with value: " << hex_dump(new_value) << std::endl;
+  #endif
+  
+  auto ret_val = client->gdpr_put(query_args.key(), new_value);
+  
+  if (ret_val) {
+    #ifdef METADATA_CACHE
+    // Update cache with new metadata
+    std::string metadata = controller::preserve_only_gdpr_metadata(std::move(new_value));
+    #ifdef DEBUG
+    std::cout << "Caching metadata for key: " << query_args.key() 
+              << " in format:" << hex_dump(metadata) << std::endl;
+    #endif
+    cache.cache_put(query_args.key(), std::move(metadata));
     #endif
     return PUT_SUCCESS;
   }
@@ -673,6 +761,12 @@ auto handle_connection
       }
       else if (query_args.cmd() == "putc") {
         response = handle_put_combined(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "get_meta_only") {
+        response = handle_get_metadata_only(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "put_meta_only") {
+        response = handle_put_metadata_only(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "getlogs") {
         // current client resembles the regulator
