@@ -150,21 +150,23 @@ inline auto handle_get_metadata_only(const std::unique_ptr<kv_client>& client,
                                      const query& query_args,
                                      const default_policy& def_policy) -> std::string
 {
-  // Fetch from database
-  auto res = client->gdpr_get(query_args.key());
-  if (!res) return GET_FAILED;
+  bool query_is_valid = false;
+  bool cache_hit = false;
+  auto [monitor, existing_metadata] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
 
-  gdpr_filter filter(res);
-  bool is_valid = filter.validate(query_args, def_policy);
-
-  // Create monitor and log
-  gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid);
-
-  if (is_valid) {
-    return controller::preserve_only_gdpr_metadata(std::move(res.value()));
+  // Early exit for invalid operations
+  if (!query_is_valid) {
+    monitor.monitor_query(query_is_valid);
+    return GET_FAILED;
   }
-  
-  return GET_FAILED;
+
+  // Key must exist for metadata-only retrieval
+  if (!query_is_valid || !existing_metadata) {
+    monitor.monitor_query(false);
+    return GET_FAILED; // Cannot get metadata of non-existent key
+  }
+
+  return std::move(existing_metadata.value());
 }
 
 
