@@ -28,11 +28,13 @@ constexpr std::string DELETE_FAILED    = "4";
 constexpr std::string GETM_FAILED      = "5";
 constexpr std::string PUTM_SUCCESS     = "6";
 constexpr std::string PUTM_FAILED      = "7";
-constexpr std::string PUTC_SUCCESS     = "8";
-constexpr std::string PUTC_FAILED      = "9";
-constexpr std::string GET_LOGS_FAILED  = "10";
-constexpr std::string INVALID_COMMAND  = "11";
-constexpr std::string UNKNOWN_ERROR    = "12";
+constexpr std::string DELETEM_SUCCESS  = "8";
+constexpr std::string DELETEM_FAILED   = "9";
+constexpr std::string PUTC_SUCCESS     = "10";
+constexpr std::string PUTC_FAILED      = "11";
+constexpr std::string GET_LOGS_FAILED  = "12";
+constexpr std::string INVALID_COMMAND  = "13";
+constexpr std::string UNKNOWN_ERROR    = "14";
 
 /* Parse the value corresponding to given option. Return empty string if not found. */
 auto inline get_command_line_argument(const auto& args, const std::string& option) -> std::string

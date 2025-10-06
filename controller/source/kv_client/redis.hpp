@@ -126,7 +126,7 @@ public:
     return result_pairs;
   }
   
-  auto putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override 
+  auto putm(std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override 
   {
     if (key_value_pairs.empty()) return {};
         
@@ -138,7 +138,7 @@ public:
       size_t batch_end = std::min(i + PIPELINE_BATCH_SIZE, key_value_pairs.size());
       
       // Process one batch
-      auto batch_results = process_pipeline_batch(key_value_pairs, i, batch_end);
+      auto batch_results = process_putm_pipeline_batch(key_value_pairs, i, batch_end);
       
       // Append batch results to total results
       results.insert(results.end(), 
@@ -148,7 +148,29 @@ public:
     return results;
   }
 
-  auto process_pipeline_batch(const std::vector<std::pair<std::string, std::string>>& pairs,
+  auto deletem(std::vector<std::string>& keys) -> std::vector<bool> override 
+  {
+    if (keys.empty()) return {};
+        
+    std::vector<bool> results;
+    results.reserve(keys.size());
+    
+    // Process in configurable-sized batches
+    for (size_t i = 0; i < keys.size(); i += PIPELINE_BATCH_SIZE) {
+      size_t batch_end = std::min(i + PIPELINE_BATCH_SIZE, keys.size());
+      
+      // Process one batch
+      auto batch_results = process_deletem_pipeline_batch(keys, i, batch_end);
+      
+      // Append batch results to total results
+      results.insert(results.end(), 
+                      std::make_move_iterator(batch_results.begin()),
+                      std::make_move_iterator(batch_results.end()));
+    }
+    return results;
+  }
+
+  auto process_putm_pipeline_batch(std::vector<std::pair<std::string, std::string>>& pairs,
                                size_t start, size_t end) -> std::vector<bool> 
   {
     std::vector<bool> batch_results;
@@ -170,8 +192,8 @@ public:
       // Check each operation result
       for (size_t i = 0; i < batch_size; ++i) {
         try {
-          replies.get<void>(i);  // SET returns void on success
-          batch_results.push_back(true);
+          auto result = replies.get<bool>(i);
+          batch_results.push_back(result);
         } catch (const std::exception& e) {
           batch_results.push_back(false);
         }
@@ -183,7 +205,70 @@ public:
     
     return batch_results;
   }
-        
-        
 
+  // Process deletes using pipeline
+  auto process_deletem_pipeline_batch(std::vector<std::string>& keys,
+                               size_t start, size_t end) -> std::vector<bool> 
+  {
+    std::vector<bool> batch_results;
+    size_t batch_size = end - start;
+    batch_results.reserve(batch_size);
+    
+    try {
+      // Create pipeline on existing connection
+      auto pipe = m_redis.pipeline(false);  // Reuses m_redis connection
+      
+      // Add all operations in this batch
+      for (size_t i = start; i < end; ++i) {
+        pipe.del(std::move(keys[i]));
+      }
+      
+      // Execute pipeline
+      auto replies = pipe.exec();
+      
+      // Check each operation result
+      for (size_t i = 0; i < batch_size; ++i) {
+        try {
+          // DEL returns long long (number of keys deleted)
+          auto deleted_count = replies.get<long long>(i);
+          batch_results.push_back(deleted_count > 0);
+        } catch (const std::exception& e) {
+          batch_results.push_back(false);
+        }
+      }
+    } catch (const std::exception& e) {
+      // Entire batch failed - e.g., connection issue
+      batch_results.resize(batch_size, false);
+    }
+    
+    return batch_results;
+  }
+
+  // Process deletes using batch of delete operations
+  auto process_deletem_batch(std::vector<std::string>& keys,
+                               size_t start, size_t end) -> std::vector<bool> 
+  {
+    std::vector<bool> batch_results;
+    size_t batch_size = end - start;
+    batch_results.reserve(batch_size);
+    
+    try {
+      // Prepare keys for this batch
+      std::vector<std::string> batch_keys(keys.begin() + start, 
+                                          keys.begin() + end);
+      
+      // Single UNLINK with multiple keys
+      auto deleted_count = m_redis.unlink(batch_keys.begin(), 
+                                        batch_keys.end());
+      
+      // All succeeded if count matches
+      bool all_success = (deleted_count == batch_size);
+      batch_results.resize(batch_size, all_success);
+      
+    } catch (const std::exception& e) {
+      batch_results.resize(batch_size, false);
+    }
+    
+    return batch_results;
+  }
 };

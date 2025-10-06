@@ -4,6 +4,7 @@ query_types = [
     "delete",
     "putm",
     "getm",
+    "deletem",
     "putc",
     "getlogs"
 ]
@@ -43,6 +44,8 @@ def query_multiplexer(query, metadata):
     elif query_cmd == "getm":
         getm_type = getValue(query_args)
         return getm(K, getm_type, metadata)
+    elif query_cmd == "deletem":
+        return deletem(K, metadata)
     elif query_cmd == "putc":
         return putc_filtered(K, V, metadata)
     elif query_cmd == "getlogs":
@@ -92,6 +95,9 @@ def putm(K, metadata):
 
 def getm(K, getm_type, metadata):
     return (f"getm {K} {getm_type} {metadata}")
+
+def deletem(K, metadata):
+    return (f"deletem {K} {metadata}")
 
 # Regulator API
 def getLogs(K, metadata):

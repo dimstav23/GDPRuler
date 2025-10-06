@@ -50,6 +50,10 @@ public:
       // value contains the serialized data
       return putm(query.get_value());
     }
+    if (query.get_command() == "deletem") {
+      // value contains the serialized data
+      return deletem(query.get_value());
+    }
     // helper command for putm operations
     if (query.get_command() == "get_prefix_kv_pairs") {
       return get_prefix_kv_pairs(query.get_key());
@@ -191,6 +195,50 @@ private:
       
       // Add to batch
       batch.Put(key, value);
+    }
+    
+    // Execute batch atomically
+    rocksdb::Status status = m_rocksdb->Write(rocksdb::WriteOptions(), &batch);
+    
+    // All succeed or all fail with WriteBatch
+    char success_flag = status.ok() ? 1 : 0;
+    result.append(count, success_flag);
+    
+    return response_message{status.ok(), std::move(result)};
+  }
+
+  // Bulk batch delete implementation using RocksDB's WriteBatch
+  /* request format: [4 bytes: pairs count][4 bytes: keysize1][key1][4 bytes: keysize2][key2]...[4 bytes: keysizeN][keyN] */
+  /* response format: series of 0 or 1 depending on the batch delete outcome */
+  auto deletem(std::string_view serialized_data) -> response_message {
+    // Parse data
+    const char* ptr = serialized_data.data();
+    if (serialized_data.size() < sizeof(uint32_t)) {
+      return response_message{false, ""};
+    }
+    
+    uint32_t count;
+    std::memcpy(&count, ptr, sizeof(count));
+    ptr += sizeof(uint32_t);
+    
+    // Use WriteBatch for atomic bulk operation
+    rocksdb::WriteBatch batch;
+    std::string result;
+    result.reserve(count);
+    
+    for (uint32_t i = 0; i < count; ++i) {
+      // Parse key
+      if (ptr + sizeof(uint32_t) > serialized_data.data() + serialized_data.size()) break;
+      uint32_t key_len;
+      std::memcpy(&key_len, ptr, sizeof(key_len));
+      ptr += sizeof(uint32_t);
+      
+      if (ptr + key_len > serialized_data.data() + serialized_data.size()) break;
+      std::string_view key(ptr, key_len);
+      ptr += key_len;
+      
+      // Add to batch
+      batch.Delete(key);
     }
     
     // Execute batch atomically

@@ -360,11 +360,92 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
   
   // Return result summary
   if (updated_count > 0) {
-    return std::string(PUTM_SUCCESS) + ": " + std::to_string(updated_count) + " updated, " + 
-           std::to_string(failed_count) + " failed/invalid";
+    // return std::string(PUTM_SUCCESS) + ": " + std::to_string(updated_count) + " updated, " +
+    //        std::to_string(failed_count) + " failed/invalid";
+    return PUTM_SUCCESS;
   }
   
   return PUTM_FAILED;
+}
+
+
+inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
+                               const query& query_args,
+                               const default_policy& def_policy) -> std::string
+{
+  // Get all key-value pairs matching the prefix
+  auto key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
+  
+  if (key_value_pairs.empty()) {
+    std::cout << "reason is empty!" << std::endl;
+    return DELETEM_FAILED; // No matching keys found
+  }
+  
+  std::vector<std::string> valid_deletes;
+  valid_deletes.reserve(key_value_pairs.size()); // Pre-allocate
+  int failed_count = 0;
+  
+  for (auto& [key, value] : key_value_pairs) {
+    
+    // Validate each query
+    gdpr_filter filter(value);
+    
+    if (!filter.matches_filter_conditions(query_args)) {
+      #ifdef DEBUG
+      std::cout << "DELETEM: KV pair " << key << " filtered out" << std::endl;
+      #endif
+      continue; // Skip - doesn't match filter criteria
+    }
+
+    bool is_valid = filter.validate(query_args, def_policy);
+    
+    if (is_valid) {
+      // Monitor the update operation (if needed)
+      gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid);
+      
+      // Add to valid updates list
+      valid_deletes.emplace_back(std::move(key));
+    } else {
+      // No need to log here as it's an attempt that will never go through and was not explicitly asked
+      // gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid);
+      failed_count++;
+    }
+  }
+  
+  // Perform bulk update for all valid KV pairs
+  int deleted_count = 0;
+  if (!valid_deletes.empty()) {
+    auto delete_results = client->gdpr_deletem(valid_deletes);
+    
+    // Count successful updates
+    for (size_t i = 0; i < delete_results.size(); ++i) {
+      if (delete_results[i]) {
+        deleted_count++;
+        #ifdef METADATA_CACHE
+        // NOW update cache - we know the DELETE succeeded
+        #ifdef DEBUG
+        std::cout << "Deleting metadata for key: " << valid_deletes[i] << std::endl;
+        #endif
+        cache.cache_remove(valid_deletes[i]);
+        #endif
+        #ifdef DEBUG
+        std::cout << "Deletem succeeded for key: " << valid_deletes[i] << std::endl;
+        #endif
+      } else {
+        failed_count++;
+        std::cerr << "Deletem failed for key: " << valid_deletes[i] << std::endl;
+      }
+    }
+  }
+  
+  // Return result summary
+  if (deleted_count > 0) {
+    // return std::string(DELETEM_SUCCESS) + ": " + std::to_string(deleted_count) + " updated, " +
+    //        std::to_string(failed_count) + " failed/invalid";
+    return DELETEM_SUCCESS;
+  }
+  
+  return DELETEM_FAILED;
 }
 
 /* Insert a KV pair or update an existing value -- GDPR metadata can be altered */
@@ -581,11 +662,14 @@ auto handle_connection
       else if (query_args.cmd() == "delete") {
         response = handle_delete(client, query_args, def_policy);
       }
-      else if (query_args.cmd() == "putm") { /* ignore for now */
+      else if (query_args.cmd() == "putm") {
         response = handle_put_metadata(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "getm") {
         response = handle_get_metadata(client, query_args, def_policy);
+      }
+      else if (query_args.cmd() == "deletem") {
+        response = handle_delete_metadata(client, query_args, def_policy);
       }
       else if (query_args.cmd() == "putc") {
         response = handle_put_combined(client, query_args, def_policy);

@@ -92,7 +92,7 @@ public:
     return {}; // Empty vector if operation failed
   }
 
-  auto putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override {
+  auto putm(std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override {
     if (key_value_pairs.empty()) return {};
     
     query_message query;
@@ -106,10 +106,32 @@ public:
     response_message response = execute(query);
     
     if (response.op_is_successful()) {
-      return parse_putm_response(std::move(response.get_data()), key_value_pairs.size());
+      return parse_bulk_op_boolean_response(std::move(response.get_data()), key_value_pairs.size());
     } else {
       // All failed
       std::vector<bool> results(key_value_pairs.size(), false);
+      return results;
+    }
+  }
+
+  auto deletem(std::vector<std::string>& keys) -> std::vector<bool> override {
+    if (keys.empty()) return {};
+    
+    query_message query;
+    query.set_command("deletem");
+    query.set_key("deletem"); // dummy key placeholder for the parsing
+    query.set_is_valid(true);
+    
+    // Serialize all key-value pairs efficiently
+    std::string serialized_data = serialize_deletem_request(keys);
+    query.set_value(serialized_data);
+    response_message response = execute(query);
+    
+    if (response.op_is_successful()) {
+      return parse_bulk_op_boolean_response(std::move(response.get_data()), keys.size());
+    } else {
+      // All failed
+      std::vector<bool> results(keys.size(), false);
       return results;
     }
   }
@@ -299,9 +321,9 @@ private:
     return result;
   }
   
-  // Helper: deserialize results from the rocksdb server for the putm operation
+  // Helper: deserialize results from the rocksdb server for the putm/deletem operation
   /* response format: series of 0 or 1 depending on the writebatch outcome */
-  auto parse_putm_response(const std::string& data, size_t expected_count) -> std::vector<bool> {
+  auto parse_bulk_op_boolean_response(const std::string& data, size_t expected_count) -> std::vector<bool> {
     std::vector<bool> results;
     results.reserve(expected_count);
     
@@ -321,4 +343,32 @@ private:
     
     return results;
   }
+
+    // Helper: serialize the request for the rocksdb server for the putm operation
+  /* response format: [4 bytes: pairs count][4 bytes: keysize1][key1][4 bytes: keysize2][key2]...[4 bytes: keysizeN][keyN] */
+  auto serialize_deletem_request(const std::vector<std::string>& keys) -> std::string {
+    std::string result;
+    
+    // Calculate size to avoid reallocations
+    size_t total_size = sizeof(uint32_t);
+    for (const auto& key : keys) {
+      total_size += sizeof(uint32_t) + key.size();
+    }
+    result.reserve(total_size);
+    
+    // Write count
+    uint32_t count = static_cast<uint32_t>(keys.size());
+    result.append(reinterpret_cast<const char*>(&count), sizeof(count));
+    
+    // Write keys
+    for (const auto& key : keys) {
+      uint32_t key_len = static_cast<uint32_t>(key.size());
+      
+      result.append(reinterpret_cast<const char*>(&key_len), sizeof(key_len));
+      result.append(key);
+    }
+    
+    return result;
+  }
+  
 };

@@ -96,7 +96,7 @@ public:
     #endif
   }
   
-  auto gdpr_putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> {
+  auto gdpr_putm(std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> {
     #ifndef ENCRYPTION_ENABLED
       // Direct bulk update without encryption
       return putm(key_value_pairs);
@@ -126,6 +126,11 @@ public:
     #endif
   }
 
+  auto gdpr_deletem(std::vector<std::string>& keys) -> std::vector<bool> {
+    // delete the pair(s) directly w/o decryption
+    return deletem(keys);
+  }
+
   /* Constructors, destructors, etc */
   virtual ~kv_client() = default;
   kv_client() = default;
@@ -141,8 +146,8 @@ protected:
   virtual auto del(std::string_view key) -> bool = 0;
   /* GDPR queries */
   virtual auto getm(std::string_view key_prefix) -> std::vector<std::string> = 0;
-  // virtual auto putm(std::string_view key_prefix, std::string_view value) -> bool = 0;
-  virtual auto putm(const std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> = 0;
+  virtual auto putm(std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> = 0;
+  virtual auto deletem(std::vector<std::string>& keys) -> std::vector<bool> = 0;
   virtual auto get_prefix_kv_pairs(std::string_view key_prefix) -> std::vector<std::pair<std::string, std::string>> = 0;
 
 private:
