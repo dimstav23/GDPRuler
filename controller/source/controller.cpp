@@ -159,7 +159,7 @@ inline auto handle_get_metadata_only(const std::unique_ptr<kv_client>& client,
 
   // Query must be valid and Key must exist for metadata-only retrieval
   if (!query_is_valid || !existing_metadata) {
-    return GET_FAILED; // Cannot get metadata of non-existent key
+    return GET_META_FAILED; // Cannot get metadata of non-existent key
   }  
 
   return std::move(existing_metadata.value());
@@ -224,7 +224,7 @@ inline auto handle_put_metadata_only(const std::unique_ptr<kv_client>& client,
 {
   // Always fetch from database as even in cache hit, we need to fetch the value
   auto current_value = client->gdpr_get(query_args.key());
-  if (!current_value) return PUT_FAILED;
+  if (!current_value) return PUT_META_FAILED;
 
   gdpr_filter filter(current_value);
   bool is_valid = filter.validate(query_args, def_policy);
@@ -235,7 +235,7 @@ inline auto handle_put_metadata_only(const std::unique_ptr<kv_client>& client,
   // Early exit for invalid operations
   if (!is_valid) {
     monitor.monitor_query(is_valid);
-    return PUT_FAILED;
+    return PUT_META_FAILED;
   }
 
   // Update metadata, keep existing data
@@ -260,10 +260,10 @@ inline auto handle_put_metadata_only(const std::unique_ptr<kv_client>& client,
     #endif
     cache.cache_put(query_args.key(), std::move(metadata));
     #endif
-    return PUT_SUCCESS;
+    return PUT_META_SUCCESS;
   }
 
-  return PUT_FAILED;
+  return PUT_META_FAILED;
 }
 
 /* Delete a KV pair */
@@ -303,14 +303,14 @@ inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
 {
   // key is our key_prefix here and value is either "data" or "metadata"
   auto values = client->gdpr_getm(query_args.key());
-  if (values.empty()) return GETM_FAILED;
+  if (values.empty()) return GETM_EMPTY;
 
   // Pre-validate the value parameter once
   const bool extract_data = (query_args.value() == "data");
   const bool extract_metadata = (query_args.value() == "metadata");
   if (!extract_data && !extract_metadata) {
     std::cerr << "Invalid argument for getm: " << query_args.value() << std::endl;
-    return GETM_FAILED;
+    return GETM_EMPTY;
   }
 
   std::string combined_values; // Single result string, built incrementally
@@ -342,8 +342,7 @@ inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
       has_results = true;
     }
   }
-  
-  return has_results ? combined_values : GETM_FAILED;
+  return has_results ? combined_values : GETM_EMPTY;
 }
 
 inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
@@ -355,9 +354,9 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
   
   if (key_value_pairs.empty()) {
     #ifdef DEBUG
-    std::cout << "handle_put_metadata failed: reason is empty!" << std::endl;
+    std::cout << "handle_put_metadata void: reason is empty!" << std::endl;
     #endif
-    return PUTM_FAILED; // No matching keys found
+    return PUTM_EMPTY; // No matching keys found - nothing to do
   }
   
   std::vector<std::pair<std::string, std::string>> valid_updates;
@@ -433,12 +432,10 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
   
   // Return result summary
   if (updated_count > 0) {
-    // return std::string(PUTM_SUCCESS) + ": " + std::to_string(updated_count) + " updated, " +
-    //        std::to_string(failed_count) + " failed/invalid";
     return PUTM_SUCCESS;
   }
   
-  return PUTM_FAILED;
+  return PUTM_EMPTY;
 }
 
 
@@ -451,9 +448,9 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
   
   if (key_value_pairs.empty()) {
     #ifdef DEBUG
-    std::cout << "handle_delete_metadata failed: reason is empty!" << std::endl;
+    std::cout << "handle_delete_metadata void: reason is empty!" << std::endl;
     #endif
-    return DELETEM_FAILED; // No matching keys found
+    return DELETEM_EMPTY; // No matching keys found - nothing to do
   }
   
   std::vector<std::string> valid_deletes;
@@ -515,12 +512,10 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
   
   // Return result summary
   if (deleted_count > 0) {
-    // return std::string(DELETEM_SUCCESS) + ": " + std::to_string(deleted_count) + " updated, " +
-    //        std::to_string(failed_count) + " failed/invalid";
     return DELETEM_SUCCESS;
   }
   
-  return DELETEM_FAILED;
+  return DELETEM_EMPTY;
 }
 
 /* Insert a KV pair or update an existing value -- GDPR metadata can be altered */

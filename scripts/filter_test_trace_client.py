@@ -8,22 +8,26 @@ import glob
 import json
 from contextlib import contextmanager
 
-
 GET_FAILED       = "0"
-PUT_SUCCESS      = "1"
-PUT_FAILED       = "2"
-DELETE_SUCCESS   = "3"
-DELETE_FAILED    = "4"
-GETM_FAILED      = "5"
-PUTM_SUCCESS     = "6"
-PUTM_FAILED      = "7"
-DELETEM_SUCCESS  = "8"
-DELETEM_FAILED   = "9"
-PUTC_SUCCESS     = "10"
-PUTC_FAILED      = "11"
-GET_LOGS_FAILED  = "12"
-INVALID_COMMAND  = "13"
-UNKNOWN_ERROR    = "14"
+GET_META_FAILED  = "1"
+PUT_SUCCESS      = "2"
+PUT_FAILED       = "3"
+PUT_META_SUCCESS = "4"
+PUT_META_FAILED  = "5"
+DELETE_SUCCESS   = "6"
+DELETE_FAILED    = "7"
+GETM_EMPTY       = "8"
+PUTM_SUCCESS     = "9"
+PUTM_FAILED      = "10"
+PUTM_EMPTY       = "11"
+DELETEM_SUCCESS  = "12"
+DELETEM_FAILED   = "13"
+DELETEM_EMPTY    = "14"
+PUTC_SUCCESS     = "15"
+PUTC_FAILED      = "16"
+GET_LOGS_FAILED  = "17"
+INVALID_COMMAND  = "18"
+UNKNOWN_ERROR    = "19"
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
@@ -64,13 +68,13 @@ def get_expected_outputs():
     
     # PUTM Tests
     'query(PUTM("gdpr1"))&sessionKey("user1")&objPurIs("purpose1")&objPur("purpose5,purpose6")': PUTM_SUCCESS,  # Owner can update
-    'query(PUTM("gdpr1"))&sessionKey("user2")&objPurIs("purpose1")&objPur("purpose5,purpose6")': PUTM_FAILED,  # Non-owner cannot update  
+    'query(PUTM("gdpr1"))&sessionKey("user2")&objPurIs("purpose1")&objPur("purpose5,purpose6")': PUTM_EMPTY,  # Non-owner cannot update  
     'query(PUTM("gdpr"))&sessionKey("user1")&objPurIs("purpose1")&objPur("purpose5,purpose6")': PUTM_SUCCESS,   # Updates gdpr1,2,3,4 → all now have purpose5,6
     
     # GETM Tests - AFTER PUTM changed gdpr* purposes to [purpose5,purpose6]
-    'query(GETM("gdpr","data"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': GETM_FAILED,             # GETMFAILED - no gdpr* keys have purpose1,2 anymore
-    'query(GETM("gdpr","metadata"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': GETM_FAILED,         # GETMFAILED - no gdpr* keys match
-    'query(GETM("gdpr","data"))&sessionKey("user3")&objPurIs("purpose1")': GETM_FAILED,                      # GETMFAILED - user3 unauthorized
+    'query(GETM("gdpr","data"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': GETM_EMPTY,             # GETMFAILED - no gdpr* keys have purpose1,2 anymore
+    'query(GETM("gdpr","metadata"))&sessionKey("user1")&objPurIs("purpose1,purpose2")': GETM_EMPTY,         # GETMFAILED - no gdpr* keys match
+    'query(GETM("gdpr","data"))&sessionKey("user3")&objPurIs("purpose1")': GETM_EMPTY,                      # GETMFAILED - user3 unauthorized
     'query(GETM("key","data"))&sessionKey("user0")&objPurIs("purpose1,purpose2")': 'VAL|VAL|VAL|VAL|VAL', # key* still have original purposes
     'query(GETM("key","data"))&sessionKey("user0")&objPurIs("purpose5,purpose6")': 'VAL',             # only "key", the rest key* don't have purpose5,6 (PUTM didn't affect key*)
     
@@ -144,19 +148,19 @@ def get_expected_outputs():
     # GET_META_ONLY Tests
     'query(PUT("gdpr1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objObjections("purpose3")&objPur("purpose0,purpose1,purpose2")&objShare("user0")&objExp("0")': PUT_SUCCESS,
     'query(GET("gdpr1","meta_only"))&sessionKey("user1")&objPurIs("purpose0")': 'metadata_string',  # Returns metadata of gdpr1 (owner can access) + allowed purpose
-    'query(GET("gdpr1","meta_only"))&sessionKey("user2")': GET_FAILED,                # user2 not authorized for gdpr1
+    'query(GET("gdpr1","meta_only"))&sessionKey("user2")': GET_META_FAILED,                # user2 not authorized for gdpr1
     'query(GET("key0","meta_only"))&sessionKey("user0")': 'metadata_string',  # Returns metadata of key1 (owner)
-    'query(GET("nonexistent","meta_only"))&sessionKey("user1")': GET_FAILED,         # Key doesn't exist
+    'query(GET("nonexistent","meta_only"))&sessionKey("user1")': GET_META_FAILED,         # Key doesn't exist
 
     # PUT_META_ONLY Tests
-    'query(PUT("gdpr2","meta_only"))&sessionKey("user1")&objPur("purpose7,purpose8")': PUT_SUCCESS,  # Owner updates metadata
+    'query(PUT("gdpr2","meta_only"))&sessionKey("user1")&objPur("purpose7,purpose8")': PUT_META_SUCCESS,  # Owner updates metadata
     'query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose7")': 'metadata_string',                # Metadata updated
-    'query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED, #Check that purposes are actually updated
+    'query(GET("gdpr2","meta_only"))&sessionKey("user1")&objPurIs("purpose1")': GET_META_FAILED, #Check that purposes are actually updated
     'query(GET("gdpr2"))&sessionKey("user1")&objPurIs("purpose7")': 'VAL',                   # Data preserved, new purpose works
-    'query(PUT("gdpr2","meta_only"))&sessionKey("user2")&objPur("purpose9,purpose10")': PUT_FAILED, # Non-owner cannot update
-    'query(PUT("key2","meta_only"))&sessionKey("user0")&objShare("user1,user2,user3")': PUT_SUCCESS, # Updates sharing
+    'query(PUT("gdpr2","meta_only"))&sessionKey("user2")&objPur("purpose9,purpose10")': PUT_META_FAILED, # Non-owner cannot update
+    'query(PUT("key2","meta_only"))&sessionKey("user0")&objShare("user1,user2,user3")': PUT_META_SUCCESS, # Updates sharing
     'query(GET("key2"))&sessionKey("user3")&objPurIs("purpose1,purpose2")': 'VAL',           # New shared user can access
-    'query(PUT("metaonly_nokey","meta_only"))&sessionKey("user1")&objPur("purpose1,purpose2")': PUT_FAILED,  # Cannot update non-existent key
+    'query(PUT("metaonly_nokey","meta_only"))&sessionKey("user1")&objPur("purpose1,purpose2")': PUT_META_FAILED,  # Cannot update non-existent key
 
     # DELETEM Tests
     'query(PUT("del1","VAL"))&sessionKey("user1")&objOrig("src1")&monitor("false")&objPur("purpose1,purpose2")&objShare("user0")&objExp("0")': PUT_SUCCESS,
@@ -170,35 +174,35 @@ def get_expected_outputs():
     # Ownership Tests
     'query(PUT("ownership1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objExp("0")': PUT_SUCCESS,
     'query(PUT("ownership2","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objExp("0")': PUT_SUCCESS,
-    'query(DELETEM("ownership"))&sessionKey("user2")&objPurIs("purpose1")': DELETEM_FAILED,  # No keys deleted (user2 not owner)
+    'query(DELETEM("ownership"))&sessionKey("user2")&objPurIs("purpose1")': DELETEM_EMPTY,  # No keys deleted (user2 not owner)
     'query(GET("ownership1"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',  # Still exists
     'query(GET("ownership2"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',  # Still exists
 
     # Combined Operations
     'query(PUT("lifecycle1","VAL"))&sessionKey("user1")&objPur("purpose1,purpose2")&objShare("user2")&objExp("0")': PUT_SUCCESS,
-    'query(PUT("lifecycle1","meta_only"))&sessionKey("user1")&objPur("purpose3,purpose4")': PUT_SUCCESS,
+    'query(PUT("lifecycle1","meta_only"))&sessionKey("user1")&objPur("purpose3,purpose4")': PUT_META_SUCCESS,
     'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose3")': 'metadata_string',
-    'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose9")': GET_FAILED,
-    'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED,
+    'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose9")': GET_META_FAILED,
+    'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose1")': GET_META_FAILED,
     'query(GET("lifecycle1"))&sessionKey("user2")&objPurIs("purpose3")': 'VAL', # make sure it didnt touch the other properties, e.g., share
     'query(GET("lifecycle1"))&sessionKey("user1")&objPurIs("purpose3")': 'VAL',  # New purpose works, data preserved
     'query(DELETE("lifecycle1"))&sessionKey("user1")': DELETE_SUCCESS,
 
     'query(PUT("batch1","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")': PUT_SUCCESS,
     'query(PUT("batch2","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")': PUT_SUCCESS,
-    'query(PUT("batch1","meta_only"))&sessionKey("user1")&objPur("purpose5")': PUT_SUCCESS,
-    'query(PUT("batch2","meta_only"))&sessionKey("user1")&objPur("purpose5")': PUT_SUCCESS,
+    'query(PUT("batch1","meta_only"))&sessionKey("user1")&objPur("purpose5")': PUT_META_SUCCESS,
+    'query(PUT("batch2","meta_only"))&sessionKey("user1")&objPur("purpose5")': PUT_META_SUCCESS,
     'query(DELETEM("batch"))&sessionKey("user1")&objPurIs("purpose5")': DELETEM_SUCCESS,  # Deletes both
     'query(GET("batch1"))&sessionKey("user1")&objPurIs("purpose5")': GET_FAILED,  # Deleted
     'query(GET("batch2"))&sessionKey("user1")&objPurIs("purpose5")': GET_FAILED,  # Deleted
 
     # Edge Cases
     'query(GET("key0","meta_only"))': 'metadata_string',  # Default metadata
-    'query(PUT("gdpr3","meta_only"))&sessionKey("user5")&objPur("purpose10")': PUT_FAILED,  # Invalid user
+    'query(PUT("gdpr3","meta_only"))&sessionKey("user5")&objPur("purpose10")': PUT_META_FAILED,  # Invalid user
     'query(GET("gdpr3","meta_only"))&sessionKey("user1")&objPurIs("purpose5,purpose6")': 'metadata_string',  # Unchanged
-    'query(DELETEM("nomatch"))&sessionKey("user1")&objPurIs("purpose99")': DELETEM_FAILED,  # No matches
+    'query(DELETEM("nomatch"))&sessionKey("user1")&objPurIs("purpose99")': DELETEM_EMPTY,  # No matches
     'query(PUT("edge1","VAL"))&sessionKey("user1")&objPur("purpose1")&objExp("0")': PUT_SUCCESS,
-    'query(DELETEM("edge"))&sessionKey("user1")&objPurIs("purpose99")': DELETEM_FAILED,  # No matching purposes
+    'query(DELETEM("edge"))&sessionKey("user1")&objPurIs("purpose99")': DELETEM_EMPTY,  # No matching purposes
     'query(GET("edge1"))&sessionKey("user1")&objPurIs("purpose1")': 'VAL',  # Still exists
 
   }
