@@ -61,7 +61,7 @@ query_rewriter::query_rewriter(std::string_view existing_metadata, std::string_v
   m_new_value.append(new_query_value);
 }
 
-/* Constructor for the PUTM operation in case of an UPDATE of the metadata */
+/* Constructor for the PUTM & put_only_metadata operation in case of an UPDATE of the metadata */
 query_rewriter::query_rewriter(const query &query_args,
                                std::string_view existing_value)
 {

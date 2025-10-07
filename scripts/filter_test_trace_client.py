@@ -179,6 +179,8 @@ def get_expected_outputs():
     'query(PUT("lifecycle1","meta_only"))&sessionKey("user1")&objPur("purpose3,purpose4")': PUT_SUCCESS,
     'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose3")': 'metadata_string',
     'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose9")': GET_FAILED,
+    'query(GET("lifecycle1","meta_only"))&sessionKey("user1")&objPurIs("purpose1")': GET_FAILED,
+    'query(GET("lifecycle1"))&sessionKey("user2")&objPurIs("purpose3")': 'VAL', # make sure it didnt touch the other properties, e.g., share
     'query(GET("lifecycle1"))&sessionKey("user1")&objPurIs("purpose3")': 'VAL',  # New purpose works, data preserved
     'query(DELETE("lifecycle1"))&sessionKey("user1")': DELETE_SUCCESS,
 

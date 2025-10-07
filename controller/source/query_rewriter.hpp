@@ -22,7 +22,7 @@ public:
   /* Constructor for the PUT operation in case of an UPDATE of a value */
   explicit query_rewriter(std::string_view existing_metadata,
                           std::string_view new_query_value);
-  /* Constructor for the PUTM operation in case of an UPDATE of the metadata */
+  /* Constructor for the PUTM & put_only_metadata operations in case of an UPDATE of the metadata */
   explicit query_rewriter(const query &query_args,
                           std::string_view existing_value);                        
   /* Constructor for the PUTC operation that upades both metadata and value*/

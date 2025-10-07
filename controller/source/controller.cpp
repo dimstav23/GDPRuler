@@ -154,22 +154,16 @@ inline auto handle_get_metadata_only(const std::unique_ptr<kv_client>& client,
   bool cache_hit = false;
   auto [monitor, existing_metadata] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
 
-  // Early exit for invalid operations
-  if (!query_is_valid) {
-    monitor.monitor_query(query_is_valid);
-    return GET_FAILED;
-  }
+  // Log the operation
+  monitor.monitor_query(query_is_valid);
 
-  // Key must exist for metadata-only retrieval
+  // Query must be valid and Key must exist for metadata-only retrieval
   if (!query_is_valid || !existing_metadata) {
-    monitor.monitor_query(false);
     return GET_FAILED; // Cannot get metadata of non-existent key
-  }
+  }  
 
   return std::move(existing_metadata.value());
 }
-
-
 
 /* Insert a KV pair or update an existing value -- GDPR metadata is preserved */
 inline auto handle_put(const std::unique_ptr<kv_client>& client,
@@ -228,43 +222,32 @@ inline auto handle_put_metadata_only(const std::unique_ptr<kv_client>& client,
                                      const query& query_args,
                                      const default_policy& def_policy) -> std::string
 {
-  bool query_is_valid = false;
-  bool cache_hit = false;
-  auto [monitor, existing_metadata] = filter_and_monitor(client, query_args, def_policy, query_is_valid, cache_hit);
+  // Always fetch from database as even in cache hit, we need to fetch the value
+  auto current_value = client->gdpr_get(query_args.key());
+  if (!current_value) return PUT_FAILED;
+
+  gdpr_filter filter(current_value);
+  bool is_valid = filter.validate(query_args, def_policy);
+  
+  // Create monitor
+  auto monitor = gdpr_monitor(filter, query_args, def_policy);
 
   // Early exit for invalid operations
-  if (!query_is_valid) {
-    monitor.monitor_query(query_is_valid);
+  if (!is_valid) {
+    monitor.monitor_query(is_valid);
     return PUT_FAILED;
   }
-
-  // Key must exist for metadata-only update
-  if (!existing_metadata) {
-    monitor.monitor_query(false);
-    return PUT_FAILED; // Cannot update metadata of non-existent key
-  }
-
-  // Fetch the complete current value to preserve user data
-  auto current_value = client->gdpr_get(query_args.key());
-  if (!current_value) {
-    monitor.monitor_query(false);
-    return PUT_FAILED;
-  }
-
-  // Extract current data (without metadata)
-  std::string current_data = controller::remove_gdpr_metadata(std::move(current_value.value()));
 
   // Update metadata, keep existing data
-  query_rewriter rewriter(query_args, existing_metadata.value(), current_data);
+  query_rewriter rewriter(query_args, current_value.value());
   std::string new_value = std::move(rewriter).new_value();
 
   // Monitor and execute the put operation
-  monitor.monitor_query(query_is_valid, new_value);
+  monitor.monitor_query(is_valid, new_value);
   #ifdef DEBUG
   std::cout << "Put metadata only query: " << query_args.key() 
             << " with value: " << hex_dump(new_value) << std::endl;
   #endif
-  
   auto ret_val = client->gdpr_put(query_args.key(), new_value);
   
   if (ret_val) {
