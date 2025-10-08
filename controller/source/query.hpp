@@ -31,8 +31,6 @@ const std::vector<std::string> policy_predicates = {
   "objShareIs",
   "objObjections",
   "objObjectionsIs",
-  "objOwner",
-  "objOwnerIs",
   "monitor",
   "query"
 };
@@ -41,7 +39,10 @@ const std::vector<std::string> query_types = {
   "get",
   "delete",
   "putm",
+  "put_meta_only",
   "getm",
+  "get_meta_only",
+  "deletem",
   "putc",
   "getlogs"
 };
@@ -68,6 +69,7 @@ public:
   [[nodiscard]] auto expiration() const -> std::optional<int64_t>;
   [[nodiscard]] auto share() const -> const std::optional<std::bitset<num_users>>&;
   [[nodiscard]] auto monitor() const -> std::optional<bool>;
+  [[nodiscard]] auto cond_user() const -> const std::bitset<num_users>&;
   [[nodiscard]] auto cond_purpose() const -> const std::bitset<num_purposes>&;
   [[nodiscard]] auto cond_objection() const -> const std::bitset<num_purposes>&;
   [[nodiscard]] auto cond_origin() const -> const std::bitset<num_origins>&;
@@ -99,6 +101,7 @@ private:
   std::optional<bool> m_monitor;
 
   // conditional metadata
+  std::bitset<num_users> m_cond_user;
   std::bitset<num_purposes> m_cond_purpose;
   std::bitset<num_purposes> m_cond_objection;
   std::bitset<num_origins> m_cond_origin;

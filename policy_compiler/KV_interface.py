@@ -1,13 +1,3 @@
-query_types = [
-    "put",
-    "get",
-    "delete",
-    "putm",
-    "getm",
-    "putc",
-    "getlogs"
-]
-
 def getValue(query_args):
     try:
         return query_args.split(',')[1][1:-1].strip() # [1:-1] to make "val" -> val
@@ -33,15 +23,25 @@ def query_multiplexer(query, metadata):
     
     if query_cmd == "put":
         V = getValue(query_args)
+        # Check if this is a metadata-only update
+        if V == "meta_only":
+            return put_meta_only(K, metadata)
         return put_filtered(K, V, metadata) 
     elif query_cmd == "get":
+        V = getValue(query_args)
+        # Check if this is a metadata-only retrieval
+        if V == "meta_only":
+            return get_meta_only(K, metadata)
         return get_filtered(K, metadata)
     elif query_cmd == "delete":
         return delete_filtered(K, metadata)
     elif query_cmd == "putm":
         return putm(K, metadata) 
     elif query_cmd == "getm":
-        return getm(K, metadata)
+        getm_type = getValue(query_args)
+        return getm(K, getm_type, metadata)
+    elif query_cmd == "deletem":
+        return deletem(K, metadata)
     elif query_cmd == "putc":
         return putc_filtered(K, V, metadata)
     elif query_cmd == "getlogs":
@@ -88,9 +88,21 @@ def delete_filtered(K, metadata):
 # GDPR-metadata API
 def putm(K, metadata):
     return (f"putm {K} {metadata}")
+  
+def put_meta_only(K, metadata):
+    # For put_meta_only, metadata is required (cannot update metadata of non-existent key)
+    return (f"put_meta_only {K} {metadata}")
 
-def getm(K, metadata):
-    return (f"getm {K} {metadata}")
+def getm(K, getm_type, metadata):
+    return (f"getm {K} {getm_type} {metadata}")
+  
+def get_meta_only(K, metadata):
+    if metadata == "":
+        return get(K)  # Fallback to regular get if no metadata filter
+    return (f"get_meta_only {K} {metadata}")
+
+def deletem(K, metadata):
+    return (f"deletem {K} {metadata}")
 
 # Regulator API
 def getLogs(K, metadata):

@@ -5,7 +5,8 @@
 namespace controller {
 
 query::query()
-    : m_cond_share{0},
+    : m_cond_user{0},
+      m_cond_share{0},
       m_cond_origin{0},
       m_cond_purpose{0},
       m_cond_objection{0},
@@ -21,6 +22,7 @@ query::query(std::string_view user_key,
     : m_cmd{cmd},
       m_key{key},
       m_user_key{0},
+      m_cond_user{0},
       m_cond_share{0},
       m_cond_origin{0},
       m_cond_purpose{0},
@@ -31,7 +33,8 @@ query::query(std::string_view user_key,
 }
 
 query::query(std::string_view input)
-    : m_cond_share{0},
+    : m_cond_user{0},
+      m_cond_share{0},
       m_cond_origin{0},
       m_cond_purpose{0},
       m_cond_objection{0},
@@ -150,7 +153,32 @@ auto query::parse_query(std::string_view reg_query_args) -> void
     return;
   }
   // if the query is put, extract the value
-  else if (this->m_cmd == "put") {
+  else if (this->m_cmd == "put" || this->m_cmd == "putc") {
+    this->m_value = extract_value(reg_query_args);
+
+    // Check if this is a metadata-only update -- check for "meta_only" property in the value
+    if (this->m_value == "meta_only" && this->m_cmd == "put") {
+      // Convert PUT to PUT_META command
+      this->m_cmd = "put_meta_only";
+    }
+  }
+  // if the query is get, just check the case of "meta_only"
+  else if (this->m_cmd == "get") {
+    // Check if this is a metadata-only get -- check for "meta_only" property in the value
+    std::size_t third_quote_for_potential_value = reg_query_args.find('"', reg_query_args.find('"', reg_query_args.find('"') + 1) + 1);
+    
+    if (third_quote_for_potential_value != std::string_view::npos) {
+      // There's a value parameter
+      this->m_value = extract_value(reg_query_args);
+      
+      // Check if this is a metadata-only retrieval
+      if (this->m_value == "meta_only") {
+        this->m_cmd = "get_meta_only";
+      }
+    }
+  }
+  else if (this->m_cmd == "getm") {
+    // for getm we have "data" or "metadata" as the value
     this->m_value = extract_value(reg_query_args);
   }
   // in the end set the operation key 
@@ -186,6 +214,9 @@ auto query::parse_option(std::string_view option, std::string_view value) -> voi
   } 
   else if (option == "monitor") {
     this->m_monitor = str_to_bool(value);
+  }
+  else if (option == "sessionKeyIs") {
+    set_bitmap<num_users, usr>(this->m_cond_user, split_comma_string(value));
   } 
   else if (option == "objOrigIs") {
     set_bitmap<num_origins, org>(this->m_cond_origin, split_comma_string(value));
@@ -269,6 +300,11 @@ auto query::share() const -> const std::optional<std::bitset<num_users>>&
 auto query::monitor() const -> std::optional<bool>
 {
   return this->m_monitor;
+}
+
+auto query::cond_user() const -> const std::bitset<num_users>&
+{
+  return this->m_cond_user;
 }
 
 auto query::cond_purpose() const -> const std::bitset<num_purposes>&

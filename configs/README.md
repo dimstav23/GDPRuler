@@ -1,4 +1,4 @@
-## GDPR compliant queries examples
+## GDPR compliant queries examples (needs to be updated)
 
 ### #5 Purpose limitation: Collect data for explicit purposes
 The user that creates the data specifies the desired policy properties. He/She also has [default policies](./owner_policy.json)

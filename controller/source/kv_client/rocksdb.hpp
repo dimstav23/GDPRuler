@@ -31,10 +31,8 @@ public:
 
     response_message response = execute(query);
     if (response.op_is_successful()) {
-      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
-      return response.get_data();
+      return std::move(response.get_data());
     }
-    // std::cout << "GET operation failed" << std::endl;
     return std::nullopt;
   }
 
@@ -49,12 +47,6 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    // std::cout << "PUT operation request Key: " << key << std::endl;
-    // if (response.op_is_successful()) {
-      // std::cout << "PUT operation succeeded! Key: " << key << std::endl;
-    // } else {
-      // std::cout << "PUT operation failed" << std::endl;
-    // }
     return response.op_is_successful();
   }
 
@@ -66,40 +58,82 @@ public:
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    // if (response.op_is_successful()) {
-      // std::cout << "DELETE operation succeeded! Key: " << key << std::endl;
-    // } else {
-      // std::cout << "DELETE operation failed" << std::endl;
-    // }
     return response.op_is_successful();
   }
 
-  auto getm(std::string_view key) -> std::optional<std::string> override
+  auto getm(std::string_view key_prefix) -> std::vector<std::string> override
   {
     query_message query;
     query.set_command("getm");
-    query.set_key(key);
+    query.set_key(key_prefix);
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
     if (response.op_is_successful()) {
-      // std::cout << "GET operation succeeded! Key: " << key << ", Value: " << response.get_data() << std::endl;
-      return response.get_data();
+      return parse_getm_response(std::move(response.get_data()));
     }
-    // std::cout << "GET operation failed" << std::endl;
-    return std::nullopt;
+    
+    // Return empty vector if operation failed
+    return {};
   }
 
-  auto putm(std::string_view key, std::string_view value) -> bool override
+  auto get_prefix_kv_pairs(std::string_view key_prefix) -> std::vector<std::pair<std::string, std::string>> override
   {
     query_message query;
-    query.set_command("putm");
-    query.set_key(key);
-    query.set_value(value);
+    query.set_command("get_prefix_kv_pairs"); // New command
+    query.set_key(key_prefix);
     query.set_is_valid(/*is_valid*/true);
 
     response_message response = execute(query);
-    return response.op_is_successful();
+    if (response.op_is_successful()) {
+      return parse_get_prefix_kv_pairs_response(std::move(response.get_data()));
+    }
+    
+    return {}; // Empty vector if operation failed
+  }
+
+  auto putm(std::vector<std::pair<std::string, std::string>>& key_value_pairs) -> std::vector<bool> override {
+    if (key_value_pairs.empty()) return {};
+    
+    query_message query;
+    query.set_command("putm");
+    query.set_key("putm"); // dummy key placeholder for the parsing
+    query.set_is_valid(true);
+    
+    // Serialize all key-value pairs efficiently
+    std::string serialized_data = serialize_putm_request(key_value_pairs);
+    query.set_value(serialized_data);
+    response_message response = execute(query);
+    
+    if (response.op_is_successful()) {
+      return parse_bulk_op_boolean_response(std::move(response.get_data()), key_value_pairs.size());
+    } else {
+      // All failed
+      std::vector<bool> results(key_value_pairs.size(), false);
+      return results;
+    }
+  }
+
+  auto deletem(std::vector<std::string>& keys) -> std::vector<bool> override {
+    if (keys.empty()) return {};
+    
+    query_message query;
+    query.set_command("delm");
+    query.set_key("delm"); // dummy key placeholder for the parsing
+    query.set_is_valid(true);
+    
+    // Serialize all key-value pairs efficiently
+    std::string serialized_data = serialize_deletem_request(keys);
+    query.set_value(serialized_data);
+    response_message response = execute(query);
+    
+    if (response.op_is_successful()) {
+      return parse_bulk_op_boolean_response(std::move(response.get_data()), keys.size());
+    } else {
+      // All failed
+      std::vector<bool> results(keys.size(), false);
+      return results;
+    }
   }
 
 private:
@@ -138,11 +172,6 @@ private:
   {
     std::string raw_query = query.serialize();
 
-    // Prepend message size to query
-    int message_size = static_cast<int>(raw_query.size());
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    raw_query.insert(0, reinterpret_cast<const char*>(&message_size), sizeof(int));
-
     // Send query
     std::visit([&raw_query](auto& socket) {
       boost::asio::write(socket, boost::asio::buffer(raw_query));
@@ -161,6 +190,185 @@ private:
     }, m_socket_variant);
 
     std::string raw_response(response_buffer.begin(), response_buffer.end());
-    return response_message::deserialize(raw_response);
+    return response_message::deserialize(std::move(raw_response));
   }
+
+  // Helper: deserialize results from the rocksdb server for the getm operation
+  // Response format: [4 bytes: size1][data1][4 bytes: size2][data2]...[4 bytes: sizeN][dataN]
+  auto parse_getm_response(std::string&& data) -> std::vector<std::string>
+  {
+    std::vector<std::string> values;
+    
+    if (data.empty()) {
+      return values;
+    }
+
+    const char* read_ptr = data.data();
+    const char* const end_ptr = data.data() + data.size();
+    
+    while (read_ptr < end_ptr) {
+      // Check if we have enough bytes for size field
+      if (read_ptr + sizeof(uint32_t) > end_ptr) {
+        std::cerr << "Corrupted data: incomplete size field" << std::endl;
+        break;
+      }
+      
+      // Extract value size (network byte order)
+      uint32_t value_size;
+      std::memcpy(&value_size, read_ptr, sizeof(value_size));
+      read_ptr += sizeof(uint32_t);
+      
+      // Check if we have enough bytes for the value data
+      if (read_ptr + value_size > end_ptr) {
+        std::cerr << "Corrupted data: incomplete value data, expected " 
+                  << value_size << " bytes" << std::endl;
+        break;
+      }
+      
+      // Extract value directly into vector - single copy
+      values.emplace_back(read_ptr, value_size);
+      read_ptr += value_size;
+    }
+    
+    return values;
+  }
+
+  // Helper: deserialize results from the rocksdb server for the get_prefix_kv_pairs operation
+  /* response format: [4 bytes: keysize1][key1][4 bytes: valuesize1][value1]...[4 bytes: sizeN][dataN] */
+  auto parse_get_prefix_kv_pairs_response(std::string&& data) -> std::vector<std::pair<std::string, std::string>>
+  {
+    std::vector<std::pair<std::string, std::string>> pairs;
+    
+    if (data.empty()) {
+      return pairs;
+    }
+    
+    const char* read_ptr = data.data();
+    const char* const end_ptr = data.data() + data.size();
+    
+    while (read_ptr < end_ptr) {
+      // Read key size
+      if (read_ptr + sizeof(uint32_t) > end_ptr) {
+        std::cerr << "Corrupted data: incomplete key size field" << std::endl;
+        break;
+      }
+      
+      uint32_t key_size;
+      std::memcpy(&key_size, read_ptr, sizeof(key_size));
+      read_ptr += sizeof(uint32_t);
+      
+      // Read key data
+      if (read_ptr + key_size > end_ptr) {
+        std::cerr << "Corrupted data: incomplete key data" << std::endl;
+        break;
+      }
+      
+      std::string key(read_ptr, key_size);
+      read_ptr += key_size;
+      
+      // Read value size
+      if (read_ptr + sizeof(uint32_t) > end_ptr) {
+        std::cerr << "Corrupted data: incomplete value size field" << std::endl;
+        break;
+      }
+      
+      uint32_t value_size;
+      std::memcpy(&value_size, read_ptr, sizeof(value_size));
+      read_ptr += sizeof(uint32_t);
+      
+      // Read value data
+      if (read_ptr + value_size > end_ptr) {
+        std::cerr << "Corrupted data: incomplete value data" << std::endl;
+        break;
+      }
+      
+      std::string value(read_ptr, value_size);
+      read_ptr += value_size;
+      
+      pairs.emplace_back(std::move(key), std::move(value));
+    }
+    
+    return pairs;
+  }
+
+  // Helper: serialize the request for the rocksdb server for the putm operation
+  /* response format: [4 bytes: pairs count][4 bytes: keysize1][key1][4 bytes: valuesize1][value1]...[4 bytes: sizeN][dataN] */
+  auto serialize_putm_request(const std::vector<std::pair<std::string, std::string>>& pairs) -> std::string {
+    std::string result;
+    
+    // Calculate size to avoid reallocations
+    size_t total_size = sizeof(uint32_t); // count
+    for (const auto& [key, value] : pairs) {
+      total_size += sizeof(uint32_t) + key.size() + sizeof(uint32_t) + value.size();
+    }
+    result.reserve(total_size);
+    
+    // Write count
+    uint32_t count = static_cast<uint32_t>(pairs.size());
+    result.append(reinterpret_cast<const char*>(&count), sizeof(count));
+    
+    // Write pairs
+    for (const auto& [key, value] : pairs) {
+      uint32_t key_len = static_cast<uint32_t>(key.size());
+      uint32_t value_len = static_cast<uint32_t>(value.size());
+      
+      result.append(reinterpret_cast<const char*>(&key_len), sizeof(key_len));
+      result.append(key);
+      result.append(reinterpret_cast<const char*>(&value_len), sizeof(value_len));
+      result.append(value);
+    }
+    
+    return result;
+  }
+  
+  // Helper: deserialize results from the rocksdb server for the putm/deletem operation
+  /* response format: series of 0 or 1 depending on the writebatch outcome */
+  auto parse_bulk_op_boolean_response(const std::string& data, size_t expected_count) -> std::vector<bool> {
+    std::vector<bool> results;
+    results.reserve(expected_count);
+    
+    const char* ptr = data.data();
+    const char* end = data.data() + data.size();
+    
+    while (ptr < end && results.size() < expected_count) {
+      bool success = (*ptr != 0);
+      results.push_back(success);
+      ptr++;
+    }
+    
+    // Fill remaining with false if needed
+    while (results.size() < expected_count) {
+      results.push_back(false);
+    }
+    
+    return results;
+  }
+
+    // Helper: serialize the request for the rocksdb server for the putm operation
+  /* response format: [4 bytes: pairs count][4 bytes: keysize1][key1][4 bytes: keysize2][key2]...[4 bytes: keysizeN][keyN] */
+  auto serialize_deletem_request(const std::vector<std::string>& keys) -> std::string {
+    std::string result;
+    
+    // Calculate size to avoid reallocations
+    size_t total_size = sizeof(uint32_t);
+    for (const auto& key : keys) {
+      total_size += sizeof(uint32_t) + key.size();
+    }
+    result.reserve(total_size);
+    
+    // Write count
+    uint32_t count = static_cast<uint32_t>(keys.size());
+    result.append(reinterpret_cast<const char*>(&count), sizeof(count));
+    
+    // Write keys
+    for (const auto& key : keys) {
+      uint32_t key_len = static_cast<uint32_t>(key.size());
+      
+      result.append(reinterpret_cast<const char*>(&key_len), sizeof(key_len));
+      result.append(key);
+    }
+    
+    return result;
+  }
+  
 };

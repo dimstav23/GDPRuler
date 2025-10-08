@@ -22,8 +22,6 @@ policy_predicates = [
     "objShareIs",
     "objObjections",
     "objObjectionsIs",
-    "objOwner",
-    "objOwnerIs",
     "monitor",
     "query"
 ]

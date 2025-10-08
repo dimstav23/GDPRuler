@@ -35,3 +35,6 @@ logging_compression_levels="0 3 6"
 logging_clients="8"
 logging_workloads="workloada_monitor_0_${workload_type} workloada_monitor_10_${workload_type} workloada_monitor_50_${workload_type} workloada_monitor_100_${workload_type} \
                     workloadc_monitor_0_${workload_type} workloadc_monitor_10_${workload_type} workloadc_monitor_50_${workload_type} workloadc_monitor_100_${workload_type}"
+# GDPR workloads setup
+gdpr_clients="8"
+gdpr_workloads="gdpr_customer gdpr_processor gdpr_controller"

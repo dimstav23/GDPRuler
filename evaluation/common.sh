@@ -453,7 +453,14 @@ prepare_experiment() {
     
     if [ ! -f "$result_file" ]; then
         install -D -m 644 /dev/null "$result_file"
-        echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s),ctl_files_count,ctl_files_size_mb,db_files_count,db_files_size_mb,compression_level" >> "$result_file"
+        # Check if this is a GDPR results file
+        if [[ "$result_file" == *"gdpr_queries"* ]]; then
+            # Extended header with per-operation columns for GDPR workloads
+            echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s),ctl_files_count,ctl_files_size_mb,db_files_count,db_files_size_mb,compression_level,put_count,put_avg_lat (s),put_std (s),get_count,get_avg_lat (s),get_std (s),delete_count,delete_avg_lat (s),delete_std (s),putm_count,putm_avg_lat (s),putm_std (s),getm_count,getm_avg_lat (s),getm_std (s),deletem_count,deletem_avg_lat (s),deletem_std (s)" >> "$result_file"
+        else
+            # Standard header for non-GDPR workloads
+            echo "workload,controller,db,n_clients,elapsed_time (s),avg_latency (s),ctl_files_count,ctl_files_size_mb,db_files_count,db_files_size_mb,compression_level" >> "$result_file"
+        fi
     fi
 }
 
@@ -558,8 +565,16 @@ collect_results() {
         # Collect storage metrics before cleanup
         local storage_metrics=$(collect_storage_metrics "$environment" "${CONFIG[CTL_DUMP_DIR]}" "${CONFIG[DB_DUMP_DIR]}")
 
-        echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency,$storage_metrics,$compression_level" >> "$results_file"
-        echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency, storage=$storage_metrics, compression_level=$compression_level\e[0m"
+        # Check if this is a GDPR results file and extract per-operation stats
+        if [[ "$results_file" == *"gdpr_queries"* ]]; then
+            local op_stats=$(extract_gdpr_operation_columns)
+            echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency,$storage_metrics,$compression_level,$op_stats" >> "$results_file"
+            echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency, storage=$storage_metrics, compression_level=$compression_level\e[0m"
+            echo -e "\e[34m  GDPR ops: $op_stats\e[0m"
+        else
+            echo "$workload,$controller,$db,$n_clients,$elapsed_time,$avg_latency,$storage_metrics,$compression_level" >> "$results_file"
+            echo -e "\e[32m✓ Results for $workload, controller=$controller, db=$db, clients=$n_clients: time=$elapsed_time, latency=$avg_latency, storage=$storage_metrics, compression_level=$compression_level\e[0m"
+        fi
     fi
 }
 
@@ -614,6 +629,43 @@ collect_storage_metrics() {
     
     # Return the metrics as a comma-separated string
     echo "$ctl_files_count,$ctl_files_size_mb,$db_files_count,$db_files_size_mb"
+}
+
+# Function to extract GDPR per-operation statistics as CSV columns
+extract_gdpr_operation_columns() {
+    # Initialize all operations with empty values
+    local put_count="0" put_avg="0" put_std="0"
+    local get_count="0" get_avg="0" get_std="0"
+    local delete_count="0" delete_avg="0" delete_std="0"
+    local putm_count="0" putm_avg="0" putm_std="0"
+    local getm_count="0" getm_avg="0" getm_std="0"
+    local deletem_count="0" deletem_avg="0" deletem_std="0"
+    
+    # Check if per-operation stats section exists
+    if grep -q "Per-Operation Latency Stats (GDPR Workload):" "${CONFIG[TMP_DIR]}/clients.txt"; then
+        # Use awk to parse the entire section at once
+        eval $(awk '
+        /Per-Operation Latency Stats \(GDPR Workload\):/ { in_section=1; next }
+        /^=+/ { if (in_section) { in_section=0; next } }
+        in_section && /^[A-Z_]+:/ { 
+            op_name=$1
+            sub(/:/, "", op_name)
+            # Convert to lowercase for variable names
+            op_name_lower=tolower(op_name)
+            getline; count=$2
+            getline; avg_lat=$3
+            getline; std=$3
+            
+            # Output shell variable assignments with lowercase names
+            print op_name_lower "_count=\"" count "\""
+            print op_name_lower "_avg=\"" avg_lat "\""
+            print op_name_lower "_std=\"" std "\""
+        }
+        ' "${CONFIG[TMP_DIR]}/clients.txt")
+    fi
+    
+    # Output as comma-separated values in the correct column order
+    echo "$put_count,$put_avg,$put_std,$get_count,$get_avg,$get_std,$delete_count,$delete_avg,$delete_std,$putm_count,$putm_avg,$putm_std,$getm_count,$getm_avg,$getm_std,$deletem_count,$deletem_avg,$deletem_std"
 }
 
 # Function that cleans up processes and files from previous experiments in CVM via SSH

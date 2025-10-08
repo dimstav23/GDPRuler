@@ -43,7 +43,6 @@ fi
 
 cd GDPRuler
 git checkout dev
-git checkout dimstav23/logging_integration
 git submodule update --init --recursive
 
 # Compile redis to get the redis-server exec:

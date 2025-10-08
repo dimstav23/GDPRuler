@@ -279,7 +279,6 @@ std::bitset<N> convert_to_bitset(std::string_view data, size_t& offset, uint16_t
     }
   }
   
-  offset += num_bytes;
   return bits;  
 }
 

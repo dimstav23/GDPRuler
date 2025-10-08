@@ -76,12 +76,6 @@ private:
         response_message response = m_rocksdb_proxy->execute(query);
         std::string raw_response = response.serialize();
 
-        // Send response length
-        int response_size = static_cast<int>(raw_response.size());
-        // Prepend response size to the response
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-        raw_response.insert(0, reinterpret_cast<const char*>(&response_size), sizeof(int));
-
         // Send response
         boost::asio::write(m_socket, boost::asio::buffer(raw_response));
 

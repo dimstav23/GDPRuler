@@ -27,18 +27,30 @@ public:
 
   auto serialize() -> std::string
   {
+    // Calculate exact total size
+    size_t total_size = m_command.size() + sizeof(char) /* sizeof " " */  + m_key.size();
+    if (!m_value.empty()) {
+      total_size += sizeof(char) /* sizeof " " */ + m_value.size();
+    }
+
     std::string result;
+    result.reserve(sizeof(int) + total_size);
+    // Add size header first
+    int message_size = static_cast<int>(total_size);
+    result.append(reinterpret_cast<const char*>(&message_size), sizeof(int));
+
     result.append(m_command).append(" ").append(m_key);
     if (!m_value.empty()) {
       result.append(" ").append(m_value);
     }
+
     return result;
   }
 
   static auto deserialize(std::string_view raw_query) -> query_message
   {
     static const std::unordered_set<std::string_view> valid_query_types {
-      "get", "put", "del", "getm", "putm", "putc", "getlogs"
+      "get", "put", "del", "getm", "putm", "delm", "putc", "getlogs", "get_prefix_kv_pairs"
     };
 
     query_message request;
@@ -67,10 +79,10 @@ public:
     request.m_key = raw_query.substr(key_start, key_end - key_start);
 
     // Handle value (remaining string)
-    if (request.m_command == "put") {
+    if (request.m_command == "put" || request.m_command == "putc" || request.m_command == "putm" || request.m_command == "delm") {
       size_t value_start = key_end + 1;
       if (value_start >= raw_query.size()) [[unlikely]] {
-        std::cerr << "Invalid put query: missing value\n";
+        std::cerr << "Invalid put/putc/putm/delm query: missing value\n";
         return request; // invalid
       }
       request.m_value = raw_query.substr(value_start);
@@ -148,9 +160,19 @@ public:
 
   auto serialize() -> std::string
   {
+    // Calculate exact total size
+    size_t total_size = sizeof(char) /* sizeof "1" or "0" */  + m_data.size();
+
     std::string result;
+    result.reserve(sizeof(int) + total_size);
+    
+    // Add size header first
+    int message_size = static_cast<int>(total_size);
+    result.append(reinterpret_cast<const char*>(&message_size), sizeof(int));
+
     result.append(m_is_success ? "1" : "0")
           .append(m_data);
+
     return result;
   }
 
@@ -169,7 +191,7 @@ public:
     }
 
     std::string response_data = raw_response.substr(sizeof(valid));
-    return response_message {valid == '1', response_data};
+    return response_message {valid == '1', std::move(response_data)};
   }
 
   auto op_is_successful() const -> bool {
@@ -177,7 +199,7 @@ public:
   }
 
   auto get_data() -> std::string {
-    return m_data;
+    return std::move(m_data);
   }
 
 private:

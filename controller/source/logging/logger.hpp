@@ -184,7 +184,7 @@ private:
     std::string key = std::string(query_args.key());
     // Get user key as bitset
     std::bitset<num_users> user_key = query_args.user_key().value_or(def_policy.user_key());
-    // Encode operation (3 bits) + validity (1 bit)
+    // Encode operation (4 bits) + validity (1 bit)
     auto op = convert_operation_to_enum(query_args.cmd());
     uint8_t operation_result = (static_cast<uint8_t>(op) & operation_mask) << 1U;
     operation_result |= (valid ? 0x01 : 0x00);

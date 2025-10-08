@@ -21,18 +21,25 @@ constexpr size_t msg_header_size = sizeof(uint32_t);
 
 // controller response codes
 constexpr std::string GET_FAILED       = "0";
-constexpr std::string PUT_SUCCESS      = "1";
-constexpr std::string PUT_FAILED       = "2";
-constexpr std::string DELETE_SUCCESS   = "3";
-constexpr std::string DELETE_FAILED    = "4";
-constexpr std::string GETM_FAILED      = "5";
-constexpr std::string PUTM_SUCCESS     = "6";
-constexpr std::string PUTM_FAILED      = "7";
-constexpr std::string PUTC_SUCCESS     = "8";
-constexpr std::string PUTC_FAILED      = "9";
-constexpr std::string GET_LOGS_FAILED  = "10";
-constexpr std::string INVALID_COMMAND  = "11";
-constexpr std::string UNKNOWN_ERROR    = "12";
+constexpr std::string GET_META_FAILED  = "1";
+constexpr std::string PUT_SUCCESS      = "2";
+constexpr std::string PUT_FAILED       = "3";
+constexpr std::string PUT_META_SUCCESS = "4";
+constexpr std::string PUT_META_FAILED  = "5";
+constexpr std::string DELETE_SUCCESS   = "6";
+constexpr std::string DELETE_FAILED    = "7";
+constexpr std::string GETM_EMPTY       = "8";
+constexpr std::string PUTM_SUCCESS     = "9";
+constexpr std::string PUTM_FAILED      = "10";
+constexpr std::string PUTM_EMPTY       = "11";
+constexpr std::string DELETEM_SUCCESS  = "12";
+constexpr std::string DELETEM_FAILED   = "13";
+constexpr std::string DELETEM_EMPTY    = "14";
+constexpr std::string PUTC_SUCCESS     = "15";
+constexpr std::string PUTC_FAILED      = "16";
+constexpr std::string GET_LOGS_FAILED  = "17";
+constexpr std::string INVALID_COMMAND  = "18";
+constexpr std::string UNKNOWN_ERROR    = "19";
 
 /* Parse the value corresponding to given option. Return empty string if not found. */
 auto inline get_command_line_argument(const auto& args, const std::string& option) -> std::string
