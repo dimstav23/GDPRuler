@@ -23,10 +23,12 @@ def generate_value(size):
 
 def process_query(query, value):
   """Replace 'VAL' with the dummy value in the query."""
-  return query.replace('VAL', value)
+  """and remove any additional predicates for the direct client (keep everything before &)"""
+  return query.replace('VAL', value).split('&')[0]
 
 def preprocess_queries(queries, value_size):
   """Preprocess all queries, replacing 'VAL' with a dummy value."""
+  
   value = generate_value(value_size)
   return [process_query(query, value) for query in queries]
 
