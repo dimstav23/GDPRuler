@@ -33,7 +33,7 @@ fi
 trap 'shutdown_cvm' EXIT INT TERM
 
 # GDPR controller
-results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_CVM-gdpr_query_mgmt_-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_CVM-gdpr_queries-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 
 # Function to run all experiments in a single CVM
 run_experiments_in_cvm() {

@@ -31,7 +31,7 @@ prepare_storage_host "$NVME_DEVICE" "$MOUNT_POINT" "$FILESYSTEM_TYPE"
 trap 'cleanup_storage_host "$MOUNT_POINT"' EXIT INT TERM
 
 # GDPR controller
-results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_bare_metal-gdpr_query_mgmt-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_bare_metal-gdpr_queries-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 
 # prepare the client configs and set the client config file appropriately
 max_clients=$(echo $clients | tr ' ' '\n' | sort -nr | head -1)
