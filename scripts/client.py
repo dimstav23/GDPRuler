@@ -8,6 +8,9 @@ import glob
 import json
 from contextlib import contextmanager
 
+# Add imports for statistics
+import statistics
+
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(curr_dir)
 sys.path.insert(0, parent_dir) 
@@ -107,13 +110,11 @@ def load_workload(server_address, server_port, workload_name, value_size, config
   exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
   client_socket.sendall(exit_msg_size + exit_query.encode())
   
-  # Read the exit response (but don't print for loading phase)
   try:
     response_size_data = safe_receive(client_socket, msg_header_size)
     if response_size_data:
       response_size = int.from_bytes(response_size_data, 'big')
       response = safe_receive(client_socket, response_size)
-      # Don't print loading phase timing
   except:
     pass
     
@@ -189,7 +190,11 @@ def send_drain_request(server_address, server_port, config_path):
   except Exception as e:
       return None, f"Error during drain: {str(e)}"
 
-def send_queries(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown):
+def send_queries(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown, workload_name, op_results):
+  # Enable per-operation latency tracking only for GDPR workloads
+  track_ops = workload_name.startswith('gdpr_')
+  op_latencies = {} if track_ops else None
+    
   # Open a connection to the server
   client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -226,12 +231,14 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
   
   # Read the contents of the workload file line by line
   for i, query in enumerate(queries):
-    start_time = time.perf_counter() # Start the timer
+    # For GDPR: extract operation name for latency grouping
+    if track_ops and 'query(' in query:
+      op_name = query.split('query(')[1].split('(')[0]
 
+    start_time = time.perf_counter() # Start the timer
     # Send each line to the server with message size header
     with timer(breakdown_dict, 'prep', breakdown):
       query_encoded = query.encode()
-      print(query_encoded)
       msg_size = len(query_encoded).to_bytes(msg_header_size, 'big')
     with timer(breakdown_dict, 'send', breakdown):
       client_socket.sendall(msg_size + query_encoded)
@@ -270,6 +277,12 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
     latency = end_time - start_time
     total_latency += latency
     request_count += 1
+    
+    # Only record per-op latency for GDPR workloads
+    if track_ops:
+      if op_name not in op_latencies:
+        op_latencies[op_name] = []
+      op_latencies[op_name].append(latency)
 
   # Send exit query to the server and READ the response
   exit_msg_size = len(exit_query).to_bytes(msg_header_size, 'big')
@@ -324,9 +337,13 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
 
   if breakdown:
     time_breakdowns.append((breakdown_dict['prep'], breakdown_dict['send'], breakdown_dict['wait']))
+  
+  # Append per-client op latencies for GDPR workloads
+  if track_ops and op_latencies:
+    op_results.append({'client': client_num, 'latencies': op_latencies})
 
-def create_client_process(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown):
-  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown))
+def create_client_process(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown, workload_name, op_results):
+  process = multiprocessing.Process(target=send_queries, args=(server_address, server_port, queries, latency_results, time_breakdowns, config_path, client_num, breakdown, workload_name, op_results))
   process.start()
   return process
 
@@ -359,13 +376,13 @@ def main():
   manager = multiprocessing.Manager()
   latency_results = manager.list()
   time_breakdowns = manager.list()
+  op_results = manager.list()
   processes = []
-  
   # Start the time measurement before sending the workload
   start_time = time.perf_counter()
   
   for i, client_queries in enumerate(queries_per_client):
-    process = create_client_process(args.address, args.port, client_queries, latency_results, time_breakdowns, args.config, i, args.breakdown)
+    process = create_client_process(args.address, args.port, client_queries, latency_results, time_breakdowns, args.config, i, args.breakdown, args.workload, op_results)
     processes.append(process)
 
   # Wait for all client processes to finish
@@ -393,6 +410,26 @@ def main():
     print(f"Wait and receive time: {total_wait_time:.3f} seconds ({total_wait_time/elapsed_time*100:.2f}%)")
 
   print(f"Elapsed time: {elapsed_time:.3f} seconds (100%)")
+
+  if args.workload.startswith('gdpr_') and len(op_results) > 0:
+    # Aggregate op latencies
+    agg = {}
+    for client_data in op_results:
+      for op_name, latencies in client_data['latencies'].items():
+        if op_name not in agg:
+          agg[op_name] = []
+        agg[op_name].extend(latencies)
+    print("="*60)
+    print("Per-Operation Latency Stats (GDPR Workload):")
+    for op_name in sorted(agg.keys()):
+      lat_list = agg[op_name]
+      mean = statistics.mean(lat_list)
+      std = statistics.stdev(lat_list) if len(lat_list) > 1 else 0.0
+      print(f"{op_name}:")
+      print(f"  Count: {len(lat_list)}")
+      print(f"  Avg Latency: {mean:.6f} s")
+      print(f"  Std Dev:    {std:.6f} s")
+    print("="*60)
 
   if args.drain:
     print("=" * 50)
