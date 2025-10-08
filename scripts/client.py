@@ -18,6 +18,27 @@ workload_trace_dir = os.path.join(curr_dir, '..', 'workload_traces')
 exit_query="query(exit)\n"
 msg_header_size=4
 
+GET_FAILED       = "0"
+GET_META_FAILED  = "1"
+PUT_SUCCESS      = "2"
+PUT_FAILED       = "3"
+PUT_META_SUCCESS = "4"
+PUT_META_FAILED  = "5"
+DELETE_SUCCESS   = "6"
+DELETE_FAILED    = "7"
+GETM_EMPTY       = "8"
+PUTM_SUCCESS     = "9"
+PUTM_FAILED      = "10"
+PUTM_EMPTY       = "11"
+DELETEM_SUCCESS  = "12"
+DELETEM_FAILED   = "13"
+DELETEM_EMPTY    = "14"
+PUTC_SUCCESS     = "15"
+PUTC_FAILED      = "16"
+GET_LOGS_FAILED  = "17"
+INVALID_COMMAND  = "18"
+UNKNOWN_ERROR    = "19"
+
 def generate_value(size):
     """Generate a string of the specified size in bytes."""
     return 'x' * size
@@ -186,13 +207,31 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
   request_count = 0
   breakdown_dict = {'prep': 0, 'send': 0, 'wait': 0}
 
+  # Statistics tracking
+  stats = {
+    'failed': 0,
+    'empty': 0, 
+    'success': 0,
+    'binary': 0,
+    'failed_queries': [],
+    'empty_queries': []
+  }
+  # Define error code sets
+  FAILED_CODES = {GET_FAILED, GET_META_FAILED, PUT_FAILED, PUT_META_FAILED, 
+                  PUTM_FAILED, DELETE_FAILED, DELETEM_FAILED, PUTC_FAILED, 
+                  GET_LOGS_FAILED, INVALID_COMMAND, UNKNOWN_ERROR}
+  EMPTY_CODES = {GETM_EMPTY, PUTM_EMPTY, DELETEM_EMPTY}
+  SUCCESS_CODES = {PUT_SUCCESS, PUT_META_SUCCESS, DELETE_SUCCESS, PUTM_SUCCESS, 
+                   DELETEM_SUCCESS, PUTC_SUCCESS}
+  
   # Read the contents of the workload file line by line
-  for query in queries:
+  for i, query in enumerate(queries):
     start_time = time.perf_counter() # Start the timer
 
     # Send each line to the server with message size header
     with timer(breakdown_dict, 'prep', breakdown):
       query_encoded = query.encode()
+      print(query_encoded)
       msg_size = len(query_encoded).to_bytes(msg_header_size, 'big')
     with timer(breakdown_dict, 'send', breakdown):
       client_socket.sendall(msg_size + query_encoded)
@@ -201,8 +240,30 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
       response_size_data = safe_receive(client_socket, msg_header_size)
       response_size = int.from_bytes(response_size_data, 'big')
       response = safe_receive(client_socket, response_size)
-      # print(response.decode())
-      # print(len(response))
+      if breakdown:
+        try:
+          actual = response.decode('utf-8')
+          is_binary = False
+        except UnicodeDecodeError:
+          # Binary metadata response - convert to hex string for display
+          actual = response.hex()
+          is_binary = True
+
+        # Categorize the response
+        if is_binary:
+          stats['binary'] += 1
+          stats['success'] += 1  # Binary responses are valid metadata
+        elif actual.strip() in FAILED_CODES:
+          stats['failed'] += 1
+          stats['failed_queries'].append((i, query.strip(), actual.strip()))
+          print(f"[FAILED] Query {i}: {actual.strip()}")
+          print(f"  Query: {query.strip()}")
+        elif actual.strip() in EMPTY_CODES:
+          stats['empty'] += 1
+          stats['empty_queries'].append((i, query.strip(), actual.strip()))
+        elif actual.strip() in SUCCESS_CODES or actual.strip() not in FAILED_CODES:
+          # Either explicit success code or data response (like "VAL")
+          stats['success'] += 1
       
     end_time = time.perf_counter() # End the timer
     # Calculate and accumulate the latency
@@ -227,6 +288,34 @@ def send_queries(server_address, server_port, queries, latency_results, time_bre
   
   # Close the connection
   client_socket.close()
+  
+  # Print statistics
+  if breakdown:
+    print(f"\n{'='*60}")
+    print(f"Client {client_num} Statistics:")
+    print(f"{'='*60}")
+    print(f"Total queries:    {request_count}")
+    print(f"Successful:       {stats['success']} ({stats['success']/request_count*100:.1f}%)")
+    print(f"  - Binary meta:  {stats['binary']}")
+    print(f"  - Text/Data:    {stats['success'] - stats['binary']}")
+    print(f"Failed:           {stats['failed']} ({stats['failed']/request_count*100:.1f}%)")
+    print(f"Empty results:    {stats['empty']} ({stats['empty']/request_count*100:.1f}%)")
+
+    if stats['failed'] > 0:
+      print(f"\nFailed Query Details:")
+      for idx, query, code in stats['failed_queries'][:10]:  # Show first 10
+        print(f"  [{idx}] Code {code}: {query[:80]}...")
+      if len(stats['failed_queries']) > 10:
+        print(f"  ... and {len(stats['failed_queries']) - 10} more")
+
+    if stats['empty'] > 0:
+      print(f"\nEmpty Result Queries:")
+      for idx, query, code in stats['empty_queries'][:10]:  # Show first 10
+        print(f"  [{idx}] Code {code}: {query[:80]}...")
+      if len(stats['empty_queries']) > 10:
+        print(f"  ... and {len(stats['empty_queries']) - 10} more")
+
+    print(f"{'='*60}\n")
   
   # Save the average latency
   if request_count > 0:
