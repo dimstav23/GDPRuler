@@ -42,10 +42,10 @@ workload_size = {
 }
 
 variant_mapping = {
-    "direct_bare_metal"           : "Native DB",
+    "direct_bare_metal"           : "Native KVS",
     "passthrough_bare_metal"      : "Native passthrough",
     "gdpr_bare_metal"             : "Native GDPRuler",
-    "direct_CVM"                  : "CVM DB",
+    "direct_CVM"                  : "CVM KVS",
     "passthrough_CVM"             : "CVM passthrough",
     "gdpr_CVM"                    : "CVM GDPRuler",
 }
