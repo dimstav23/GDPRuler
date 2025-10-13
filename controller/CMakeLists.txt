@@ -47,6 +47,15 @@ if(ENABLE_GDPR_INDEX)
         GIT_TAG v2.0.4
     )
     FetchContent_MakeAvailable(roaring)
+    FetchContent_GetProperties(roaring)
+    if(NOT roaring_POPULATED)
+        FetchContent_Populate(roaring)
+    endif()
+    
+    # The target is just 'roaring', not 'roaring::roaring'
+    # And we need to manually add include directories
+    set(ROARING_INCLUDE_DIR "${roaring_SOURCE_DIR}/include")
+    message(STATUS "Roaring include directory: ${ROARING_INCLUDE_DIR}")
 endif()
 
 # Find manual libraries
