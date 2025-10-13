@@ -123,6 +123,10 @@ if(ENABLE_GDPR_INDEX)
             absl::flat_hash_set
             roaring::roaring
     )
+    target_include_directories(gdpr_controller_lib 
+        PUBLIC 
+            ${ROARING_INCLUDE_DIR}
+    )
 endif()
 
 # ---------------------------------------------------------------------------------
