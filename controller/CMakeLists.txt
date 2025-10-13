@@ -44,14 +44,19 @@ if(ENABLE_GDPR_INDEX)
     FetchContent_Declare(
         roaring
         GIT_REPOSITORY https://github.com/RoaringBitmap/CRoaring.git
-        GIT_TAG v2.0.4
+        GIT_TAG v4.4.2
     )
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
+    set(ENABLE_ROARING_TESTS OFF CACHE BOOL "" FORCE)
+    set(ROARING_BUILD_STATIC ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(roaring)
     FetchContent_GetProperties(roaring)
     if(NOT roaring_POPULATED)
         FetchContent_Populate(roaring)
     endif()
-    
+
+    # Ensure the roaring target has PIC enabled
+    set_target_properties(roaring PROPERTIES POSITION_INDEPENDENT_CODE ON)
     # The target is just 'roaring', not 'roaring::roaring'
     # And we need to manually add include directories
     set(ROARING_INCLUDE_DIR "${roaring_SOURCE_DIR}/include")
