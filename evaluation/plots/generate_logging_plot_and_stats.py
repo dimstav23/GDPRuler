@@ -32,7 +32,7 @@ TITLE_FONTSIZE = FONTSIZE
 LABEL_FONTSIZE = FONTSIZE
 TICK_FONTSIZE = FONTSIZE - 1
 LEGEND_FONTSIZE = FONTSIZE
-ANNOTATION_FONTSIZE = FONTSIZE / 2 - 1
+ANNOTATION_FONTSIZE = FONTSIZE / 2
 # hatches = ["", "o", "*", ".", "//", "-", "\\", ".", "o-", "*-"]
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
@@ -48,7 +48,7 @@ variant_mapping = {
     "gdpr_bare_metal"             : "Native GDPRuler",
     "direct_CVM"                  : "CVM DB",
     "passthrough_CVM"             : "CVM passthrough",
-    "gdpr_CVM"                    : "CVM GDPRuler",
+    "gdpr_CVM"                    : "GDPRuler",
 }
 
 def load_logging_data(input_dir, variant="gdpr_CVM", n_clients=8, encryption="ON"):
@@ -117,14 +117,14 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
         return
 
     # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(figwidth_half, 1.5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(figwidth_half, 1.1))
 
     # Get unique workload names and logged percentages
     workload_names = sorted(data['workload_name'].unique())
     logged_percentages = sorted(data['logged_percent'].unique())
 
     # Width of bars
-    bar_width = 0.2
+    bar_width = 0.15
     x_pos = np.arange(len(workload_names))
     colors = sns.color_palette("pastel", len(logged_percentages))
     
@@ -155,7 +155,7 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
     ax1.set_xticklabels([w[-1].upper() for w in workload_names], fontsize=TICK_FONTSIZE)
     ax1.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
     ax1.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-    ax1.grid(True, alpha=0.3)
+    ax1.grid(True, alpha=0.3, axis='y')
 
     # Plot RocksDB data
     rocksdb_data = data[data['db'] == 'rocksdb']
@@ -184,12 +184,12 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
     ax2.set_xticklabels([w[-1].upper() for w in workload_names], fontsize=TICK_FONTSIZE)
     ax2.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
     ax2.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-    ax2.grid(True, alpha=0.3)
+    ax2.grid(True, alpha=0.3, axis='y')
 
     handles, labels = ax1.get_legend_handles_labels()
 
     fig.legend(handles, labels, title='Percentage of logged KV pairs', fontsize=LEGEND_FONTSIZE, 
-               title_fontsize=LEGEND_FONTSIZE, loc='upper center', bbox_to_anchor=(0.55, 1.22), 
+               title_fontsize=LEGEND_FONTSIZE, loc='upper center', bbox_to_anchor=(0.55, 1.24), 
                ncol=len(logged_percentages))
     plt.tight_layout()
 

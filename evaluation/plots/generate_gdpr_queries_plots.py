@@ -32,7 +32,7 @@ TITLE_FONTSIZE = FONTSIZE
 LABEL_FONTSIZE = FONTSIZE
 TICK_FONTSIZE = FONTSIZE - 1
 LEGEND_FONTSIZE = FONTSIZE
-ANNOTATION_FONTSIZE = FONTSIZE / 2 - 1
+ANNOTATION_FONTSIZE = FONTSIZE / 2
 
 # Visual elements
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
@@ -193,8 +193,8 @@ def create_performance_per_db_plot(data, db_name, output_dir):
     variants = [
         ('bare_metal', 'OFF', 'Native GDPRuler (w/o Encr)'),
         ('bare_metal', 'ON', 'Native GDPRuler (w/ Encr)'),
-        ('CVM', 'OFF', 'CVM GDPRuler (w/o Encr)'),
-        ('CVM', 'ON', 'CVM GDPRuler (w/ Encr)')
+        ('CVM', 'OFF', 'GDPRuler (w/o Encr)'),
+        ('CVM', 'ON', 'GDPRuler (w/ Encr)')
     ]
     
     x_pos = np.arange(n_entities)
@@ -316,9 +316,9 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
     data_filtered = data[data['encryption'] == 'ON'].copy()
     
     # Create figure with custom width ratios: 3:1
-    fig = plt.figure(figsize=(figwidth_half, 2.5))
-    gs = fig.add_gridspec(2, 2, width_ratios=[4, 1], height_ratios=[1, 1], 
-                          hspace=0.6, wspace=0.5)
+    fig = plt.figure(figsize=(figwidth_half, 2.2))
+    gs = fig.add_gridspec(2, 2, width_ratios=[4, 1], height_ratios=[1, 1],
+                          hspace=0.65, wspace=0.5)
     
     # Create axes
     ax_redis_throughput = fig.add_subplot(gs[0, 0])
@@ -337,33 +337,31 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
         if df_db.empty:
             continue
         
-        # --- Throughput subplot ---
+        # --- Throughput subplot --- (No changes here, kept for completeness)
         entities = sorted(df_db['entity'].unique())
         n_entities = len(entities)
 
-        # 4 variants: Native, Native w/ indexes, CVM, CVM w/ indexes
         variants = [
             ('bare_metal', False, 'Native GDPRuler'),
             ('bare_metal', True, 'Native GDPRuler (w/ indexes)'),
-            ('CVM', False, 'CVM GDPRuler'),
-            ('CVM', True, 'CVM GDPRuler (w/ indexes)')
+            ('CVM', False, 'GDPRuler'),
+            ('CVM', True, 'GDPRuler (w/ indexes)')
         ]
 
-        colors = sns.color_palette("pastel", n_colors=len(variants))
+        sample_colors = sns.color_palette("pastel", n_colors=3*len(variants))
+        colors = [sample_colors[2], sample_colors[6], sample_colors[5], sample_colors[8]]
         x_pos = np.arange(n_entities)
         bar_width = 0.8 / len(variants)
 
-        # Store data for improvement annotations
-        variant_data = {}  # {entity: {(env, has_indexes): throughput}}
-
+        variant_data = {}
         all_max_values = []
         for i, (env, has_indexes, label) in enumerate(variants):
             throughputs = []
             throughput_stds = []
             
             for entity in entities:
-                subset = df_db[(df_db['entity'] == entity) & 
-                              (df_db['environment'] == env) & 
+                subset = df_db[(df_db['entity'] == entity) &
+                              (df_db['environment'] == env) &
                               (df_db['metadata_indexes'] == has_indexes)]
                 
                 if not subset.empty:
@@ -373,7 +371,6 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
                     throughputs.append(throughput)
                     throughput_stds.append(std)
                     
-                    # Store for improvement calculation
                     if entity not in variant_data:
                         variant_data[entity] = {}
                     variant_data[entity][(env, has_indexes)] = throughput
@@ -383,91 +380,65 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
             
             bar_positions = x_pos + i * bar_width - 0.3
             bars = ax_throughput.bar(bar_positions, throughputs, bar_width,
-                          label=label, color=colors[i], 
+                          label=label, color=colors[i],
                           hatch=hatches[i % len(hatches)],
                           alpha=0.8, edgecolor='black')
             
             ax_throughput.errorbar(bar_positions, throughputs, yerr=throughput_stds,
                         fmt='none', ecolor='black', capsize=1, lw=0.5)
             
-            # Add throughput values on top of bars
             for j, (bar, throughput) in enumerate(zip(bars, throughputs)):
                 if throughput > 0:
                     height = bar.get_height()
                     ax_throughput.text(bar.get_x() + bar.get_width()/2., height * 1.1,
                             f'{throughput:.0f}',
-                            ha='center', va='bottom', 
-                            fontsize=ANNOTATION_FONTSIZE+1, rotation=0)
+                            ha='center', va='bottom',
+                            fontsize=ANNOTATION_FONTSIZE, rotation=0)
 
-        # Set log scale
         ax_throughput.set_yscale('log')
-        # Calculate appropriate y-limits for log scale
         if all_max_values:
             max_y = max(all_max_values)
             min_y = min([t for t in all_max_values if t > 0])
-            
-            # For log scale, multiply max by a factor to give headroom for annotations
-            ax_throughput.set_ylim(min_y * 0.5, max_y * 2)  # 2.5x headroom at top
+            ax_throughput.set_ylim(min_y * 0.5, max_y * 2)
 
-        # Add improvement annotations with arrows
         for entity_idx, entity in enumerate(entities):
             entity_pos = x_pos[entity_idx]
             
-            # Native improvement (bar 0 to bar 1)
-            if ('bare_metal', False) in variant_data[entity] and ('bare_metal', True) in variant_data[entity]:
+            if ('bare_metal', False) in variant_data.get(entity, {}) and ('bare_metal', True) in variant_data.get(entity, {}):
                 base_throughput = variant_data[entity][('bare_metal', False)]
                 improved_throughput = variant_data[entity][('bare_metal', True)]
                 
                 if base_throughput > 0:
                     improvement = improved_throughput / base_throughput
-                    
-                    # X position (slightly to the right of the indexed bar)
                     x_bar_base = entity_pos + 0 * bar_width - 0.3 + bar_width/2
-                    x_bar_improved = entity_pos + 1 * bar_width - 0.3 + bar_width/2
-                    x_arrow = (x_bar_base) - (bar_width / 2)  # Middle of the lower bar
-                    
-                    # Y positions (from base bar top to improved bar top)
-                    y_start = base_throughput + 0.2 * base_throughput  # Small offset for visibility
+                    x_arrow = (x_bar_base) - (bar_width / 2)
+                    y_start = base_throughput + 0.2 * base_throughput
                     y_end = improved_throughput + 0.2 * improved_throughput
-                    
-                    # Draw vertical double-headed arrow
                     ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
                                 arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
-                    
-                    # Add improvement text (rotated vertically, at midpoint)
-                    y_mid = np.sqrt(y_start * y_end)  # Geometric mean for log scale
+                    y_mid = np.sqrt(y_start * y_end)
                     ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
                             f'{improvement:.1f}×',
-                            ha='left', va='center', 
-                            fontsize=ANNOTATION_FONTSIZE + 1, color='darkblue', rotation=90)
+                            ha='left', va='center',
+                            fontsize=ANNOTATION_FONTSIZE, color='darkblue', rotation=90)
             
-            # CVM improvement (bar 2 to bar 3)
-            if ('CVM', False) in variant_data[entity] and ('CVM', True) in variant_data[entity]:
+            if ('CVM', False) in variant_data.get(entity, {}) and ('CVM', True) in variant_data.get(entity, {}):
                 base_throughput = variant_data[entity][('CVM', False)]
                 improved_throughput = variant_data[entity][('CVM', True)]
                 
                 if base_throughput > 0:
                     improvement = improved_throughput / base_throughput
-                    
-                    # X position (between bars 2 and 3)
                     x_bar_base = entity_pos + 2 * bar_width - 0.3 + bar_width/2
-                    x_bar_improved = entity_pos + 3 * bar_width - 0.3 + bar_width/2
-                    x_arrow = (x_bar_base) - (bar_width / 2)  # Middle of the lower bar
-                    
-                    # Y positions (from base bar top to improved bar top)
-                    y_start = base_throughput + 0.2 * base_throughput  # Small offset for visibility
+                    x_arrow = (x_bar_base) - (bar_width / 2)
+                    y_start = base_throughput + 0.2 * base_throughput
                     y_end = improved_throughput + 0.2 * improved_throughput
-                    
-                    # Draw vertical double-headed arrow
                     ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
                                 arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
-                    
-                    # Add improvement text (rotated vertically, at midpoint)
-                    y_mid = np.sqrt(y_start * y_end)  # Geometric mean for log scale
+                    y_mid = np.sqrt(y_start * y_end)
                     ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
                             f'{improvement:.1f}×',
-                            ha='left', va='center', 
-                            fontsize=ANNOTATION_FONTSIZE + 1, color='darkblue', rotation=90)
+                            ha='left', va='center',
+                            fontsize=ANNOTATION_FONTSIZE, color='darkblue', rotation=90)
 
         ax_throughput.set_xlabel('GDPR Workload', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax_throughput.set_ylabel('Throughput (ops/s)', fontsize=LABEL_FONTSIZE, labelpad=2)
@@ -479,100 +450,195 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
         ax_throughput.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
         ax_throughput.grid(True, alpha=0.3, axis='y')
 
-        # Only show legend on top plot
         if db_name == 'redis':
-            ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.8, 1.7), 
+            ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.8, 1.83),
                               ncol=2, fontsize=LEGEND_FONTSIZE, frameon=True)
         
         # --- Latency subplot (CVM vs CVM w/ indexes, metadata operations only) ---
-        # Compare only CVM variants for latency
         latency_variants = [
-            ('CVM', False, 'CVM GDPRuler'),
-            ('CVM', True, 'CVM GDPRuler (w/ indexes)')
+            ('CVM', False, 'GDPRuler'),
+            ('CVM', True, 'GDPRuler (w/ indexes)')
         ]
         
-        latency_colors = [colors[2], colors[3]]  # Use same colors as throughput
+        latency_colors = [colors[2], colors[3]]
+        latency_hatches = [hatches[2], hatches[3]]
         
-        # Get metadata operations for both CVM variants
         cvm_data = df_db[(df_db['environment'] == 'CVM') & (df_db['metadata_indexes'] == False)]
         cvm_indexes_data = df_db[(df_db['environment'] == 'CVM') & (df_db['metadata_indexes'] == True)]
         
         cvm_ops = aggregate_operation_stats(cvm_data)
         cvm_indexes_ops = aggregate_operation_stats(cvm_indexes_data)
         
-        # Get metadata operations that exist in either variant
         cvm_metadata = {k: v for k, v in cvm_ops.items() if k.upper().endswith('M')}
         cvm_indexes_metadata = {k: v for k, v in cvm_indexes_ops.items() if k.upper().endswith('M')}
         
-        # Get union of operation names
         all_ops = set(cvm_metadata.keys()) | set(cvm_indexes_metadata.keys())
         
         if all_ops:
+            gs_lat = ax_latency.get_subplotspec().subgridspec(2, 1, hspace=0.1)
+            ax_lat_top = fig.add_subplot(gs_lat[0])
+            ax_lat_bottom = fig.add_subplot(gs_lat[1], sharex=ax_lat_top)
+            ax_latency.remove()
+
             op_names = sorted(all_ops, reverse=True)
             x_ops = np.arange(len(op_names))
             bar_width_lat = 0.35
             
+            all_latency_values_with_stds = [] # Store mean and std for all operations
+
+            # Data structures to store plotted bar objects for annotations/error bars later
+            plotted_bars_bottom = []
+            plotted_bars_top = []
+            
+            # First pass: Plot bars on both axes
             for idx, (env, has_indexes, label) in enumerate(latency_variants):
                 means = []
                 stds = []
                 
-                if has_indexes:
-                    ops_dict = cvm_indexes_metadata
-                else:
-                    ops_dict = cvm_metadata
+                ops_dict = cvm_indexes_metadata if has_indexes else cvm_metadata
                 
                 for op in op_names:
                     if op in ops_dict:
-                        means.append(ops_dict[op]['mean_latency_s'] * 1000)
-                        stds.append(ops_dict[op]['pooled_std_s'] * 1000)
+                        mean_ms = ops_dict[op]['mean_latency_s'] * 1000
+                        std_ms = ops_dict[op]['pooled_std_s'] * 1000
+                        means.append(mean_ms)
+                        stds.append(std_ms)
+                        all_latency_values_with_stds.append((mean_ms, std_ms))
                     else:
                         means.append(0)
                         stds.append(0)
                 
                 bar_positions = x_ops + idx * bar_width_lat - bar_width_lat/2
-                bars = ax_latency.bar(bar_positions, means, bar_width_lat,
-                                     label=label, color=latency_colors[idx], 
+                
+                # Plot on both axes, but store the bar objects separately
+                bars_bottom = ax_lat_bottom.bar(bar_positions, means, bar_width_lat,
+                                     label=label, color=latency_colors[idx], hatch=latency_hatches[idx],
                                      alpha=0.8, edgecolor='black')
-                ax_latency.errorbar(bar_positions, means, yerr=stds,
-                            fmt='none', ecolor='black', capsize=1, lw=0.5)
-                # Add value annotations only for indexed variant (has_indexes == True)
-                if has_indexes:
-                    for bar, mean in zip(bars, means):
-                        if mean > 0:
-                            height = bar.get_height()
-                            ax_latency.text(bar.get_x() + bar.get_width()/1.5, height + 150,
-                                    f'{mean:.2f}',
-                                    ha='center', va='bottom', 
-                                    fontsize=ANNOTATION_FONTSIZE+1, rotation=90)
-            ax_latency.set_xlabel("")
-            ax_latency.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
-            ax_latency.set_title(f'{label_right} Query Latency\n(Lower is better↓)', color="navy",
-                          fontsize=TITLE_FONTSIZE, pad=3)
-            ax_latency.set_xticks(x_ops)
-            ax_latency.set_xticklabels([op.lower() for op in op_names], fontsize=TICK_FONTSIZE, rotation=25)
-            ax_latency.tick_params(axis='x', length=0, pad=2)
-            ax_latency.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-            ax_latency.grid(True, alpha=0.3, axis='y')
+                bars_top = ax_lat_top.bar(bar_positions, means, bar_width_lat,
+                                     label=label, color=latency_colors[idx], hatch=latency_hatches[idx],
+                                     alpha=0.8, edgecolor='black')
+                
+                plotted_bars_bottom.extend(list(zip(bars_bottom, means, stds, [has_indexes]*len(means), bar_positions)))
+                plotted_bars_top.extend(list(zip(bars_top, means, stds, [has_indexes]*len(means), bar_positions)))
+
+
+            # Determine appropriate y-limits based on all data
+            if all_latency_values_with_stds:
+                max_lat_val = max([m + s for m,s in all_latency_values_with_stds]) if all_latency_values_with_stds else 0
+            else:
+                max_lat_val = 1000 # Default if no data
+
+            y_break_low = 200
+            y_break_high = 300
             
-            # Legend only on top latency plot
-            # if db_name == 'redis':
-                # ax_latency.legend(fontsize=LEGEND_FONTSIZE-1, loc='best', frameon=True)
+            # Ensure the broken axis range covers the max values if they are within the break
+            if max_lat_val < y_break_high: # No need for a break if max is below high break point
+                ax_lat_bottom.set_ylim(0, max_lat_val * 1.1)
+                ax_lat_top.set_visible(False) # Hide the top axis
+                # Remove break marks if no break
+                d = 0
+            else:
+                ax_lat_bottom.set_ylim(0, y_break_low)
+                ax_lat_top.set_ylim(y_break_high, max_lat_val * 1.15) # Added headroom for annotation
+
+            # Second pass: Add annotations and error bars on the correct axis
+            for idx, (env, has_indexes, label) in enumerate(latency_variants):
+                ops_dict = cvm_indexes_metadata if has_indexes else cvm_metadata
+                
+                for j, op in enumerate(op_names):
+                    if op in ops_dict:
+                        mean_ms = ops_dict[op]['mean_latency_s'] * 1000
+                        std_ms = ops_dict[op]['pooled_std_s'] * 1000
+                        
+                        bar_x_center = x_ops[j] + idx * bar_width_lat - bar_width_lat/2
+                        
+                        target_ax = None
+                        if mean_ms <= y_break_low:
+                            target_ax = ax_lat_bottom
+                        elif mean_ms >= y_break_high:
+                            target_ax = ax_lat_top
+                        
+                        if target_ax:
+                            # Find the specific bar object on the target axis
+                            bar_obj = None
+                            for bar_data in (plotted_bars_bottom if target_ax == ax_lat_bottom else plotted_bars_top):
+                                # bar_data: (bar_object, mean_val, std_val, has_indexes, bar_position_x_start)
+                                if abs(bar_data[1] - mean_ms) < 1e-6 and \
+                                   abs(bar_data[4] - (x_ops[j] + idx * bar_width_lat - bar_width_lat/2)) < 1e-6:
+                                    bar_obj = bar_data[0]
+                                    break
+                            
+                            # First, add the error bar on the target axis
+                            target_ax.errorbar(bar_x_center, mean_ms, yerr=std_ms,
+                                              fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+                            # Next, annotate ONLY the indexed variant, positioned above the error bar
+                            if has_indexes:
+                                # The new Y position is the top of the error bar
+                                y_position = mean_ms + std_ms 
+                                
+                                # Add a small vertical offset so the text doesn't touch the error bar
+                                # This offset is a small fraction of the axis's visible height
+                                offset = target_ax.get_ylim()[1] * 0.05 
+
+                                target_ax.text(
+                                    bar_x_center + bar_width_lat/4,# Use the bar's center X-coordinate
+                                    y_position + offset,           # Position text above the error bar
+                                    f'{mean_ms:.2f}',              # The text to display
+                                    ha='center',                   # Horizontally align to the center
+                                    va='bottom',                   # Vertically align to the bottom of the text
+                                    fontsize=ANNOTATION_FONTSIZE,
+                                    rotation=90
+                                )
+
+            # --- Broken axis visual styling ---
+            ax_lat_top.spines['bottom'].set_visible(False)
+            ax_lat_bottom.spines['top'].set_visible(False)
+            ax_lat_top.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+            
+            d = .015
+            # Only draw break marks if a break is actually present
+            if 'd' in locals() and d > 0: # Check if d was set to 0 to skip drawing
+                kwargs = dict(transform=ax_lat_top.transAxes, color='k', clip_on=False, lw=1.0)
+                ax_lat_top.plot((-d, +d), (-d, +d), **kwargs)
+                ax_lat_top.plot((1 - d, 1 + d), (-d, +d), **kwargs)
+                kwargs.update(transform=ax_lat_bottom.transAxes)
+                ax_lat_bottom.plot((-d, +d), (1 - d, 1 + d), **kwargs)
+                ax_lat_bottom.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)
+
+            # --- Labels and titles ---
+            ax_lat_bottom.set_xlabel("")
+            # Position the shared Y-label in the middle of the combined axes
+            fig.text(ax_lat_top.get_position().x0 - 0.11,
+                     (ax_lat_bottom.get_position().y0 + ax_lat_top.get_position().y1) / 2,
+                     'Avg Latency (ms)', fontsize=LABEL_FONTSIZE, va='center', rotation='vertical')
+
+            ax_lat_top.set_title(f'{label_right} Query Latency\n(Lower is better↓)', color="navy",
+                              fontsize=TITLE_FONTSIZE, pad=3)
+            ax_lat_bottom.set_xticks(x_ops)
+            ax_lat_bottom.set_xticklabels([op.lower() for op in op_names], fontsize=TICK_FONTSIZE, rotation=25)
+            ax_lat_bottom.tick_params(axis='x', length=0, pad=2)
+            
+            ax_lat_top.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
+            ax_lat_bottom.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
+
+            ax_lat_top.grid(True, alpha=0.3, axis='y')
+            ax_lat_bottom.grid(True, alpha=0.3, axis='y')
+
         else:
-            ax_latency.text(0.5, 0.5, 'No metadata\noperations', 
+            ax_latency.text(0.5, 0.5, 'No metadata\noperations',
                     ha='center', va='center', transform=ax_latency.transAxes,
                     fontsize=TICK_FONTSIZE)
             ax_latency.set_xlabel("")
             ax_latency.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
-            ax_latency.set_title(f'{label_right} Query Latency', 
+            ax_latency.set_title(f'{label_right} Query Latency',
                           fontsize=TITLE_FONTSIZE, pad=3)
     
-    # Database annotations
-    fig.text(-0.01, 0.75, 'Redis', fontsize=LABEL_FONTSIZE + 1, rotation=90, 
+    fig.text(-0.01, 0.75, 'Redis', fontsize=LABEL_FONTSIZE + 1, rotation=90,
              verticalalignment='center', horizontalalignment='center', weight='bold')
-    fig.text(-0.01, 0.25, 'RocksDB', fontsize=LABEL_FONTSIZE + 1, rotation=90, 
+    fig.text(-0.01, 0.25, 'RocksDB', fontsize=LABEL_FONTSIZE + 1, rotation=90,
              verticalalignment='center', horizontalalignment='center', weight='bold')
     
-    # Save plot
     output_filename = 'gdpr_metadata_indexes_performance'
     plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, bbox_inches='tight')
     plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), bbox_inches='tight')
@@ -621,8 +687,8 @@ def create_gdpr_queries_performance_plot(data, output_dir):
         variants = [
             ('bare_metal', 'OFF', 'Native GDPRuler (w/o Encr)'),
             ('bare_metal', 'ON', 'Native GDPRuler (w/ Encr)'),
-            ('CVM', 'OFF', 'CVM GDPRuler (w/o Encr)'),
-            ('CVM', 'ON', 'CVM GDPRuler (w/ Encr)')
+            ('CVM', 'OFF', 'GDPRuler (w/o Encr)'),
+            ('CVM', 'ON', 'GDPRuler (w/ Encr)')
         ]
         # Get sorted variants and setup colors/hatches
         colors = sns.color_palette("pastel", n_colors=len(variants))

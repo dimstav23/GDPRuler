@@ -31,7 +31,7 @@ TITLE_FONTSIZE = FONTSIZE
 LABEL_FONTSIZE = FONTSIZE
 TICK_FONTSIZE = FONTSIZE - 1
 LEGEND_FONTSIZE = FONTSIZE
-ANNOTATION_FONTSIZE = FONTSIZE / 2 - 1
+ANNOTATION_FONTSIZE = FONTSIZE / 2
 # hatches = ["", "o", "*", ".", "//", "-", "\\", ".", "o-", "*-"]
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
@@ -47,7 +47,7 @@ variant_mapping = {
     "gdpr_bare_metal"             : "Native GDPRuler",
     "direct_CVM"                  : "CVM KVS",
     "passthrough_CVM"             : "CVM passthrough",
-    "gdpr_CVM"                    : "CVM GDPRuler",
+    "gdpr_CVM"                    : "GDPRuler",
 }
 
 def load_data_from_directory(input_dir):
@@ -162,7 +162,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     data_filtered = filter_data_for_ycsb_performance_plot(data, include_tcp = include_tcp)
 
     # Define figure size (1/3 of double column for each subplot)
-    fig, axes = plt.subplots(2, 3, figsize=(figwidth_full, 3))
+    fig, axes = plt.subplots(2, 3, figsize=(figwidth_full, 2.2))
     
     # Only consider redis and rocksdb
     dbs = ['redis', 'rocksdb']
@@ -216,7 +216,8 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xlabel('YCSB Workload', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][0]} {title_descriptions[i][0]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
-
+        ax.grid(True, alpha=0.3, axis='y')
+        
         # Column 2: Throughput vs thread counts for workloadA (write-heavy)
         ax = axes[i, 1]
         df_subset = df_db[df_db['workload'] == 'workloada']
@@ -241,7 +242,8 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xlabel('Thread Count', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][1]} {title_descriptions[i][1]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
-
+        ax.grid(True, alpha=0.3, axis='y')
+        
         # Column 3: Throughput vs thread counts for workloadC (read-heavy)
         ax = axes[i, 2]
         df_subset = df_db[df_db['workload'] == 'workloadc']
@@ -266,7 +268,8 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xlabel('Thread Count', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][2]} {title_descriptions[i][2]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
-
+        ax.grid(True, alpha=0.3, axis='y')
+        
     # Add vertical database name annotations on the left of each row
     # Redis annotation for top row
     fig.text(-0.01, 0.75, 'Redis', fontsize=LABEL_FONTSIZE + 1, rotation=90, 
@@ -301,7 +304,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         labels.append(label_text)
     
     # Position legend at the top
-    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.11), 
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.13), 
               ncol=min(len(variants), 3), fontsize=LEGEND_FONTSIZE, frameon=True)
     
     # Adjust layout and save

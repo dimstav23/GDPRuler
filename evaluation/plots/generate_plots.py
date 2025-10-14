@@ -38,7 +38,7 @@ variant_mapping = {
     "gdpr_bare_metal"             : "Native GDPRuler",
     "direct_CVM"                  : "CVM",
     "passthrough_CVM"             : "CVM passthrough",
-    "gdpr_CVM"                    : "CVM GDPRuler",
+    "gdpr_CVM"                    : "GDPRuler",
 }
 
 def load_data_from_directory(input_dir):
