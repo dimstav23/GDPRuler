@@ -3,12 +3,12 @@
 namespace controller {
 
 template<size_t NumBits>
-void BitInvertedIndexHashSet<NumBits>::insert(const BitmapType& bits, const std::string* key_ptr) {
+void BitInvertedIndexHashSet<NumBits>::insert(const BitmapType& bits, const SharedString& key_ptr) {
   std::unique_lock lock(mutex_);
   
   for (size_t i = 0; i < NumBits; ++i) {
     if (bits.test(i)) {
-      bit_to_keys_[i].insert(key_ptr);
+      bit_to_keys_[i].insert(key_ptr);  // Copies shared_ptr
     }
   }
   
@@ -16,7 +16,7 @@ void BitInvertedIndexHashSet<NumBits>::insert(const BitmapType& bits, const std:
 }
 
 template<size_t NumBits>
-void BitInvertedIndexHashSet<NumBits>::remove(const std::string* key_ptr) {
+void BitInvertedIndexHashSet<NumBits>::remove(const SharedString& key_ptr) {
   std::unique_lock lock(mutex_);
   
   auto it = key_to_bits_.find(key_ptr);
@@ -27,7 +27,7 @@ void BitInvertedIndexHashSet<NumBits>::remove(const std::string* key_ptr) {
     if (bits.test(i)) {
       auto bit_it = bit_to_keys_.find(i);
       if (bit_it != bit_to_keys_.end()) {
-        bit_it->second.erase(key_ptr);
+        bit_it->second.erase(key_ptr);  // Releases shared_ptr
         if (bit_it->second.empty()) {
           bit_to_keys_.erase(bit_it);
         }
@@ -39,53 +39,40 @@ void BitInvertedIndexHashSet<NumBits>::remove(const std::string* key_ptr) {
 }
 
 template<size_t NumBits>
-std::vector<const std::string*> BitInvertedIndexHashSet<NumBits>::find_any(const BitmapType& query_bits) const {
+std::vector<SharedString> BitInvertedIndexHashSet<NumBits>::find_any(const BitmapType& query_bits) const {
   std::shared_lock lock(mutex_);
   
   size_t num_query_bits = query_bits.count();
   if (num_query_bits == 0) return {};
   
-  // OPTIMIZATION: Fast path for single-bit queries
   if (num_query_bits == 1) {
     for (size_t i = 0; i < NumBits; ++i) {
       if (query_bits.test(i)) {
         auto it = bit_to_keys_.find(i);
         if (it != bit_to_keys_.end()) {
-          return std::vector<const std::string*>(it->second.begin(), it->second.end());
+          return std::vector<SharedString>(it->second.begin(), it->second.end());
         }
         return {};
       }
     }
   }
   
-  // Multi-bit: Build hash set for deduplication
-  size_t estimated_size = 0;
-  for (size_t i = 0; i < NumBits; ++i) {
-    if (query_bits.test(i)) {
-      auto it = bit_to_keys_.find(i);
-      if (it != bit_to_keys_.end()) {
-        estimated_size += it->second.size();
-      }
-    }
-  }
-  
+  // Multi-bit: Build hash set
   KeyPtrSet result_set;
-  result_set.reserve(estimated_size);
-  
   for (size_t i = 0; i < NumBits; ++i) {
     if (query_bits.test(i)) {
       auto it = bit_to_keys_.find(i);
-      if (it != bit_to_keys_.end()) {
-        result_set.insert(it->second.begin(), it->second.end());
+      if (it != bit_to_keys_.end()) {  // ← Compare with map's end()
+        return std::vector<SharedString>(it->second.begin(), it->second.end());
       }
     }
   }
   
-  return std::vector<const std::string*>(result_set.begin(), result_set.end());
+  return std::vector<SharedString>(result_set.begin(), result_set.end());
 }
 
 template<size_t NumBits>
-std::vector<const std::string*> BitInvertedIndexHashSet<NumBits>::find_all(const BitmapType& query_bits) const {
+std::vector<SharedString> BitInvertedIndexHashSet<NumBits>::find_all(const BitmapType& query_bits) const {
   std::shared_lock lock(mutex_);
   
   size_t first_bit = NumBits;
@@ -111,7 +98,7 @@ std::vector<const std::string*> BitInvertedIndexHashSet<NumBits>::find_all(const
       }
       
       KeyPtrSet intersection;
-      for (const auto* key_ptr : result) {
+      for (const auto& key_ptr : result) {
         if (bit_it->second.find(key_ptr) != bit_it->second.end()) {
           intersection.insert(key_ptr);
         }
@@ -122,7 +109,7 @@ std::vector<const std::string*> BitInvertedIndexHashSet<NumBits>::find_all(const
     }
   }
   
-  return std::vector<const std::string*>(result.begin(), result.end());
+  return std::vector<SharedString>(result.begin(), result.end());
 }
 
 template<size_t NumBits>

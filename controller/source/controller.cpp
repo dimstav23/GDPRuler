@@ -366,9 +366,9 @@ inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
       std::vector<std::string> matching_keys;
       matching_keys.reserve(candidate_keys.size());
       
-      for (const auto& key_view : candidate_keys) {
-          if (absl::StartsWith(key_view, query_args.key())) {
-              matching_keys.emplace_back(key_view);
+      for (const auto& key_ptr : candidate_keys) {
+          if (absl::StartsWith(*key_ptr, query_args.key())) {
+              matching_keys.emplace_back(*key_ptr);
           }
       }
       
@@ -506,11 +506,11 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
       auto candidate_keys = g_index_manager->find_keys(owner_bit, purpose_bits, expiration_threshold);
 
       // Filter by prefix and fetch
-      for (const auto& key_view : candidate_keys) {
-          if (absl::StartsWith(key_view, query_args.key())) {
-              auto val = client->gdpr_get(std::string(key_view));
+      for (const auto& key_ptr : candidate_keys) {
+          if (absl::StartsWith(*key_ptr, query_args.key())) {
+              auto val = client->gdpr_get(std::string(*key_ptr));
               if (val) {
-                  key_value_pairs.emplace_back(std::string(key_view), std::move(val.value()));
+                  key_value_pairs.emplace_back(*key_ptr, std::move(val.value()));
               }
           }
       }
@@ -638,12 +638,12 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
       }
       
       auto candidate_keys = g_index_manager->find_keys(owner_bit, purpose_bits, expiration_threshold);
-      
-      for (const auto& key_view : candidate_keys) {
-          if (absl::StartsWith(key_view, query_args.key())) {
-              auto val = client->gdpr_get(std::string(key_view));
+
+      for (const auto& key_ptr : candidate_keys) {
+          if (absl::StartsWith(*key_ptr, query_args.key())) {
+              auto val = client->gdpr_get(*key_ptr);
               if (val) {
-                  key_value_pairs.emplace_back(std::string(key_view), std::move(val.value()));
+                  key_value_pairs.emplace_back(*key_ptr, std::move(val.value()));
               }
           }
       }
@@ -716,7 +716,9 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
         #endif
       } else {
         failed_count++;
+        #ifdef DEBUG
         std::cerr << "Deletem failed for key: " << valid_deletes[i] << std::endl;
+        #endif
       }
     }
   }

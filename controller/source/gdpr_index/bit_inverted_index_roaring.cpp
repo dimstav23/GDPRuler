@@ -3,31 +3,21 @@
 namespace controller {
 
 template<size_t NumBits>
-void BitInvertedIndexRoaring<NumBits>::insert(const BitmapType& bits, const std::string* key_ptr) {
-  #ifdef DEBUG
-  std::cout << "Inserting key into Roaring index: " << key_ptr << " Bits: " << bits << std::endl;
-  #endif
+void BitInvertedIndexRoaring<NumBits>::insert(const BitmapType& bits, const SharedString& key_ptr) {
   std::unique_lock lock(mutex_);
   
   uint32_t key_id;
   
   auto it = key_to_id_.find(key_ptr);
   if (it == key_to_id_.end()) {
-    // Assign new ID (reuse free IDs if available)
+    // Assign new ID
     if (!free_ids_.empty()) {
       key_id = free_ids_.back();
       free_ids_.pop_back();
-      assert(key_id < id_to_key_.size());  // Debug check
-      if (key_id >= id_to_key_.size()) {   // Runtime check
-        throw std::runtime_error("Invalid free ID");
-      }
-      id_to_key_[key_id] = key_ptr;
+      id_to_key_[key_id] = key_ptr;  // Store shared_ptr
     } else {
-      if (next_key_id_ == UINT32_MAX) {
-        throw std::runtime_error("Key ID overflow - too many keys");
-      }
       key_id = next_key_id_++;
-      id_to_key_.push_back(key_ptr);
+      id_to_key_.push_back(key_ptr);  // Store shared_ptr
     }
     key_to_id_[key_ptr] = key_id;
   } else {
@@ -45,7 +35,7 @@ void BitInvertedIndexRoaring<NumBits>::insert(const BitmapType& bits, const std:
 }
 
 template<size_t NumBits>
-void BitInvertedIndexRoaring<NumBits>::remove(const std::string* key_ptr) {
+void BitInvertedIndexRoaring<NumBits>::remove(const SharedString& key_ptr) {
   std::unique_lock lock(mutex_);
   
   auto id_it = key_to_id_.find(key_ptr);
@@ -66,19 +56,19 @@ void BitInvertedIndexRoaring<NumBits>::remove(const std::string* key_ptr) {
   }
   
   // Mark ID as free
-  id_to_key_[key_id] = nullptr;
+  id_to_key_[key_id] = nullptr;  // Release shared_ptr
   key_to_id_.erase(id_it);
   free_ids_.push_back(key_id);
 }
 
+// find_any: uses union of Roaring bitmaps
 template<size_t NumBits>
-std::vector<const std::string*> BitInvertedIndexRoaring<NumBits>::find_any(const BitmapType& query_bits) const {
+std::vector<SharedString> BitInvertedIndexRoaring<NumBits>::find_any(const BitmapType& query_bits) const {
   std::shared_lock lock(mutex_);
   
   size_t num_query_bits = query_bits.count();
   if (num_query_bits == 0) return {};
   
-  // OPTIMIZATION: Fast path for single-bit queries
   if (num_query_bits == 1) {
     for (size_t i = 0; i < NumBits; ++i) {
       if (query_bits.test(i)) {
@@ -87,9 +77,8 @@ std::vector<const std::string*> BitInvertedIndexRoaring<NumBits>::find_any(const
     }
   }
   
-  // Multi-bit: Fast Roaring union (hardware-optimized)
+  // Multi-bit: Fast Roaring union
   roaring::Roaring result;
-  
   for (size_t i = 0; i < NumBits; ++i) {
     if (query_bits.test(i)) {
       result |= bit_index_[i];
@@ -99,8 +88,9 @@ std::vector<const std::string*> BitInvertedIndexRoaring<NumBits>::find_any(const
   return roaring_to_keys(result);
 }
 
+// find_all: uses intersection of Roaring bitmaps
 template<size_t NumBits>
-std::vector<const std::string*> BitInvertedIndexRoaring<NumBits>::find_all(const BitmapType& query_bits) const {
+std::vector<SharedString> BitInvertedIndexRoaring<NumBits>::find_all(const BitmapType& query_bits) const {
   std::shared_lock lock(mutex_);
   
   size_t first_bit = NumBits;
@@ -126,15 +116,15 @@ std::vector<const std::string*> BitInvertedIndexRoaring<NumBits>::find_all(const
 }
 
 template<size_t NumBits>
-std::vector<const std::string*> BitInvertedIndexRoaring<NumBits>::roaring_to_keys(const roaring::Roaring& bitmap) const {
-  std::vector<const std::string*> result;
+std::vector<SharedString> BitInvertedIndexRoaring<NumBits>::roaring_to_keys(const roaring::Roaring& bitmap) const {
+  std::vector<SharedString> result;
   result.reserve(bitmap.cardinality());
   
   for (uint32_t key_id : bitmap) {
     if (key_id < id_to_key_.size()) {
-      const std::string* key_ptr = id_to_key_[key_id];
+      const SharedString& key_ptr = id_to_key_[key_id];
       if (key_ptr != nullptr) {
-        result.push_back(key_ptr);
+        result.push_back(key_ptr);  // Copies shared_ptr, ref_count++
       }
     }
   }
@@ -146,7 +136,7 @@ template<size_t NumBits>
 void BitInvertedIndexRoaring<NumBits>::clear() {
   std::unique_lock lock(mutex_);
   for (auto& bitmap : bit_index_) {
-    bitmap = roaring::Roaring();  // Replace with new empty bitmap
+    bitmap = roaring::Roaring();
   }
   key_to_id_.clear();
   id_to_key_.clear();

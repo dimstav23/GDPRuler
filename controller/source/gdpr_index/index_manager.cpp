@@ -158,38 +158,36 @@ void IndexManager::on_put(std::string_view key, std::string_view complete_value)
   auto& shard = get_shard(key);
   std::unique_lock lock(shard.mutex);
   
+  // Heterogeneous lookup: find by string_view
   auto it = shard.entries.find(key);
   
   if (it != shard.entries.end()) {
-    // Key exists - check if metadata changed
+    // Key exists
     KeyEntry* entry = it->second.get();
     
     if (entry->fingerprint == new_fingerprint) {
-      // Fast path: metadata unchanged
-      return;
+      return;  // Metadata unchanged
     }
     
-    // Metadata changed - update indexes
+    // Metadata changed
     remove_from_indexes(entry);
-    
     entry->fingerprint = new_fingerprint;
     entry->purpose_bits = purpose_bits;
     entry->objection_bits = objection_bits;
     entry->share_bits = share_bits;
-    
     insert_into_indexes(entry);
   } else {
-    // New key - create entry
+    // New key
     auto entry = std::make_unique<KeyEntry>(std::string(key), new_fingerprint);
     entry->purpose_bits = purpose_bits;
     entry->objection_bits = objection_bits;
     entry->share_bits = share_bits;
     
-    // Move entry first, then insert into indexes
-    std::string_view key_view(entry->key);
-    KeyEntry* entry_ptr = entry.get();
-    shard.entries.emplace(key_view, std::move(entry));
-    insert_into_indexes(entry_ptr);  // safe - entry is already stored
+    SharedString key_ptr = entry->key;  // Copy shared_ptr
+    KeyEntry* entry_raw = entry.get();
+    
+    shard.entries.emplace(key_ptr, std::move(entry));
+    insert_into_indexes(entry_raw);
   }
 }
 
@@ -197,15 +195,15 @@ void IndexManager::on_delete(std::string_view key) {
   auto& shard = get_shard(key);
   std::unique_lock lock(shard.mutex);
   
-  auto it = shard.entries.find(key);
+  auto it = shard.entries.find(key);  // Heterogeneous lookup
   if (it != shard.entries.end()) {
     remove_from_indexes(it->second.get());
-    shard.entries.erase(it);
+    shard.entries.erase(it);  // shared_ptr ref_count--, "might" free string
   }
 }
 
 void IndexManager::remove_from_indexes(KeyEntry* entry) {
-  const std::string* key_ptr = &entry->key;
+  const SharedString& key_ptr = entry->key;  // Reference to shared_ptr
   
   if (owner_index_) {
     owner_index_->remove(entry->fingerprint.owner_bit, key_ptr);
@@ -233,7 +231,7 @@ void IndexManager::remove_from_indexes(KeyEntry* entry) {
 }
 
 void IndexManager::insert_into_indexes(KeyEntry* entry) {
-  const std::string* key_ptr = &entry->key;
+  const SharedString& key_ptr = entry->key;
   
   if (owner_index_) {
     owner_index_->insert(entry->fingerprint.owner_bit, key_ptr);
@@ -260,52 +258,53 @@ void IndexManager::insert_into_indexes(KeyEntry* entry) {
   }
 }
 
-std::vector<std::string_view> IndexManager::find_by_owner(size_t owner_bit) const {
+std::vector<SharedString> IndexManager::find_by_owner(size_t owner_bit) const {
   if (!owner_index_) return {};
-  return ptrs_to_views(owner_index_->find(owner_bit));
+  return owner_index_->find(owner_bit);  // Returns vector<SharedString>
 }
 
-std::vector<std::string_view> IndexManager::find_by_purpose(const std::bitset<num_purposes>& purpose_bits) const {
+std::vector<SharedString> IndexManager::find_by_purpose(const std::bitset<num_purposes>& purpose_bits) const {
   if (!purpose_index_) return {};
-  return ptrs_to_views(purpose_index_->find_any(purpose_bits));
+  return purpose_index_->find_all(purpose_bits);
 }
 
-std::vector<std::string_view> IndexManager::find_by_expiration_range(uint64_t start, uint64_t end) const {
+std::vector<SharedString> IndexManager::find_by_expiration_range(uint64_t start, uint64_t end) const {
   if (!expiration_index_) return {};
-  return ptrs_to_views(expiration_index_->find_range(start, end));
+  return expiration_index_->find_range(start, end);
 }
 
-std::vector<std::string_view> IndexManager::find_by_objection(const std::bitset<num_purposes>& objection_bits) const {
+std::vector<SharedString> IndexManager::find_by_objection(const std::bitset<num_purposes>& objection_bits) const {
   if (!objection_index_) return {};
-  return ptrs_to_views(objection_index_->find_any(objection_bits));
+  return objection_index_->find_all(objection_bits);
 }
 
-std::vector<std::string_view> IndexManager::find_by_origin(size_t origin_bit) const {
+std::vector<SharedString> IndexManager::find_by_origin(size_t origin_bit) const {
   if (!origin_index_) return {};
-  return ptrs_to_views(origin_index_->find(origin_bit));
+  return origin_index_->find(origin_bit);
 }
 
-std::vector<std::string_view> IndexManager::find_by_share(const std::bitset<num_users>& share_bits) const {
+std::vector<SharedString> IndexManager::find_by_share(const std::bitset<num_users>& share_bits) const {
   if (!share_index_) return {};
-  return ptrs_to_views(share_index_->find_any(share_bits));
+  return share_index_->find_any(share_bits);
 }
 
-std::vector<std::string_view> IndexManager::find_keys(
+std::vector<SharedString> IndexManager::find_keys(
   std::optional<size_t> owner_bit,
   std::optional<std::bitset<num_purposes>> purpose_bits,
   std::optional<uint64_t> expiration_threshold) const
 {
-  std::vector<std::string_view> result;
+  std::vector<SharedString> result;
   bool first_query = true;
   
   if (owner_bit.has_value()) {
-    result = find_by_owner(*owner_bit);
+    result = find_by_owner(*owner_bit);  // Returns SharedString
     first_query = false;
     if (result.empty()) return {};
   }
   
   if (purpose_bits.has_value()) {
     auto purpose_keys = find_by_purpose(*purpose_bits);
+    
     if (first_query) {
       result = std::move(purpose_keys);
       first_query = false;
@@ -325,37 +324,33 @@ std::vector<std::string_view> IndexManager::find_keys(
     }
   }
   
-  return result;
+  return result;  // Returns SharedString - NO copies!
 }
 
-std::vector<std::string_view> IndexManager::ptrs_to_views(const std::vector<const std::string*>& ptrs) {
-  std::vector<std::string_view> views;
-  views.reserve(ptrs.size());
-  for (const auto* ptr : ptrs) {
-    views.emplace_back(*ptr);
-  }
-  return views;
-}
-
-std::vector<std::string_view> IndexManager::intersect_sets(
-  std::vector<std::string_view>& set1,
-  std::vector<std::string_view>& set2)
+// intersect_sets now works with SharedString directly
+std::vector<SharedString> IndexManager::intersect_sets(
+  const std::vector<SharedString>& set1,
+  const std::vector<SharedString>& set2)
 {
   if (set1.empty() || set2.empty()) return {};
   
-  // Always build hash set from smaller set
-  if (set1.size() > set2.size()) {
-    std::swap(set1, set2);
+  const auto& smaller_set = (set1.size() <= set2.size()) ? set1 : set2;
+  const auto& larger_set = (set1.size() <= set2.size()) ? set2 : set1;
+  
+  // Build hash set of SharedString
+  absl::flat_hash_set<SharedString, SharedStringHash, SharedStringEqual> hash_set;
+  hash_set.reserve(smaller_set.size());
+  
+  for (const auto& key_ptr : smaller_set) {
+    hash_set.insert(key_ptr);  // Copies shared_ptr
   }
   
-  absl::flat_hash_set<std::string_view> hash_set(set1.begin(), set1.end());
-  
-  std::vector<std::string_view> result;
+  std::vector<SharedString> result;
   result.reserve(std::min(set1.size(), set2.size()));
   
-  for (const auto& key : set2) {
-    if (hash_set.find(key) != hash_set.end()) {
-      result.push_back(key);
+  for (const auto& key_ptr : larger_set) {
+    if (hash_set.contains(key_ptr)) {
+      result.push_back(key_ptr);  // Copies shared_ptr
     }
   }
   
