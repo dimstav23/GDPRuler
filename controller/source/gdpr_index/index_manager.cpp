@@ -153,7 +153,7 @@ void IndexManager::on_put(std::string_view key, std::string_view complete_value)
   size_t owner_bit = 0, origin_bit = 0;
   
   auto new_fingerprint = extract_metadata(complete_value, purpose_bits, objection_bits,
-                      share_bits, owner_bit, origin_bit);
+                                          share_bits, owner_bit, origin_bit);
   
   auto& shard = get_shard(key);
   std::unique_lock lock(shard.mutex);
@@ -162,32 +162,39 @@ void IndexManager::on_put(std::string_view key, std::string_view complete_value)
   auto it = shard.entries.find(key);
   
   if (it != shard.entries.end()) {
-    // Key exists
+    // Key exists - get the SharedString from the map key
+    const SharedString& key_ptr = it->first;  // ← Get key from map
     KeyEntry* entry = it->second.get();
     
     if (entry->fingerprint == new_fingerprint) {
-      return;  // Metadata unchanged
+        return;  // Metadata unchanged
     }
     
-    // Metadata changed
-    remove_from_indexes(entry);
+    // Metadata changed - need to update indexes
+    remove_from_indexes(key_ptr, entry);  // Pass key_ptr
+    
     entry->fingerprint = new_fingerprint;
     entry->purpose_bits = purpose_bits;
     entry->objection_bits = objection_bits;
     entry->share_bits = share_bits;
-    insert_into_indexes(entry);
+    
+    insert_into_indexes(key_ptr, entry);  // Pass key_ptr
   } else {
     // New key
-    auto entry = std::make_unique<KeyEntry>(std::string(key), new_fingerprint);
+    auto entry = std::make_unique<KeyEntry>(new_fingerprint);
     entry->purpose_bits = purpose_bits;
     entry->objection_bits = objection_bits;
     entry->share_bits = share_bits;
     
-    SharedString key_ptr = entry->key;  // Copy shared_ptr
+    // Create shared_ptr ONCE
+    SharedString key_ptr = std::make_shared<std::string>(std::string(key));
     KeyEntry* entry_raw = entry.get();
     
+    // Store in shard (ref_count = 1)
     shard.entries.emplace(key_ptr, std::move(entry));
-    insert_into_indexes(entry_raw);
+    
+    // Pass to indexes (ref_count increases as indexes copy it)
+    insert_into_indexes(key_ptr, entry_raw);
   }
 }
 
@@ -197,14 +204,19 @@ void IndexManager::on_delete(std::string_view key) {
   
   auto it = shard.entries.find(key);  // Heterogeneous lookup
   if (it != shard.entries.end()) {
-    remove_from_indexes(it->second.get());
-    shard.entries.erase(it);  // shared_ptr ref_count--, "might" free string
+    // Get key_ptr from map before erasing
+    const SharedString& key_ptr = it->first;
+    KeyEntry* entry = it->second.get();
+    
+    // Remove from indexes BEFORE erasing from shard
+    remove_from_indexes(key_ptr, entry);
+    // Erase from shard (shared_ptr ref_count--, might free string)
+    shard.entries.erase(it);
   }
 }
 
-void IndexManager::remove_from_indexes(KeyEntry* entry) {
-  const SharedString& key_ptr = entry->key;  // Reference to shared_ptr
-  
+void IndexManager::remove_from_indexes(const SharedString& key_ptr, KeyEntry* entry) {
+  // const SharedString& key_ptr = entry->key;  // Reference to shared_ptr
   if (owner_index_) {
     owner_index_->remove(entry->fingerprint.owner_bit, key_ptr);
   }
@@ -230,9 +242,8 @@ void IndexManager::remove_from_indexes(KeyEntry* entry) {
   }
 }
 
-void IndexManager::insert_into_indexes(KeyEntry* entry) {
-  const SharedString& key_ptr = entry->key;
-  
+void IndexManager::insert_into_indexes(const SharedString& key_ptr, KeyEntry* entry) {
+  // const SharedString& key_ptr = entry->key;  
   if (owner_index_) {
     owner_index_->insert(entry->fingerprint.owner_bit, key_ptr);
   }

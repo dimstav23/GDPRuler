@@ -53,20 +53,23 @@ private:
   IndexConfig config_;
   
   struct KeyEntry {
-    SharedString key;
+    // SharedString key;
     MetadataFingerprint fingerprint;
     std::bitset<num_purposes> purpose_bits;
     std::bitset<num_purposes> objection_bits;
     std::bitset<num_users> share_bits;
     
-    KeyEntry(std::string k, MetadataFingerprint fp)
-      : key(std::make_shared<std::string>(std::move(k))), 
-        fingerprint(std::move(fp)) {}
+    // KeyEntry(std::string k, MetadataFingerprint fp)
+    //   : key(std::make_shared<std::string>(std::move(k))), 
+    //     fingerprint(std::move(fp)) {}
+    KeyEntry(MetadataFingerprint fp)
+      : fingerprint(std::move(fp)) {}
   };
   
   struct KeyEntryShard {
     mutable std::shared_mutex mutex;
     // Use SharedString as key with hash/equal from common_types.hpp
+    // use the SharedString here to keep it alive
     std::unordered_map<SharedString, std::unique_ptr<KeyEntry>, 
               SharedStringHash, SharedStringEqual> entries;
   };
@@ -94,8 +97,8 @@ private:
     size_t& owner_bit,
     size_t& origin_bit) const;
   
-  void remove_from_indexes(KeyEntry* entry);
-  void insert_into_indexes(KeyEntry* entry);
+  void remove_from_indexes(const SharedString& key_ptr, KeyEntry* entry);
+  void insert_into_indexes(const SharedString& key_ptr, KeyEntry* entry);
   
   static std::vector<SharedString> intersect_sets(
     const std::vector<SharedString>& set1,
