@@ -38,12 +38,9 @@ ANNOTATION_FONTSIZE = FONTSIZE / 2 - 1
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
 def load_data_from_dirs(bare_metal_dir, cvm_dir):
-    """Load GDPR queries CSV files from separate bare_metal and CVM directories.
-    
-    Expected filename format: {variant}-gdpr_queries-encryption_{ON/OFF}-logging_{ON/OFF}-connection_{type}.csv
-    """
-    # Pattern to match filenames
-    pattern = r"(?P<variant>[\w_]+)-gdpr_queries-encryption_(?P<encryption>ON|OFF)-logging_(?P<logging>ON|OFF)-connection_(?P<connection>\w+)\.csv"
+    """Load GDPR queries CSV files from separate bare_metal and CVM directories."""
+    # Updated pattern to handle both regular and metadata_indexes variants
+    pattern = r"(?P<variant>[\w_]+)-gdpr_queries(?P<indexes>_metadata_indexes)?-encryption_(?P<encryption>ON|OFF)-logging_(?P<logging>ON|OFF)-connection_(?P<connection>\w+)\.csv"
     
     data = []
     
@@ -61,6 +58,8 @@ def load_data_from_dirs(bare_metal_dir, cvm_dir):
                     df['logging'] = match.group("logging")
                     df['connection'] = match.group("connection")
                     df['environment'] = 'bare_metal'
+                    # New field to track metadata indexes
+                    df['metadata_indexes'] = True if match.group("indexes") else False
                     
                     # Calculate total operations and throughput
                     op_count_cols = [col for col in df.columns if col.endswith('_count') 
@@ -74,7 +73,8 @@ def load_data_from_dirs(bare_metal_dir, cvm_dir):
                     df['entity'] = df['workload'].str.replace('gdpr_', '')
                     
                     data.append(df)
-                    print(f"  ✓ {filename}")
+                    indexes_label = " (w/ metadata indexes)" if df['metadata_indexes'].iloc[0] else ""
+                    print(f"  ✓ {filename}{indexes_label}")
     
     # Load CVM results
     if os.path.exists(cvm_dir):
@@ -90,6 +90,7 @@ def load_data_from_dirs(bare_metal_dir, cvm_dir):
                     df['logging'] = match.group("logging")
                     df['connection'] = match.group("connection")
                     df['environment'] = 'CVM'
+                    df['metadata_indexes'] = True if match.group("indexes") else False
                     
                     # Calculate total operations and throughput
                     op_count_cols = [col for col in df.columns if col.endswith('_count') 
@@ -103,7 +104,8 @@ def load_data_from_dirs(bare_metal_dir, cvm_dir):
                     df['entity'] = df['workload'].str.replace('gdpr_', '')
                     
                     data.append(df)
-                    print(f"  ✓ {filename}")
+                    indexes_label = " (w/ metadata indexes)" if df['metadata_indexes'].iloc[0] else ""
+                    print(f"  ✓ {filename}{indexes_label}")
     
     if data:
         combined = pd.concat(data, ignore_index=True)
@@ -174,7 +176,7 @@ def create_performance_per_db_plot(data, db_name, output_dir):
     """
     Create paper-ready plot with 2 subplots:
     (a) Throughput by entity with 4 bars per entity (with error bars)
-    (b) Per-operation latency with error bars (metadata operations only)
+    (b) Per-Query Latency with error bars (metadata operations only)
     """
     df_db = data[data['db'] == db_name].copy()
     
@@ -248,7 +250,7 @@ def create_performance_per_db_plot(data, db_name, output_dir):
     ax1.grid(True, alpha=0.3, axis='y')
     ax1.legend(fontsize=LEGEND_FONTSIZE, loc='upper left', framealpha=0.9, ncol=1)
     
-    # --- Subplot (b): Per-operation latency (metadata operations only) ---
+    # --- Subplot (b): Per-Query Latency (metadata operations only) ---
     ops_agg = aggregate_operation_stats(df_db)
     
     # Filter only operations ending with 'M' (metadata operations)
@@ -273,7 +275,7 @@ def create_performance_per_db_plot(data, db_name, output_dir):
         
         ax2.set_xlabel('Metadata Operation', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax2.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
-        ax2.set_title(f'(b) {db_name.capitalize()} Operation Latency', 
+        ax2.set_title(f'(b) {db_name.capitalize()} Query Latency', 
                       fontsize=TITLE_FONTSIZE, pad=3)
         ax2.set_xticks(x_ops)
         ax2.set_xticklabels(op_names, fontsize=TICK_FONTSIZE, rotation=45, ha='right')
@@ -285,7 +287,7 @@ def create_performance_per_db_plot(data, db_name, output_dir):
                 fontsize=LABEL_FONTSIZE)
         ax2.set_xlabel('Metadata Operation', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax2.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
-        ax2.set_title(f'(b) {db_name.capitalize()} Operation Latency', 
+        ax2.set_title(f'(b) {db_name.capitalize()} Query Latency', 
                       fontsize=TITLE_FONTSIZE, pad=3)
     
     plt.tight_layout()
@@ -296,6 +298,287 @@ def create_performance_per_db_plot(data, db_name, output_dir):
     plt.close()
     
     print(f"  ✓ Paper-ready plot: {output_filename}")
+    
+def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
+    """
+    Create combined plot comparing regular vs metadata indexes variants.
+    Layout: 2 rows (Redis top, RocksDB bottom)
+    Throughput: Native, Native w/ indexes, CVM, CVM w/ indexes
+    Latency: CVM, CVM w/ indexes (both metadata operations)
+    """
+    databases = sorted(data['db'].unique())
+    
+    if len(databases) < 2:
+        print("⚠ Need both redis and rocksdb data for combined plot")
+        return
+    
+    # Filter to only use encryption=ON data for consistency
+    data_filtered = data[data['encryption'] == 'ON'].copy()
+    
+    # Create figure with custom width ratios: 3:1
+    fig = plt.figure(figsize=(figwidth_half, 2.5))
+    gs = fig.add_gridspec(2, 2, width_ratios=[4, 1], height_ratios=[1, 1], 
+                          hspace=0.6, wspace=0.5)
+    
+    # Create axes
+    ax_redis_throughput = fig.add_subplot(gs[0, 0])
+    ax_redis_latency = fig.add_subplot(gs[0, 1])
+    ax_rocksdb_throughput = fig.add_subplot(gs[1, 0])
+    ax_rocksdb_latency = fig.add_subplot(gs[1, 1])
+    
+    axes_pairs = [
+        ('redis', ax_redis_throughput, ax_redis_latency, '(a)', '(b)'),
+        ('rocksdb', ax_rocksdb_throughput, ax_rocksdb_latency, '(c)', '(d)')
+    ]
+    
+    for db_name, ax_throughput, ax_latency, label_left, label_right in axes_pairs:
+        df_db = data_filtered[data_filtered['db'] == db_name].copy()
+        
+        if df_db.empty:
+            continue
+        
+        # --- Throughput subplot ---
+        entities = sorted(df_db['entity'].unique())
+        n_entities = len(entities)
+
+        # 4 variants: Native, Native w/ indexes, CVM, CVM w/ indexes
+        variants = [
+            ('bare_metal', False, 'Native GDPRuler'),
+            ('bare_metal', True, 'Native GDPRuler (w/ indexes)'),
+            ('CVM', False, 'CVM GDPRuler'),
+            ('CVM', True, 'CVM GDPRuler (w/ indexes)')
+        ]
+
+        colors = sns.color_palette("pastel", n_colors=len(variants))
+        x_pos = np.arange(n_entities)
+        bar_width = 0.8 / len(variants)
+
+        # Store data for improvement annotations
+        variant_data = {}  # {entity: {(env, has_indexes): throughput}}
+
+        all_max_values = []
+        for i, (env, has_indexes, label) in enumerate(variants):
+            throughputs = []
+            throughput_stds = []
+            
+            for entity in entities:
+                subset = df_db[(df_db['entity'] == entity) & 
+                              (df_db['environment'] == env) & 
+                              (df_db['metadata_indexes'] == has_indexes)]
+                
+                if not subset.empty:
+                    throughput = subset['throughput'].mean()
+                    std = subset['throughput'].std()
+                    all_max_values.append(throughput + std)
+                    throughputs.append(throughput)
+                    throughput_stds.append(std)
+                    
+                    # Store for improvement calculation
+                    if entity not in variant_data:
+                        variant_data[entity] = {}
+                    variant_data[entity][(env, has_indexes)] = throughput
+                else:
+                    throughputs.append(0)
+                    throughput_stds.append(0)
+            
+            bar_positions = x_pos + i * bar_width - 0.3
+            bars = ax_throughput.bar(bar_positions, throughputs, bar_width,
+                          label=label, color=colors[i], 
+                          hatch=hatches[i % len(hatches)],
+                          alpha=0.8, edgecolor='black')
+            
+            ax_throughput.errorbar(bar_positions, throughputs, yerr=throughput_stds,
+                        fmt='none', ecolor='black', capsize=1, lw=0.5)
+            
+            # Add throughput values on top of bars
+            for j, (bar, throughput) in enumerate(zip(bars, throughputs)):
+                if throughput > 0:
+                    height = bar.get_height()
+                    ax_throughput.text(bar.get_x() + bar.get_width()/2., height * 1.1,
+                            f'{throughput:.0f}',
+                            ha='center', va='bottom', 
+                            fontsize=ANNOTATION_FONTSIZE+1, rotation=0)
+
+        # Set log scale
+        ax_throughput.set_yscale('log')
+        # Calculate appropriate y-limits for log scale
+        if all_max_values:
+            max_y = max(all_max_values)
+            min_y = min([t for t in all_max_values if t > 0])
+            
+            # For log scale, multiply max by a factor to give headroom for annotations
+            ax_throughput.set_ylim(min_y * 0.5, max_y * 2)  # 2.5x headroom at top
+
+        # Add improvement annotations with arrows
+        for entity_idx, entity in enumerate(entities):
+            entity_pos = x_pos[entity_idx]
+            
+            # Native improvement (bar 0 to bar 1)
+            if ('bare_metal', False) in variant_data[entity] and ('bare_metal', True) in variant_data[entity]:
+                base_throughput = variant_data[entity][('bare_metal', False)]
+                improved_throughput = variant_data[entity][('bare_metal', True)]
+                
+                if base_throughput > 0:
+                    improvement = improved_throughput / base_throughput
+                    
+                    # X position (slightly to the right of the indexed bar)
+                    x_bar_base = entity_pos + 0 * bar_width - 0.3 + bar_width/2
+                    x_bar_improved = entity_pos + 1 * bar_width - 0.3 + bar_width/2
+                    x_arrow = (x_bar_base) - (bar_width / 2)  # Middle of the lower bar
+                    
+                    # Y positions (from base bar top to improved bar top)
+                    y_start = base_throughput + 0.2 * base_throughput  # Small offset for visibility
+                    y_end = improved_throughput + 0.2 * improved_throughput
+                    
+                    # Draw vertical double-headed arrow
+                    ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+                                arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
+                    
+                    # Add improvement text (rotated vertically, at midpoint)
+                    y_mid = np.sqrt(y_start * y_end)  # Geometric mean for log scale
+                    ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
+                            f'{improvement:.1f}×',
+                            ha='left', va='center', 
+                            fontsize=ANNOTATION_FONTSIZE + 1, color='darkblue', rotation=90)
+            
+            # CVM improvement (bar 2 to bar 3)
+            if ('CVM', False) in variant_data[entity] and ('CVM', True) in variant_data[entity]:
+                base_throughput = variant_data[entity][('CVM', False)]
+                improved_throughput = variant_data[entity][('CVM', True)]
+                
+                if base_throughput > 0:
+                    improvement = improved_throughput / base_throughput
+                    
+                    # X position (between bars 2 and 3)
+                    x_bar_base = entity_pos + 2 * bar_width - 0.3 + bar_width/2
+                    x_bar_improved = entity_pos + 3 * bar_width - 0.3 + bar_width/2
+                    x_arrow = (x_bar_base) - (bar_width / 2)  # Middle of the lower bar
+                    
+                    # Y positions (from base bar top to improved bar top)
+                    y_start = base_throughput + 0.2 * base_throughput  # Small offset for visibility
+                    y_end = improved_throughput + 0.2 * improved_throughput
+                    
+                    # Draw vertical double-headed arrow
+                    ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+                                arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
+                    
+                    # Add improvement text (rotated vertically, at midpoint)
+                    y_mid = np.sqrt(y_start * y_end)  # Geometric mean for log scale
+                    ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
+                            f'{improvement:.1f}×',
+                            ha='left', va='center', 
+                            fontsize=ANNOTATION_FONTSIZE + 1, color='darkblue', rotation=90)
+
+        ax_throughput.set_xlabel('GDPR Workload', fontsize=LABEL_FONTSIZE, labelpad=2)
+        ax_throughput.set_ylabel('Throughput (ops/s)', fontsize=LABEL_FONTSIZE, labelpad=2)
+        ax_throughput.set_title(f'{label_left} Throughput (Higher is better↑)', color="navy",
+                      fontsize=TITLE_FONTSIZE, pad=3)
+        ax_throughput.set_xticks(x_pos)
+        ax_throughput.set_xticklabels([e.capitalize() for e in entities], fontsize=TICK_FONTSIZE)
+        ax_throughput.tick_params(axis='x', length=0, pad=2)
+        ax_throughput.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
+        ax_throughput.grid(True, alpha=0.3, axis='y')
+
+        # Only show legend on top plot
+        if db_name == 'redis':
+            ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.8, 1.7), 
+                              ncol=2, fontsize=LEGEND_FONTSIZE, frameon=True)
+        
+        # --- Latency subplot (CVM vs CVM w/ indexes, metadata operations only) ---
+        # Compare only CVM variants for latency
+        latency_variants = [
+            ('CVM', False, 'CVM GDPRuler'),
+            ('CVM', True, 'CVM GDPRuler (w/ indexes)')
+        ]
+        
+        latency_colors = [colors[2], colors[3]]  # Use same colors as throughput
+        
+        # Get metadata operations for both CVM variants
+        cvm_data = df_db[(df_db['environment'] == 'CVM') & (df_db['metadata_indexes'] == False)]
+        cvm_indexes_data = df_db[(df_db['environment'] == 'CVM') & (df_db['metadata_indexes'] == True)]
+        
+        cvm_ops = aggregate_operation_stats(cvm_data)
+        cvm_indexes_ops = aggregate_operation_stats(cvm_indexes_data)
+        
+        # Get metadata operations that exist in either variant
+        cvm_metadata = {k: v for k, v in cvm_ops.items() if k.upper().endswith('M')}
+        cvm_indexes_metadata = {k: v for k, v in cvm_indexes_ops.items() if k.upper().endswith('M')}
+        
+        # Get union of operation names
+        all_ops = set(cvm_metadata.keys()) | set(cvm_indexes_metadata.keys())
+        
+        if all_ops:
+            op_names = sorted(all_ops, reverse=True)
+            x_ops = np.arange(len(op_names))
+            bar_width_lat = 0.35
+            
+            for idx, (env, has_indexes, label) in enumerate(latency_variants):
+                means = []
+                stds = []
+                
+                if has_indexes:
+                    ops_dict = cvm_indexes_metadata
+                else:
+                    ops_dict = cvm_metadata
+                
+                for op in op_names:
+                    if op in ops_dict:
+                        means.append(ops_dict[op]['mean_latency_s'] * 1000)
+                        stds.append(ops_dict[op]['pooled_std_s'] * 1000)
+                    else:
+                        means.append(0)
+                        stds.append(0)
+                
+                bar_positions = x_ops + idx * bar_width_lat - bar_width_lat/2
+                bars = ax_latency.bar(bar_positions, means, bar_width_lat,
+                                     label=label, color=latency_colors[idx], 
+                                     alpha=0.8, edgecolor='black')
+                ax_latency.errorbar(bar_positions, means, yerr=stds,
+                            fmt='none', ecolor='black', capsize=1, lw=0.5)
+                # Add value annotations only for indexed variant (has_indexes == True)
+                if has_indexes:
+                    for bar, mean in zip(bars, means):
+                        if mean > 0:
+                            height = bar.get_height()
+                            ax_latency.text(bar.get_x() + bar.get_width()/1.5, height + 150,
+                                    f'{mean:.2f}',
+                                    ha='center', va='bottom', 
+                                    fontsize=ANNOTATION_FONTSIZE+1, rotation=90)
+            ax_latency.set_xlabel("")
+            ax_latency.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
+            ax_latency.set_title(f'{label_right} Query Latency\n(Lower is better↓)', color="navy",
+                          fontsize=TITLE_FONTSIZE, pad=3)
+            ax_latency.set_xticks(x_ops)
+            ax_latency.set_xticklabels([op.lower() for op in op_names], fontsize=TICK_FONTSIZE, rotation=25)
+            ax_latency.tick_params(axis='x', length=0, pad=2)
+            ax_latency.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
+            ax_latency.grid(True, alpha=0.3, axis='y')
+            
+            # Legend only on top latency plot
+            # if db_name == 'redis':
+                # ax_latency.legend(fontsize=LEGEND_FONTSIZE-1, loc='best', frameon=True)
+        else:
+            ax_latency.text(0.5, 0.5, 'No metadata\noperations', 
+                    ha='center', va='center', transform=ax_latency.transAxes,
+                    fontsize=TICK_FONTSIZE)
+            ax_latency.set_xlabel("")
+            ax_latency.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
+            ax_latency.set_title(f'{label_right} Query Latency', 
+                          fontsize=TITLE_FONTSIZE, pad=3)
+    
+    # Database annotations
+    fig.text(-0.01, 0.75, 'Redis', fontsize=LABEL_FONTSIZE + 1, rotation=90, 
+             verticalalignment='center', horizontalalignment='center', weight='bold')
+    fig.text(-0.01, 0.25, 'RocksDB', fontsize=LABEL_FONTSIZE + 1, rotation=90, 
+             verticalalignment='center', horizontalalignment='center', weight='bold')
+    
+    # Save plot
+    output_filename = 'gdpr_metadata_indexes_performance'
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), bbox_inches='tight')
+    plt.close()
+    
+    print(f"  ✓ Metadata indexes plot: {output_filename}")
 
 def create_gdpr_queries_performance_plot(data, output_dir):
     """
@@ -433,7 +716,7 @@ def create_gdpr_queries_performance_plot(data, output_dir):
             # ax_latency.set_xlabel('Metadata Op.', fontsize=LABEL_FONTSIZE, labelpad=2)
             ax_latency.set_xlabel("")
             ax_latency.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
-            ax_latency.set_title(f'{label_right} Operation Latency\n(Lower is better↓)',  color="navy",
+            ax_latency.set_title(f'{label_right} Query Latency\n(Lower is better↓)',  color="navy",
                           fontsize=TITLE_FONTSIZE, pad=3)
             ax_latency.set_xticks(x_ops)
             ax_latency.set_xticklabels(op_names, fontsize=TICK_FONTSIZE, rotation=30)
@@ -447,7 +730,7 @@ def create_gdpr_queries_performance_plot(data, output_dir):
             # ax_latency.set_xlabel('Metadata Op.', fontsize=LABEL_FONTSIZE, labelpad=2)
             ax_latency.set_xlabel("")
             ax_latency.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE, labelpad=2)
-            ax_latency.set_title(f'{label_right} Operation Latency', 
+            ax_latency.set_title(f'{label_right} Query Latency', 
                           fontsize=TITLE_FONTSIZE, pad=3)
     
     # Redis annotation for top row
@@ -529,7 +812,7 @@ def create_analytical_plots(data, output_dir):
         plt.savefig(os.path.join(output_dir, f'{db_name}_elapsed_time.pdf'), bbox_inches='tight')
         plt.close()
         
-        # Plot 3: Per-operation latency by entity
+        # Plot 3: Per-Query Latency by entity
         entities_list = sorted(df_db['entity'].unique())
         n_entities = len(entities_list)
         
@@ -564,7 +847,7 @@ def create_analytical_plots(data, output_dir):
                 ax.tick_params(axis='y', labelsize=TICK_FONTSIZE)
                 ax.grid(True, alpha=0.3, axis='y')
         
-        fig.suptitle(f'{db_name.capitalize()} - Per-Operation Latency by Entity', 
+        fig.suptitle(f'{db_name.capitalize()} - Per-Query Latency by Entity', 
                     fontsize=FONTSIZE + 1, y=1.02)
         plt.tight_layout()
         plt.savefig(os.path.join(output_dir, f'{db_name}_ops_by_entity.png'), dpi=300, bbox_inches='tight')
@@ -634,6 +917,11 @@ def main():
     print(f"Entities: {sorted(data['entity'].unique())}")
     print(f"Environments: {sorted(data['environment'].unique())}")
     print(f"Encryption: {sorted(data['encryption'].unique())}")
+    print(f"Metadata indexes variants: {data['metadata_indexes'].unique()}")
+    
+    
+    # Filter data for regular plots (no metadata indexes)
+    data_without_indexes = data[data['metadata_indexes'] == False].copy()
     
     print_statistics(data)
     
@@ -643,12 +931,17 @@ def main():
     
     # Create individual plots for each database
     for db in sorted(data['db'].unique()):
-        create_performance_per_db_plot(data, db, args.output_dir)
+        create_performance_per_db_plot(data_without_indexes, db, args.output_dir)
     
     # Create combined plot with both databases
-    create_gdpr_queries_performance_plot(data, args.output_dir)
+    create_gdpr_queries_performance_plot(data_without_indexes, args.output_dir)
     
-    create_analytical_plots(data, args.output_dir)
+    create_analytical_plots(data_without_indexes, args.output_dir)
+    
+    # Create metadata indexes comparison plot if that data exists
+    if data['metadata_indexes'].any():
+        print("\nGenerating metadata indexes comparison plot...")
+        create_gdpr_queries_metadata_index_performance_plot(data, args.output_dir)
     
     print(f"\n{'='*80}")
     print(f"✓ All plots saved to: {args.output_dir}")
