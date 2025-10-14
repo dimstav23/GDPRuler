@@ -519,7 +519,7 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
 
   {
     // Fallback: Get all key-value pairs matching the prefix
-    auto key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
+    key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
   }
   
   if (key_value_pairs.empty()) {
@@ -651,7 +651,7 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
   #endif
   {
     // Get all key-value pairs matching the prefix
-    auto key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
+    key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
   }
 
   if (key_value_pairs.empty()) {
