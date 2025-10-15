@@ -298,7 +298,239 @@ def create_performance_per_db_plot(data, db_name, output_dir):
     plt.close()
     
     print(f"  ✓ Paper-ready plot: {output_filename}")
+
+def print_gdpr_workload_statistics(data):
+    """
+    Comprehensive GDPR workload statistics - Native vs CVM
+    """
     
+    print("\n" + "="*100)
+    print(" "*30 + "GDPR WORKLOAD PERFORMANCE STATISTICS")
+    print("="*100)
+    
+    data_filtered = data[data['encryption'] == 'ON'].copy()
+    
+    dbs = sorted(data_filtered['db'].unique())
+    entities = sorted(data_filtered['entity'].unique())
+    environments = sorted(data_filtered['environment'].unique())
+    
+    print(f"\nDatabases: {dbs}")
+    print(f"Workloads: {entities}")
+    print(f"Environments: {environments}\n")
+    
+    # ========== 1. THROUGHPUT BY ENVIRONMENT ==========
+    print("="*100)
+    print("1. THROUGHPUT ANALYSIS (ops/sec)")
+    print("="*100)
+    
+    for env in environments:
+        print(f"\n{'='*50}")
+        print(f"ENVIRONMENT: {env.upper()}")
+        print(f"{'='*50}")
+        
+        for db in dbs:
+            print(f"\n{db.upper()}:")
+            print(f"{'Workload':<15} {'No Index':>12} {'With Index':>12} {'Improvement':>12} {'Speedup':>10}")
+            print("-" * 65)
+            
+            df_env_db = data_filtered[(data_filtered['environment'] == env) & 
+                                      (data_filtered['db'] == db)]
+            
+            for entity in entities:
+                df_entity = df_env_db[df_env_db['entity'] == entity]
+                
+                no_idx = df_entity[df_entity['metadata_indexes'] == False]['throughput'].values
+                with_idx = df_entity[df_entity['metadata_indexes'] == True]['throughput'].values
+                
+                if len(no_idx) > 0 and len(with_idx) > 0:
+                    improvement = ((with_idx.mean() - no_idx.mean()) / no_idx.mean() * 100)
+                    speedup = with_idx.mean() / no_idx.mean()
+                    
+                    print(f"{entity.capitalize():<15} {no_idx.mean():>10.2f} ops {with_idx.mean():>10.2f} ops "
+                          f"{improvement:>10.1f}% {speedup:>9.2f}x")
+    
+    # ========== 2. OPERATION LATENCIES ==========
+    print("\n" + "="*100)
+    print("2. OPERATION LATENCY BREAKDOWN (milliseconds)")
+    print("="*100)
+    
+    # Define operations to analyze
+    operations = ['put', 'get', 'delete', 'putm', 'getm', 'deletem']
+    
+    for env in environments:
+        print(f"\n{'='*50}")
+        print(f"ENVIRONMENT: {env.upper()}")
+        print(f"{'='*50}")
+        
+        for db in dbs:
+            print(f"\n{db.upper()}:")
+            print(f"{'Operation':<15} {'No Index (ms)':>15} {'With Index (ms)':>17} {'Reduction %':>12} {'Speedup':>10}")
+            print("-" * 75)
+            
+            df_env_db = data_filtered[(data_filtered['environment'] == env) & 
+                                      (data_filtered['db'] == db)]
+            
+            for op in operations:
+                count_col = f"{op}_count"
+                # NOTE: Column name has space before (s)
+                lat_col = f"{op}_avg_lat (s)"
+                
+                if count_col in df_env_db.columns and lat_col in df_env_db.columns:
+                    # No index
+                    df_no_idx = df_env_db[df_env_db['metadata_indexes'] == False]
+                    total_count_no = df_no_idx[count_col].sum()
+                    
+                    if total_count_no > 0:
+                        weighted_lat_no_s = (df_no_idx[count_col] * df_no_idx[lat_col]).sum() / total_count_no
+                        lat_no_ms = weighted_lat_no_s * 1000
+                    else:
+                        lat_no_ms = None
+                    
+                    # With index
+                    df_with_idx = df_env_db[df_env_db['metadata_indexes'] == True]
+                    total_count_with = df_with_idx[count_col].sum()
+                    
+                    if total_count_with > 0:
+                        weighted_lat_with_s = (df_with_idx[count_col] * df_with_idx[lat_col]).sum() / total_count_with
+                        lat_with_ms = weighted_lat_with_s * 1000
+                    else:
+                        lat_with_ms = None
+                    
+                    if lat_no_ms is not None and lat_with_ms is not None and lat_no_ms > 0:
+                        reduction = ((lat_no_ms - lat_with_ms) / lat_no_ms * 100)
+                        speedup_lat = lat_no_ms / lat_with_ms
+                        print(f"{op.upper():<15} {lat_no_ms:>15.2f} {lat_with_ms:>17.2f} "
+                              f"{reduction:>10.1f}% {speedup_lat:>9.2f}x")
+    
+    # ========== 3. NATIVE vs CVM COMPARISON ==========
+    print("\n" + "="*100)
+    print("3. NATIVE vs CVM COMPARISON (with metadata indexes enabled)")
+    print("="*100)
+    
+    for db in dbs:
+        print(f"\n{db.upper()} - Throughput:")
+        print(f"{'Workload':<15} {'Native':>12} {'CVM':>12} {'CVM Overhead':>15}")
+        print("-" * 60)
+        
+        for entity in entities:
+            df_native = data_filtered[(data_filtered['db'] == db) & 
+                                      (data_filtered['entity'] == entity) &
+                                      (data_filtered['environment'] == 'bare_metal') &
+                                      (data_filtered['metadata_indexes'] == True)]
+            
+            df_cvm = data_filtered[(data_filtered['db'] == db) & 
+                                   (data_filtered['entity'] == entity) &
+                                   (data_filtered['environment'] == 'CVM') &
+                                   (data_filtered['metadata_indexes'] == True)]
+            
+            if len(df_native) > 0 and len(df_cvm) > 0:
+                native_mean = df_native['throughput'].mean()
+                cvm_mean = df_cvm['throughput'].mean()
+                overhead = ((native_mean - cvm_mean) / native_mean * 100)
+                
+                print(f"{entity.capitalize():<15} {native_mean:>10.2f} ops {cvm_mean:>10.2f} ops {overhead:>13.1f}%")
+    
+    # ========== 4. SUMMARY STATISTICS ==========
+    print("\n" + "="*100)
+    print("4. SUMMARY STATISTICS")
+    print("="*100)
+    
+    # Indexing improvements by environment
+    print("\nThroughput Improvements from Metadata Indexing:")
+    print("-" * 70)
+    
+    for env in environments:
+        improvements = []
+        speedups = []
+        
+        for db in dbs:
+            for entity in entities:
+                df_entity = data_filtered[(data_filtered['environment'] == env) & 
+                                          (data_filtered['db'] == db) &
+                                          (data_filtered['entity'] == entity)]
+                
+                no_idx = df_entity[df_entity['metadata_indexes'] == False]['throughput'].values
+                with_idx = df_entity[df_entity['metadata_indexes'] == True]['throughput'].values
+                
+                if len(no_idx) > 0 and len(with_idx) > 0:
+                    improvement = ((with_idx.mean() - no_idx.mean()) / no_idx.mean() * 100)
+                    speedup = with_idx.mean() / no_idx.mean()
+                    improvements.append(improvement)
+                    speedups.append(speedup)
+        
+        if improvements:
+            print(f"\n{env.upper()}:")
+            print(f"  Improvement: {min(improvements):.1f}% to {max(improvements):.1f}% "
+                  f"(avg: {sum(improvements)/len(improvements):.1f}%)")
+            print(f"  Speedup: {min(speedups):.2f}x to {max(speedups):.2f}x "
+                  f"(avg: {sum(speedups)/len(speedups):.2f}x)")
+    
+    # CVM overhead
+    print("\nCVM Overhead vs Native (with metadata indexes enabled):")
+    print("-" * 70)
+    
+    all_overheads = []
+    for db in dbs:
+        for entity in entities:
+            df_native = data_filtered[(data_filtered['db'] == db) & 
+                                      (data_filtered['entity'] == entity) &
+                                      (data_filtered['environment'] == 'bare_metal') &
+                                      (data_filtered['metadata_indexes'] == True)]
+            
+            df_cvm = data_filtered[(data_filtered['db'] == db) & 
+                                   (data_filtered['entity'] == entity) &
+                                   (data_filtered['environment'] == 'CVM') &
+                                   (data_filtered['metadata_indexes'] == True)]
+            
+            if len(df_native) > 0 and len(df_cvm) > 0:
+                overhead = ((df_native['throughput'].mean() - df_cvm['throughput'].mean()) / 
+                           df_native['throughput'].mean() * 100)
+                all_overheads.append(overhead)
+    
+    if all_overheads:
+        print(f"  Range: {min(all_overheads):.1f}% to {max(all_overheads):.1f}%")
+        print(f"  Average: {sum(all_overheads)/len(all_overheads):.1f}%")
+    
+    # Latency reductions for GDPR operations
+    print("\nLatency Reductions for GDPR Operations (getm, putm, deletem):")
+    print("-" * 70)
+    
+    gdpr_ops = ['getm', 'putm', 'deletem']
+    
+    for env in environments:
+        all_reductions = []
+        
+        for db in dbs:
+            df_env_db = data_filtered[(data_filtered['environment'] == env) & 
+                                      (data_filtered['db'] == db)]
+            
+            for op in gdpr_ops:
+                count_col = f"{op}_count"
+                lat_col = f"{op}_avg_lat (s)"
+                
+                if count_col in df_env_db.columns and lat_col in df_env_db.columns:
+                    df_no = df_env_db[df_env_db['metadata_indexes'] == False]
+                    df_yes = df_env_db[df_env_db['metadata_indexes'] == True]
+                    
+                    count_no = df_no[count_col].sum()
+                    count_yes = df_yes[count_col].sum()
+                    
+                    if count_no > 0 and count_yes > 0:
+                        lat_no = (df_no[count_col] * df_no[lat_col]).sum() / count_no * 1000
+                        lat_yes = (df_yes[count_col] * df_yes[lat_col]).sum() / count_yes * 1000
+                        
+                        if lat_no > 0:
+                            reduction = ((lat_no - lat_yes) / lat_no * 100)
+                            all_reductions.append(reduction)
+        
+        if all_reductions:
+            print(f"\n{env.upper()}:")
+            print(f"  Reduction: {min(all_reductions):.1f}% to {max(all_reductions):.1f}% "
+                  f"(avg: {sum(all_reductions)/len(all_reductions):.1f}%)")
+    
+    print("\n" + "="*100 + "\n")
+
+
 def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
     """
     Create combined plot comparing regular vs metadata indexes variants.
@@ -645,6 +877,7 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
     plt.close()
     
     print(f"  ✓ Metadata indexes plot: {output_filename}")
+    print_gdpr_workload_statistics(data)
 
 def create_gdpr_queries_performance_plot(data, output_dir):
     """
@@ -996,13 +1229,13 @@ def main():
     print(f"{'='*80}\n")
     
     # Create individual plots for each database
-    for db in sorted(data['db'].unique()):
-        create_performance_per_db_plot(data_without_indexes, db, args.output_dir)
+    # for db in sorted(data['db'].unique()):
+        # create_performance_per_db_plot(data_without_indexes, db, args.output_dir)
     
     # Create combined plot with both databases
-    create_gdpr_queries_performance_plot(data_without_indexes, args.output_dir)
+    # create_gdpr_queries_performance_plot(data_without_indexes, args.output_dir)
     
-    create_analytical_plots(data_without_indexes, args.output_dir)
+    # create_analytical_plots(data_without_indexes, args.output_dir)
     
     # Create metadata indexes comparison plot if that data exists
     if data['metadata_indexes'].any():

@@ -155,6 +155,240 @@ def sort_variants(unique_variants):
     sorted_variants = sorted(unique_variants, key=extract_parts)
     return sorted_variants
 
+def print_ycsb_statistics(data_filtered, variants):
+    """Print comprehensive statistics with TRUE min-max ranges across all measurements"""
+    
+    print("\n" + "="*80)
+    print("YCSB PERFORMANCE STATISTICS (For Paper Placeholders)")
+    print("="*80)
+    
+    # Identify variants
+    baseline_variants = [v for v in variants if v.startswith('direct_bare_metal')]
+    gdpruler_cvm_variants = [v for v in variants if v.startswith('gdpr_CVM')]
+    cvm_variants = [v for v in variants if v.startswith('direct_CVM')]
+    
+    if not baseline_variants or not gdpruler_cvm_variants:
+        print("\nERROR: Could not find required variants")
+        return
+    
+    # Select specific variants
+    baseline = [v for v in baseline_variants if '-encr-' in v and '-unix' in v]
+    baseline = baseline[0] if baseline else baseline_variants[0]
+    
+    gdpruler_encr = [v for v in gdpruler_cvm_variants if '-encr-' in v and '-unix' in v]
+    gdpruler_encr = gdpruler_encr[0] if gdpruler_encr else gdpruler_cvm_variants[0]
+    
+    gdpruler_no_encr = [v for v in gdpruler_cvm_variants if '-no_encr-' in v and '-unix' in v]
+    gdpruler_no_encr = gdpruler_no_encr[0] if gdpruler_no_encr else None
+    
+    cvm_baseline = [v for v in cvm_variants if '-encr-' in v and '-unix' in v]
+    cvm_baseline = cvm_baseline[0] if cvm_baseline else (cvm_variants[0] if cvm_variants else None)
+    
+    print("\nUsing for analysis:")
+    print(f"  Baseline: {baseline}")
+    print(f"  GDPRuler: {gdpruler_encr}")
+    print(f"  GDPRuler (no encr): {gdpruler_no_encr}")
+    print(f"  CVM: {cvm_baseline}")
+    
+    dbs = ['redis', 'rocksdb']
+    
+    # Collect ALL percentages for true ranges
+    all_overall_pcts = []
+    all_workloadc_pcts = []
+    all_workloada_pcts = []
+    
+    results = {
+        'overall': {},
+        'workload_c': {},
+        'workload_a': {},
+        'max_threads': {},
+        'cvm_overhead': {},
+        'encryption_overhead': {}
+    }
+    
+    # Calculate per-workload, per-DB percentages
+    print("\n" + "="*80)
+    print("DETAILED PERFORMANCE BY WORKLOAD AND DB (1 thread)")
+    print("="*80)
+    
+    for db in dbs:
+        print(f"\n{db.upper()}:")
+        results['overall'][db] = {}
+        results['workload_c'][db] = []
+        results['workload_a'][db] = []
+        
+        # Get all workloads for this DB
+        workloads = sorted(data_filtered[data_filtered['db'] == db]['workload'].unique())
+        
+        for wl in workloads:
+            df_wl = data_filtered[(data_filtered['db'] == db) & 
+                                  (data_filtered['workload'] == wl) &
+                                  (data_filtered['n_clients'] == 1)]
+            baseline_val = df_wl[df_wl['variant'] == baseline]['throughput'].mean()
+            gdpruler_val = df_wl[df_wl['variant'] == gdpruler_encr]['throughput'].mean()
+            
+            if not pd.isna(baseline_val) and not pd.isna(gdpruler_val) and baseline_val > 0:
+                pct = (gdpruler_val / baseline_val * 100)
+                all_overall_pcts.append(pct)
+                results['overall'][db][wl] = pct
+                
+                print(f"  {wl}: {gdpruler_val:.1f} / {baseline_val:.1f} = {pct:.1f}%")
+                
+                # Track workload-specific
+                if wl == 'workloadc':
+                    all_workloadc_pcts.append(pct)
+                    results['workload_c'][db] = pct
+                elif wl == 'workloada':
+                    all_workloada_pcts.append(pct)
+                    results['workload_a'][db] = pct
+    
+    # Max threads
+    thread_counts = sorted(data_filtered['n_clients'].unique())
+    max_threads = max(thread_counts)
+    print(f"\n" + "="*80)
+    print(f"PERFORMANCE AT {max_threads} THREADS")
+    print("="*80)
+    
+    for db in dbs:
+        print(f"\n{db.upper()}:")
+        results['max_threads'][db] = {}
+        
+        for workload in ['workloadc', 'workloada']:
+            df_max = data_filtered[(data_filtered['db'] == db) & 
+                                 (data_filtered['workload'] == workload) &
+                                 (data_filtered['n_clients'] == max_threads)]
+            baseline_max = df_max[df_max['variant'] == baseline]['throughput'].mean()
+            gdpruler_max = df_max[df_max['variant'] == gdpruler_encr]['throughput'].mean()
+            
+            if not pd.isna(baseline_max) and not pd.isna(gdpruler_max):
+                results['max_threads'][db][workload] = {
+                    'baseline': baseline_max,
+                    'gdpruler': gdpruler_max
+                }
+                print(f"  {workload}: GDPRuler={gdpruler_max:.1f}, Baseline={baseline_max:.1f} kops/sec")
+    
+    # CVM overhead
+    if cvm_baseline:
+        print("\n" + "="*80)
+        print("CVM OVERHEAD")
+        print("="*80)
+        for db in dbs:
+            df_db = data_filtered[(data_filtered['db'] == db) & (data_filtered['n_clients'] == 1)]
+            baseline_avg = df_db[df_db['variant'] == baseline]['throughput'].mean()
+            cvm_avg = df_db[df_db['variant'] == cvm_baseline]['throughput'].mean()
+            
+            if not pd.isna(baseline_avg) and not pd.isna(cvm_avg) and baseline_avg > 0:
+                overhead = ((baseline_avg - cvm_avg) / baseline_avg * 100)
+                results['cvm_overhead'][db] = overhead
+                print(f"{db.upper()}: {overhead:.1f}% overhead")
+
+    # ========== GDPRULER vs CVM OVERHEAD ==========
+    if cvm_baseline:
+        print("\n" + "="*100)
+        print("GDPRULER OVERHEAD ON TOP OF CVM (GDPRuler-CVM vs CVM)")
+        print("="*100)
+        
+        gdpr_on_cvm_overheads = []
+        print(f"\n{'DB':<12} {'CVM':>12} {'GDPRuler':>12} {'Overhead':>12} {'Range':>15}")
+        print("-" * 65)
+        
+        for db in dbs:
+            df = data_filtered[(data_filtered['db'] == db) & (data_filtered['n_clients'] == 1)]
+            cvm_vals = df[df['variant'] == cvm_baseline]['throughput'].values
+            gdpr_vals = df[df['variant'] == gdpruler_encr]['throughput'].values
+            
+            if len(cvm_vals) > 0 and len(gdpr_vals) > 0:
+                overheads = []
+                for c_val in cvm_vals:
+                    for g_val in gdpr_vals:
+                        if c_val > 0:
+                            overheads.append(((c_val - g_val) / c_val * 100))
+                
+                if overheads:
+                    avg_oh = sum(overheads) / len(overheads)
+                    min_oh = min(overheads)
+                    max_oh = max(overheads)
+                    gdpr_on_cvm_overheads.extend(overheads)
+                    
+                    print(f"{db.upper():<12} {cvm_vals.mean():>10.1f} {gdpr_vals.mean():>10.1f} {avg_oh:>10.1f}% {min_oh:>6.1f}-{max_oh:<6.1f}%")
+        
+        if gdpr_on_cvm_overheads:
+            print(f"\nGDPR Layer Overhead on CVM: {sum(gdpr_on_cvm_overheads)/len(gdpr_on_cvm_overheads):.1f}% "
+                  f"(range: {min(gdpr_on_cvm_overheads):.1f}%-{max(gdpr_on_cvm_overheads):.1f}%)")
+            print("→ This shows the incremental cost of adding GDPR compliance to an existing CVM")
+
+    # Encryption overhead
+    if gdpruler_no_encr:
+        print("\n" + "="*80)
+        print("ENCRYPTION OVERHEAD")
+        print("="*80)
+        for db in dbs:
+            df_db = data_filtered[(data_filtered['db'] == db) & (data_filtered['n_clients'] == 1)]
+            no_encr_avg = df_db[df_db['variant'] == gdpruler_no_encr]['throughput'].mean()
+            with_encr_avg = df_db[df_db['variant'] == gdpruler_encr]['throughput'].mean()
+            
+            if not pd.isna(no_encr_avg) and not pd.isna(with_encr_avg) and no_encr_avg > 0:
+                overhead = ((no_encr_avg - with_encr_avg) / no_encr_avg * 100)
+                results['encryption_overhead'][db] = overhead
+                print(f"{db.upper()}: {overhead:.1f}% overhead")
+    
+    # Print summary with TRUE MIN-MAX ranges
+    print("\n" + "="*80)
+    print("SUMMARY - PAPER PLACEHOLDERS (True Min-Max Ranges)")
+    print("="*80)
+    
+    print("\n[X, Y] GDPRuler performance by DB (average across all workloads at 1 thread):")
+    for db in dbs:
+        if db in results['overall'] and results['overall'][db]:
+            avg_pct = sum(results['overall'][db].values()) / len(results['overall'][db])
+            print(f"  {db.upper()}: {avg_pct:.1f}%")
+    
+    if all_overall_pcts:
+        print(f"\n  TRUE RANGE across all workloads & DBs: {min(all_overall_pcts):.1f}%-{max(all_overall_pcts):.1f}%")
+        print(f"  → Use this for the overall range if you want min-max")
+    
+    if all_workloadc_pcts:
+        print(f"\nWorkload C (read-heavy) range:")
+        for db in dbs:
+            if db in results['workload_c']:
+                print(f"  {db.upper()}: {results['workload_c'][db]:.1f}%")
+        print(f"  TRUE RANGE: {min(all_workloadc_pcts):.1f}%-{max(all_workloadc_pcts):.1f}%")
+    
+    if all_workloada_pcts:
+        print(f"\nWorkload A (write-heavy) range:")
+        for db in dbs:
+            if db in results['workload_a']:
+                print(f"  {db.upper()}: {results['workload_a'][db]:.1f}%")
+        print(f"  TRUE RANGE: {min(all_workloada_pcts):.1f}%-{max(all_workloada_pcts):.1f}%")
+    
+    if results['max_threads']:
+        print(f"\n[{max_threads} threads] Absolute values:")
+        for db in dbs:
+            if db in results['max_threads']:
+                print(f"  {db.upper()}:")
+                for wl in ['workloadc', 'workloada']:
+                    if wl in results['max_threads'][db]:
+                        g = results['max_threads'][db][wl]['gdpruler']
+                        b = results['max_threads'][db][wl]['baseline']
+                        print(f"    {wl}: GDPRuler={g:.1f}, Baseline={b:.1f} kops/sec")
+    
+    if results['cvm_overhead']:
+        vals = list(results['cvm_overhead'].values())
+        print(f"\n[E-F] CVM overhead:")
+        for db, val in results['cvm_overhead'].items():
+            print(f"  {db.upper()}: {val:.1f}%")
+        print(f"  RANGE: {min(vals):.1f}%-{max(vals):.1f}%")
+    
+    if results['encryption_overhead']:
+        vals = list(results['encryption_overhead'].values())
+        print(f"\n[G-H] Encryption overhead:")
+        for db, val in results['encryption_overhead'].items():
+            print(f"  {db.upper()}: {val:.1f}%")
+        print(f"  RANGE: {min(vals):.1f}%-{max(vals):.1f}%")
+    
+    print("\n" + "="*80)
+
+
 def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     """Create paper-ready plots with 2 rows (DBs) x 3 columns layout"""
     
@@ -185,8 +419,8 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     ]
     
     title_descriptions = [
-        ['Redis - 1 Client', 'Workload A (50/50 R/W)', 'Workload C (100/0 R/W)'],  # Top row (Redis)
-        ['Rocksdb - 1 Client', 'Workload A (50/50 R/W)', 'Workload C (100/0 R/W)']   # Bottom row (RocksDB)
+        ['Redis - 1 Connection', 'Workload A (50/50 R/W)', 'Workload C (100/0 R/W)'],  # Top row (Redis)
+        ['Rocksdb - 1 Connection', 'Workload A (50/50 R/W)', 'Workload C (100/0 R/W)']   # Bottom row (RocksDB)
     ]
     
     # Create plots for each DB (row)
@@ -239,7 +473,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
         ax.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
         ax.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-        ax.set_xlabel('Thread Count', fontsize=LABEL_FONTSIZE, labelpad=2)
+        ax.set_xlabel('Connections Count', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][1]} {title_descriptions[i][1]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
         ax.grid(True, alpha=0.3, axis='y')
@@ -317,7 +551,10 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     plt.savefig(os.path.join(output_dir, f'{output_file}.pdf'),
                 bbox_inches='tight')
     plt.close(fig)
-
+    
+    # Print statistics
+    print_ycsb_statistics(data_filtered, variants)
+    
 def main():
     parser = argparse.ArgumentParser(description="Generate latency and throughput plots from CSV data.")
     parser.add_argument("--bare_metal_results", type=str, default="../bare_metal/results", help="Directory containing the bare metal CSV files")
