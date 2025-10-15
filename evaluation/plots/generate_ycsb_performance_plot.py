@@ -473,7 +473,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
         ax.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
         ax.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-        ax.set_xlabel('Connections Count', fontsize=LABEL_FONTSIZE, labelpad=2)
+        ax.set_xlabel('Connections', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][1]} {title_descriptions[i][1]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
         ax.grid(True, alpha=0.3, axis='y')
@@ -499,7 +499,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
         ax.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
         ax.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-        ax.set_xlabel('Thread Count', fontsize=LABEL_FONTSIZE, labelpad=2)
+        ax.set_xlabel('Connections', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][2]} {title_descriptions[i][2]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
         ax.grid(True, alpha=0.3, axis='y')
