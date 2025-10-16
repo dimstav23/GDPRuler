@@ -388,6 +388,299 @@ def print_ycsb_statistics(data_filtered, variants):
     
     print("\n" + "="*80)
 
+def create_single_thread_comparison_plot(data, output_dir, include_tcp=False):
+    """
+    Plot 1: Redis and RocksDB side-by-side for 1 thread across all workloads
+    Layout: 1 row x 2 columns (Redis left, RocksDB right)
+    Font sizes increased by 1, height = 1.4
+    """
+    # Filter data
+    data_filtered = filter_data_for_ycsb_performance_plot(data, include_tcp=include_tcp)
+    data_1thread = data_filtered[data_filtered['n_clients'] == 1]
+
+    # Increase font sizes by 1
+    FONTSIZE_SEP = FONTSIZE + 1
+    TITLE_FONTSIZE_SEP = TITLE_FONTSIZE + 1
+    LABEL_FONTSIZE_SEP = LABEL_FONTSIZE + 1
+    TICK_FONTSIZE_SEP = TICK_FONTSIZE + 1
+    LEGEND_FONTSIZE_SEP = LEGEND_FONTSIZE + 1
+
+    fig, axes = plt.subplots(1, 2, figsize=(figwidth_full, 1.4))
+
+    dbs = ['redis', 'rocksdb']
+    titles = ['(a) Redis (Higher is better↑)', '(b) RocksDB (Higher is better↑)']
+
+    # Get sorted variants and setup colors/hatches
+    variants = sort_variants(data_1thread['variant'].unique())
+    colors = sns.color_palette("pastel", n_colors=len(variants))
+
+    workloads = sorted(data_1thread['workload'].unique())
+    x_workloads = range(len(workloads))
+    width = 0.8 / len(variants)
+
+    for i, db in enumerate(dbs):
+        ax = axes[i]
+        df_db = data_1thread[data_1thread['db'] == db]
+
+        for j, variant in enumerate(variants):
+            df_var = df_db[df_db['variant'] == variant]
+            if not df_var.empty:
+                values, errors = prepare_plot_data(df_var, 'throughput', 'workload')
+                offset = width * j - 0.4 + width / 2
+                bar_positions = [xi + offset for xi in x_workloads]
+                ax.bar(bar_positions, values, width,
+                      color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
+                      edgecolor='black')
+                if errors is not None:
+                    ax.errorbar(bar_positions, values, yerr=errors,
+                                fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+        ax.set_xticks(x_workloads)
+        ax.set_xticklabels([w[-1].upper() for w in workloads], fontsize=TICK_FONTSIZE_SEP)
+        ax.tick_params(axis='x', length=0, pad=1)
+        ax.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=1)
+        ax.set_xlabel('YCSB Workload', fontsize=LABEL_FONTSIZE_SEP, labelpad=0)
+        ax.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=0)
+        ax.set_title(titles[i], fontsize=TITLE_FONTSIZE_SEP, color="navy", pad=3)
+        ax.grid(True, alpha=0.3, axis='y')
+
+    # Create legend
+    handles, labels = [], []
+    for j, variant in enumerate(variants):
+        handles.append(plt.Rectangle((0,0),1,1, facecolor=colors[j], alpha=0.8, 
+                                   hatch=hatches[j % len(hatches)], edgecolor='black'))
+        baseline_type = variant.split('-')[0]
+        label_text = variant_mapping.get(baseline_type, baseline_type)
+
+        if 'no_encr' in variant:
+            label_text += " (w/o Encr)"
+        else:
+            label_text += " (w/ Encr)"
+
+        if include_tcp:
+            if 'tcp' in variant:
+                label_text += " (TCP)"
+            else:
+                label_text += " (UNIX)"
+
+        labels.append(label_text)
+
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.2), 
+              ncol=min(len(variants), 3), fontsize=LEGEND_FONTSIZE_SEP, frameon=True,
+              borderaxespad=0.5, columnspacing=0.45, labelspacing=0.35, borderpad=0.25, handletextpad=0.35, handlelength=1.2)
+
+    plt.tight_layout()
+
+    output_file = "ycsb_single_thread_comparison" if not include_tcp else "ycsb_single_thread_comparison_tcp"
+    plt.savefig(os.path.join(output_dir, f'{output_file}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_file}.pdf'), pad_inches=0, bbox_inches='tight')
+    plt.close()
+
+    print(f"  ✓ Single thread comparison plot: {output_file}")
+
+
+def create_workloada_scalability_plot(data, output_dir, include_tcp=False):
+    """
+    Plot 2: Redis and RocksDB side-by-side for WorkloadA scalability
+    Layout: 1 row x 2 columns (Redis left, RocksDB right)
+    Font sizes increased by 1, height = 1.4
+    """
+    # Filter data
+    data_filtered = filter_data_for_ycsb_performance_plot(data, include_tcp=include_tcp)
+    data_wla = data_filtered[data_filtered['workload'] == 'workloada']
+
+    # Increase font sizes by 1
+    FONTSIZE_SEP = FONTSIZE + 1
+    TITLE_FONTSIZE_SEP = TITLE_FONTSIZE + 1
+    LABEL_FONTSIZE_SEP = LABEL_FONTSIZE + 1
+    TICK_FONTSIZE_SEP = TICK_FONTSIZE + 1
+    LEGEND_FONTSIZE_SEP = LEGEND_FONTSIZE + 1
+
+    fig, axes = plt.subplots(1, 2, figsize=(figwidth_full, 1.4))
+
+    dbs = ['redis', 'rocksdb']
+    titles = ['(a) Redis - Workload A (50/50 R/W) (Higher is better↑)', '(b) RocksDB - Workload A (50/50 R/W) (Higher is better↑)']
+
+    # Get sorted variants and setup colors/hatches
+    variants = sort_variants(data_wla['variant'].unique())
+    colors = sns.color_palette("pastel", n_colors=len(variants))
+
+    thread_counts = sorted(data_wla['n_clients'].unique())
+    x_threads = range(len(thread_counts))
+    width = 0.8 / len(variants)
+
+    for i, db in enumerate(dbs):
+        ax = axes[i]
+        df_db = data_wla[data_wla['db'] == db]
+
+        for j, variant in enumerate(variants):
+            df_var = df_db[df_db['variant'] == variant]
+            if not df_var.empty:
+                values, errors = prepare_plot_data(df_var, 'throughput', 'n_clients')
+                offset = width * j - 0.4 + width / 2
+                bar_positions = [xi + offset for xi in x_threads]
+                ax.bar(bar_positions, values, width,
+                      color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
+                      edgecolor='black')
+                if errors is not None:
+                    ax.errorbar(bar_positions, values, yerr=errors,
+                                fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+        ax.set_xticks(x_threads)
+        ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE_SEP)
+        ax.tick_params(axis='x', length=0, pad=1)
+        ax.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=1)
+        ax.set_xlabel('Threads', fontsize=LABEL_FONTSIZE_SEP, labelpad=0)
+        ax.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=0)
+        ax.set_title(titles[i], fontsize=TITLE_FONTSIZE_SEP, color="navy", pad=3)
+        ax.grid(True, alpha=0.3, axis='y')
+
+    # Create legend
+    handles, labels = [], []
+    for j, variant in enumerate(variants):
+        handles.append(plt.Rectangle((0,0),1,1, facecolor=colors[j], alpha=0.8, 
+                                   hatch=hatches[j % len(hatches)], edgecolor='black'))
+        baseline_type = variant.split('-')[0]
+        label_text = variant_mapping.get(baseline_type, baseline_type)
+
+        if 'no_encr' in variant:
+            label_text += " (w/o Encr)"
+        else:
+            label_text += " (w/ Encr)"
+
+        if include_tcp:
+            if 'tcp' in variant:
+                label_text += " (TCP)"
+            else:
+                label_text += " (UNIX)"
+
+        labels.append(label_text)
+
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.2), 
+              ncol=min(len(variants), 3), fontsize=LEGEND_FONTSIZE_SEP, frameon=True,
+              borderaxespad=0.5, columnspacing=0.45, labelspacing=0.35, borderpad=0.25, handletextpad=0.35, handlelength=1.2)
+
+    plt.tight_layout()
+
+    output_file = "ycsb_workloada_scalability" if not include_tcp else "ycsb_workloada_scalability_tcp"
+    plt.savefig(os.path.join(output_dir, f'{output_file}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_file}.pdf'), pad_inches=0, bbox_inches='tight')
+    plt.close()
+
+    print(f"  ✓ Workload A scalability plot: {output_file}")
+
+
+def create_workload_scalability_grid(data, output_dir, db_name, include_tcp=False):
+    """
+    Plot 3: 2x2 grid of scalability plots for workloads B, C, D, F
+    Separate plots for Redis and RocksDB
+    Font sizes increased by 1, height = 2.8
+    """
+    # Filter data
+    data_filtered = filter_data_for_ycsb_performance_plot(data, include_tcp=include_tcp)
+    data_db = data_filtered[data_filtered['db'] == db_name]
+
+    # Filter for specific workloads
+    target_workloads = ['workloadb', 'workloadc', 'workloadd', 'workloadf']
+    data_db = data_db[data_db['workload'].isin(target_workloads)]
+
+    if data_db.empty:
+        print(f"  ⚠ No data for {db_name} with workloads B, C, D, F")
+        return
+
+    # Increase font sizes by 1
+    FONTSIZE_SEP = FONTSIZE + 1
+    TITLE_FONTSIZE_SEP = TITLE_FONTSIZE + 1
+    LABEL_FONTSIZE_SEP = LABEL_FONTSIZE + 1
+    TICK_FONTSIZE_SEP = TICK_FONTSIZE + 1
+    LEGEND_FONTSIZE_SEP = LEGEND_FONTSIZE + 1
+
+    fig, axes = plt.subplots(2, 2, figsize=(figwidth_full, 2.8))
+
+    # Get sorted variants and setup colors/hatches
+    variants = sort_variants(data_db['variant'].unique())
+    colors = sns.color_palette("pastel", n_colors=len(variants))
+
+    thread_counts = sorted(data_db['n_clients'].unique())
+    x_threads = range(len(thread_counts))
+    width = 0.8 / len(variants)
+
+    # Workload titles and positions
+    workload_info = {
+        'workloadb': (0, 0, '(a) Workload B (95/5 R/W)'),
+        'workloadc': (0, 1, '(b) Workload C (100/0 R/W)'),
+        'workloadd': (1, 0, '(c) Workload D (95/5 R/Latest)'),
+        'workloadf': (1, 1, '(d) Workload F (50/50 R/RMW)')
+    }
+
+    for workload, (row, col, title) in workload_info.items():
+        ax = axes[row, col]
+        df_wl = data_db[data_db['workload'] == workload]
+
+        if df_wl.empty:
+            ax.text(0.5, 0.5, f'No data for\n{workload}',
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=TICK_FONTSIZE_SEP)
+            ax.set_xlabel('Threads', fontsize=LABEL_FONTSIZE_SEP, labelpad=2)
+            ax.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=2)
+            ax.set_title(title, fontsize=TITLE_FONTSIZE_SEP, color="navy", pad=3)
+            continue
+
+        for j, variant in enumerate(variants):
+            df_var = df_wl[df_wl['variant'] == variant]
+            if not df_var.empty:
+                values, errors = prepare_plot_data(df_var, 'throughput', 'n_clients')
+                offset = width * j - 0.4 + width / 2
+                bar_positions = [xi + offset for xi in x_threads]
+                ax.bar(bar_positions, values, width,
+                      color=colors[j], alpha=0.8, hatch=hatches[j % len(hatches)],
+                      edgecolor='black')
+                if errors is not None:
+                    ax.errorbar(bar_positions, values, yerr=errors,
+                                fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+        ax.set_xticks(x_threads)
+        ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE_SEP)
+        ax.tick_params(axis='x', length=0, pad=2)
+        ax.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=2)
+        ax.set_xlabel('Threads', fontsize=LABEL_FONTSIZE_SEP, labelpad=2)
+        ax.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=2)
+        ax.set_title(f'{title} (Higher is better↑)', fontsize=TITLE_FONTSIZE_SEP, color="navy", pad=3)
+        ax.grid(True, alpha=0.3, axis='y')
+
+    # Create legend
+    handles, labels = [], []
+    for j, variant in enumerate(variants):
+        handles.append(plt.Rectangle((0,0),1,1, facecolor=colors[j], alpha=0.8, 
+                                   hatch=hatches[j % len(hatches)], edgecolor='black'))
+        baseline_type = variant.split('-')[0]
+        label_text = variant_mapping.get(baseline_type, baseline_type)
+
+        if 'no_encr' in variant:
+            label_text += " (w/o Encr)"
+        else:
+            label_text += " (w/ Encr)"
+
+        if include_tcp:
+            if 'tcp' in variant:
+                label_text += " (TCP)"
+            else:
+                label_text += " (UNIX)"
+
+        labels.append(label_text)
+
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.1), 
+              ncol=min(len(variants), 3), fontsize=LEGEND_FONTSIZE_SEP, frameon=True,
+              borderaxespad=0.5, columnspacing=0.45, labelspacing=0.35, borderpad=0.25, handletextpad=0.35, handlelength=1.2)
+
+    plt.tight_layout()
+
+    output_file = f"ycsb_scalability_grid_{db_name}" if not include_tcp else f"ycsb_scalability_grid_{db_name}_tcp"
+    plt.savefig(os.path.join(output_dir, f'{output_file}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_file}.pdf'), pad_inches=0, bbox_inches='tight')
+    plt.close()
+
+    print(f"  ✓ Scalability grid for {db_name}: {output_file}")
 
 def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
     """Create paper-ready plots with 2 rows (DBs) x 3 columns layout"""
@@ -473,7 +766,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
         ax.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
         ax.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-        ax.set_xlabel('Connections', fontsize=LABEL_FONTSIZE, labelpad=2)
+        ax.set_xlabel('Threads', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][1]} {title_descriptions[i][1]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
         ax.grid(True, alpha=0.3, axis='y')
@@ -499,7 +792,7 @@ def create_ycsb_performance_plot(data, output_dir, include_tcp = False):
         ax.set_xticklabels(thread_counts, fontsize=TICK_FONTSIZE)
         ax.tick_params(axis='x', length=0, pad=2)  # Remove x-axis tick bars
         ax.tick_params(axis='y', labelsize=TICK_FONTSIZE, pad=2)
-        ax.set_xlabel('Connections', fontsize=LABEL_FONTSIZE, labelpad=2)
+        ax.set_xlabel('Threads', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_ylabel('Throughput (kops)', fontsize=LABEL_FONTSIZE, labelpad=2)
         ax.set_title(f"{title_prefixes[i][2]} {title_descriptions[i][2]} (Higher is better↑)", fontsize=TITLE_FONTSIZE, color="navy", pad=3)
         ax.grid(True, alpha=0.3, axis='y')
@@ -579,8 +872,13 @@ def main():
     print("======================")
     
     # Create paper-performance plots
-    create_ycsb_performance_plot(all_data, args.output_dir)
-    create_ycsb_performance_plot(all_data, args.output_dir, include_tcp = True)
+    # create_ycsb_performance_plot(all_data, args.output_dir)
+    # create_ycsb_performance_plot(all_data, args.output_dir, include_tcp = True)
+    
+    create_single_thread_comparison_plot(all_data, args.output_dir)
+    create_workloada_scalability_plot(all_data, args.output_dir)
+    create_workload_scalability_grid(all_data, args.output_dir, db_name='redis')
+    create_workload_scalability_grid(all_data, args.output_dir, db_name='rocksdb')
     
 if __name__ == "__main__":
     main()

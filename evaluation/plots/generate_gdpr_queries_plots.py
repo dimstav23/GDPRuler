@@ -530,6 +530,468 @@ def print_gdpr_workload_statistics(data):
     
     print("\n" + "="*100 + "\n")
 
+def create_gdpr_queries_metadata_index_throughput_only_plot(data, output_dir, db_name):
+    """
+    Create throughput-only plot for a single database (Redis or RocksDB).
+    Layout: Single plot showing throughput comparison
+    Font sizes increased by 1.
+    """
+    # Filter to only use encryption=ON data for consistency and specified database
+    data_filtered = data[(data['encryption'] == 'ON') & (data['db'] == db_name)].copy()
+
+    if data_filtered.empty:
+        print(f"⚠ No data for {db_name}")
+        return
+
+    # Increase all font sizes by 1
+    FONTSIZE_SEP = FONTSIZE + 1
+    TITLE_FONTSIZE_SEP = TITLE_FONTSIZE + 1
+    LABEL_FONTSIZE_SEP = LABEL_FONTSIZE + 1
+    TICK_FONTSIZE_SEP = TICK_FONTSIZE + 1
+    LEGEND_FONTSIZE_SEP = LEGEND_FONTSIZE + 1
+    ANNOTATION_FONTSIZE_SEP = ANNOTATION_FONTSIZE + 1
+
+    # Create single plot figure
+    fig, ax_throughput = plt.subplots(1, 1, figsize=(figwidth_half, 1.4))
+
+    # --- Throughput subplot ---
+    entities = sorted(data_filtered['entity'].unique())
+    n_entities = len(entities)
+
+    variants = [
+        ('bare_metal', False, 'Native GDPRuler'),
+        ('bare_metal', True, 'Native GDPRuler (w/ indexes)'),
+        ('CVM', False, 'GDPRuler'),
+        ('CVM', True, 'GDPRuler (w/ indexes)')
+    ]
+
+    sample_colors = sns.color_palette("pastel", n_colors=3*len(variants))
+    colors = [sample_colors[2], sample_colors[6], sample_colors[5], sample_colors[8]]
+    x_pos = np.arange(n_entities)
+    bar_width = 0.8 / len(variants)
+
+    variant_data = {}
+    all_max_values = []
+    for i, (env, has_indexes, label) in enumerate(variants):
+        throughputs = []
+        throughput_stds = []
+
+        for entity in entities:
+            subset = data_filtered[(data_filtered['entity'] == entity) &
+                          (data_filtered['environment'] == env) &
+                          (data_filtered['metadata_indexes'] == has_indexes)]
+
+            if not subset.empty:
+                throughput = subset['throughput'].mean()
+                std = subset['throughput'].std()
+                all_max_values.append(throughput + std)
+                throughputs.append(throughput)
+                throughput_stds.append(std)
+
+                if entity not in variant_data:
+                    variant_data[entity] = {}
+                variant_data[entity][(env, has_indexes)] = throughput
+            else:
+                throughputs.append(0)
+                throughput_stds.append(0)
+
+        bar_positions = x_pos + i * bar_width - 0.3
+        bars = ax_throughput.bar(bar_positions, throughputs, bar_width,
+                      label=label, color=colors[i],
+                      hatch=hatches[i % len(hatches)],
+                      alpha=0.8, edgecolor='black')
+
+        ax_throughput.errorbar(bar_positions, throughputs, yerr=throughput_stds,
+                    fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+        for j, (bar, throughput) in enumerate(zip(bars, throughputs)):
+            if throughput > 0:
+                height = bar.get_height()
+                ax_throughput.text(bar.get_x() + bar.get_width()/2., height * 1.1,
+                        f'{throughput:.0f}',
+                        ha='center', va='bottom',
+                        fontsize=ANNOTATION_FONTSIZE_SEP, rotation=0)
+
+    ax_throughput.set_yscale('log')
+    if all_max_values:
+        max_y = max(all_max_values)
+        min_y = min([t for t in all_max_values if t > 0])
+        ax_throughput.set_ylim(min_y * 0.5, max_y * 2)
+
+    for entity_idx, entity in enumerate(entities):
+        entity_pos = x_pos[entity_idx]
+
+        if ('bare_metal', False) in variant_data.get(entity, {}) and ('bare_metal', True) in variant_data.get(entity, {}):
+            base_throughput = variant_data[entity][('bare_metal', False)]
+            improved_throughput = variant_data[entity][('bare_metal', True)]
+
+            if base_throughput > 0:
+                improvement = improved_throughput / base_throughput
+                x_bar_base = entity_pos + 0 * bar_width - 0.3 + bar_width/2
+                x_arrow = (x_bar_base) - (bar_width / 2)
+                y_start = base_throughput + 0.2 * base_throughput
+                y_end = improved_throughput + 0.2 * improved_throughput
+                ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+                            arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
+                y_mid = np.sqrt(y_start * y_end)
+                ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
+                        f'{improvement:.1f}×',
+                        ha='left', va='center',
+                        fontsize=ANNOTATION_FONTSIZE_SEP, color='darkblue', rotation=90)
+
+        if ('CVM', False) in variant_data.get(entity, {}) and ('CVM', True) in variant_data.get(entity, {}):
+            base_throughput = variant_data[entity][('CVM', False)]
+            improved_throughput = variant_data[entity][('CVM', True)]
+
+            if base_throughput > 0:
+                improvement = improved_throughput / base_throughput
+                x_bar_base = entity_pos + 2 * bar_width - 0.3 + bar_width/2
+                x_arrow = (x_bar_base) - (bar_width / 2)
+                y_start = base_throughput + 0.2 * base_throughput
+                y_end = improved_throughput + 0.2 * improved_throughput
+                ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+                            arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
+                y_mid = np.sqrt(y_start * y_end)
+                ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
+                        f'{improvement:.1f}×',
+                        ha='left', va='center',
+                        fontsize=ANNOTATION_FONTSIZE_SEP, color='darkblue', rotation=90)
+
+    ax_throughput.set_xlabel('GDPR Workload', fontsize=LABEL_FONTSIZE_SEP, labelpad=2)
+    ax_throughput.set_ylabel('Throughput (ops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=2)
+    ax_throughput.set_title(f'{db_name.capitalize()} Throughput (Higher is better↑)', color="navy",
+                  fontsize=TITLE_FONTSIZE_SEP, pad=3)
+    ax_throughput.set_xticks(x_pos)
+    ax_throughput.set_xticklabels([e.capitalize() for e in entities], fontsize=TICK_FONTSIZE_SEP)
+    ax_throughput.tick_params(axis='x', length=0, pad=2)
+    ax_throughput.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=2)
+    ax_throughput.grid(True, alpha=0.3, axis='y')
+
+    plt.tight_layout()
+    
+    ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.45, 1.55),
+                      ncol=2, fontsize=LEGEND_FONTSIZE_SEP, frameon=True,
+                      borderaxespad=0.5, columnspacing=0.45, labelspacing=0.35, borderpad=0.25, handletextpad=0.35, handlelength=1.2)
+
+    output_filename = f'gdpr_metadata_indexes_throughput_only_{db_name}'
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.close()
+
+    print(f"  ✓ Throughput-only plot for {db_name}: {output_filename}")
+
+def create_gdpr_queries_metadata_index_performance_plot_separate(data, output_dir, db_name):
+    """
+    Create separate plot for a single database (Redis or RocksDB).
+    Layout: 1 row x 2 columns (Throughput left, Latency right)
+    Font sizes increased by 1.
+    """
+    # Filter to only use encryption=ON data for consistency and specified database
+    data_filtered = data[(data['encryption'] == 'ON') & (data['db'] == db_name)].copy()
+
+    if data_filtered.empty:
+        print(f"⚠ No data for {db_name}")
+        return
+
+    # Increase all font sizes by 1
+    FONTSIZE_SEP = FONTSIZE + 1
+    TITLE_FONTSIZE_SEP = TITLE_FONTSIZE + 1
+    LABEL_FONTSIZE_SEP = LABEL_FONTSIZE + 1
+    TICK_FONTSIZE_SEP = TICK_FONTSIZE + 1
+    LEGEND_FONTSIZE_SEP = LEGEND_FONTSIZE + 1
+    ANNOTATION_FONTSIZE_SEP = ANNOTATION_FONTSIZE + 1
+
+    # Create figure with custom width ratios: 4:1
+    fig = plt.figure(figsize=(figwidth_half, 1.4))
+    gs = fig.add_gridspec(1, 2, width_ratios=[4, 1], wspace=0.4)
+
+    # Create axes
+    ax_throughput = fig.add_subplot(gs[0, 0])
+    ax_latency = fig.add_subplot(gs[0, 1])
+
+    # --- Throughput subplot ---
+    entities = sorted(data_filtered['entity'].unique())
+    n_entities = len(entities)
+
+    variants = [
+        ('bare_metal', False, 'Native GDPRuler'),
+        ('bare_metal', True, 'Native GDPRuler (w/ indexes)'),
+        ('CVM', False, 'GDPRuler'),
+        ('CVM', True, 'GDPRuler (w/ indexes)')
+    ]
+
+    sample_colors = sns.color_palette("pastel", n_colors=3*len(variants))
+    colors = [sample_colors[2], sample_colors[6], sample_colors[5], sample_colors[8]]
+    x_pos = np.arange(n_entities)
+    bar_width = 0.8 / len(variants)
+
+    variant_data = {}
+    all_max_values = []
+    for i, (env, has_indexes, label) in enumerate(variants):
+        throughputs = []
+        throughput_stds = []
+
+        for entity in entities:
+            subset = data_filtered[(data_filtered['entity'] == entity) &
+                          (data_filtered['environment'] == env) &
+                          (data_filtered['metadata_indexes'] == has_indexes)]
+
+            if not subset.empty:
+                throughput = subset['throughput'].mean()
+                std = subset['throughput'].std()
+                all_max_values.append(throughput + std)
+                throughputs.append(throughput)
+                throughput_stds.append(std)
+
+                if entity not in variant_data:
+                    variant_data[entity] = {}
+                variant_data[entity][(env, has_indexes)] = throughput
+            else:
+                throughputs.append(0)
+                throughput_stds.append(0)
+
+        bar_positions = x_pos + i * bar_width - 0.3
+        bars = ax_throughput.bar(bar_positions, throughputs, bar_width,
+                      label=label, color=colors[i],
+                      hatch=hatches[i % len(hatches)],
+                      alpha=0.8, edgecolor='black')
+
+        ax_throughput.errorbar(bar_positions, throughputs, yerr=throughput_stds,
+                    fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+        for j, (bar, throughput) in enumerate(zip(bars, throughputs)):
+            if throughput > 0:
+                height = bar.get_height()
+                ax_throughput.text(bar.get_x() + bar.get_width()/2., height * 1.1,
+                        f'{throughput:.0f}',
+                        ha='center', va='bottom',
+                        fontsize=ANNOTATION_FONTSIZE_SEP, rotation=0)
+
+    ax_throughput.set_yscale('log')
+    if all_max_values:
+        max_y = max(all_max_values)
+        min_y = min([t for t in all_max_values if t > 0])
+        ax_throughput.set_ylim(min_y * 0.5, max_y * 2)
+
+    for entity_idx, entity in enumerate(entities):
+        entity_pos = x_pos[entity_idx]
+
+        if ('bare_metal', False) in variant_data.get(entity, {}) and ('bare_metal', True) in variant_data.get(entity, {}):
+            base_throughput = variant_data[entity][('bare_metal', False)]
+            improved_throughput = variant_data[entity][('bare_metal', True)]
+
+            if base_throughput > 0:
+                improvement = improved_throughput / base_throughput
+                x_bar_base = entity_pos + 0 * bar_width - 0.3 + bar_width/2
+                x_arrow = (x_bar_base) - (bar_width / 2)
+                y_start = base_throughput + 0.2 * base_throughput
+                y_end = improved_throughput + 0.2 * improved_throughput
+                ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+                            arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
+                y_mid = np.sqrt(y_start * y_end)
+                ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
+                        f'{improvement:.1f}×',
+                        ha='left', va='center',
+                        fontsize=ANNOTATION_FONTSIZE_SEP, color='darkblue', rotation=90)
+
+        if ('CVM', False) in variant_data.get(entity, {}) and ('CVM', True) in variant_data.get(entity, {}):
+            base_throughput = variant_data[entity][('CVM', False)]
+            improved_throughput = variant_data[entity][('CVM', True)]
+
+            if base_throughput > 0:
+                improvement = improved_throughput / base_throughput
+                x_bar_base = entity_pos + 2 * bar_width - 0.3 + bar_width/2
+                x_arrow = (x_bar_base) - (bar_width / 2)
+                y_start = base_throughput + 0.2 * base_throughput
+                y_end = improved_throughput + 0.2 * improved_throughput
+                ax_throughput.annotate('', xy=(x_arrow, y_end), xytext=(x_arrow, y_start),
+                            arrowprops=dict(arrowstyle='<->', color='darkblue', lw=0.8))
+                y_mid = np.sqrt(y_start * y_end)
+                ax_throughput.text(x_arrow - bar_width * 0.42, y_mid,
+                        f'{improvement:.1f}×',
+                        ha='left', va='center',
+                        fontsize=ANNOTATION_FONTSIZE_SEP, color='darkblue', rotation=90)
+
+    ax_throughput.set_xlabel('GDPR Workload', fontsize=LABEL_FONTSIZE_SEP, labelpad=1)
+    ax_throughput.set_ylabel('Throughput (ops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=1)
+    ax_throughput.set_title(f'(a) Throughput (Higher is better↑)', color="navy",
+                  fontsize=TITLE_FONTSIZE_SEP, pad=3)
+    ax_throughput.set_xticks(x_pos)
+    ax_throughput.set_xticklabels([e.capitalize() for e in entities], fontsize=TICK_FONTSIZE_SEP)
+    ax_throughput.tick_params(axis='x', length=0, pad=1)
+    ax_throughput.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=1, length=4)
+    ax_throughput.grid(True, alpha=0.3, axis='y')
+
+    ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.74, 1.52),
+                      ncol=2, fontsize=LEGEND_FONTSIZE_SEP, frameon=True, 
+                      borderaxespad=0.5, columnspacing=0.45, labelspacing=0.35, borderpad=0.25, handletextpad=0.35, handlelength=1.2)
+
+    # --- Latency subplot (CVM vs CVM w/ indexes, metadata operations only) ---
+    latency_variants = [
+        ('CVM', False, 'GDPRuler'),
+        ('CVM', True, 'GDPRuler (w/ indexes)')
+    ]
+
+    latency_colors = [colors[2], colors[3]]
+    latency_hatches = [hatches[2], hatches[3]]
+
+    cvm_data = data_filtered[(data_filtered['environment'] == 'CVM') & (data_filtered['metadata_indexes'] == False)]
+    cvm_indexes_data = data_filtered[(data_filtered['environment'] == 'CVM') & (data_filtered['metadata_indexes'] == True)]
+
+    cvm_ops = aggregate_operation_stats(cvm_data)
+    cvm_indexes_ops = aggregate_operation_stats(cvm_indexes_data)
+
+    cvm_metadata = {k: v for k, v in cvm_ops.items() if k.upper().endswith('M')}
+    cvm_indexes_metadata = {k: v for k, v in cvm_indexes_ops.items() if k.upper().endswith('M')}
+
+    all_ops = set(cvm_metadata.keys()) | set(cvm_indexes_metadata.keys())
+
+    if all_ops:
+        gs_lat = ax_latency.get_subplotspec().subgridspec(2, 1, hspace=0.1)
+        ax_lat_top = fig.add_subplot(gs_lat[0])
+        ax_lat_bottom = fig.add_subplot(gs_lat[1], sharex=ax_lat_top)
+        ax_latency.remove()
+
+        op_names = sorted(all_ops, reverse=True)
+        x_ops = np.arange(len(op_names))
+        bar_width_lat = 0.35
+
+        all_latency_values_with_stds = []
+
+        plotted_bars_bottom = []
+        plotted_bars_top = []
+
+        for idx, (env, has_indexes, label) in enumerate(latency_variants):
+            means = []
+            stds = []
+
+            ops_dict = cvm_indexes_metadata if has_indexes else cvm_metadata
+
+            for op in op_names:
+                if op in ops_dict:
+                    mean_ms = ops_dict[op]['mean_latency_s'] * 1000
+                    std_ms = ops_dict[op]['pooled_std_s'] * 1000
+                    means.append(mean_ms)
+                    stds.append(std_ms)
+                    all_latency_values_with_stds.append((mean_ms, std_ms))
+                else:
+                    means.append(0)
+                    stds.append(0)
+
+            bar_positions = x_ops + idx * bar_width_lat - bar_width_lat/2
+
+            bars_bottom = ax_lat_bottom.bar(bar_positions, means, bar_width_lat,
+                                 label=label, color=latency_colors[idx], hatch=latency_hatches[idx],
+                                 alpha=0.8, edgecolor='black')
+            bars_top = ax_lat_top.bar(bar_positions, means, bar_width_lat,
+                                 label=label, color=latency_colors[idx], hatch=latency_hatches[idx],
+                                 alpha=0.8, edgecolor='black')
+
+            plotted_bars_bottom.extend(list(zip(bars_bottom, means, stds, [has_indexes]*len(means), bar_positions)))
+            plotted_bars_top.extend(list(zip(bars_top, means, stds, [has_indexes]*len(means), bar_positions)))
+
+        if all_latency_values_with_stds:
+            max_lat_val = max([m + s for m,s in all_latency_values_with_stds]) if all_latency_values_with_stds else 0
+        else:
+            max_lat_val = 1000
+
+        y_break_low = 200
+        y_break_high = 300
+
+        if max_lat_val < y_break_high:
+            ax_lat_bottom.set_ylim(0, max_lat_val * 1.1)
+            ax_lat_top.set_visible(False)
+            d = 0
+        else:
+            ax_lat_bottom.set_ylim(0, y_break_low)
+            ax_lat_top.set_ylim(y_break_high, max_lat_val * 1.15)
+
+        for idx, (env, has_indexes, label) in enumerate(latency_variants):
+            ops_dict = cvm_indexes_metadata if has_indexes else cvm_metadata
+
+            for j, op in enumerate(op_names):
+                if op in ops_dict:
+                    mean_ms = ops_dict[op]['mean_latency_s'] * 1000
+                    std_ms = ops_dict[op]['pooled_std_s'] * 1000
+
+                    bar_x_center = x_ops[j] + idx * bar_width_lat - bar_width_lat/2
+
+                    target_ax = None
+                    if mean_ms <= y_break_low:
+                        target_ax = ax_lat_bottom
+                    elif mean_ms >= y_break_high:
+                        target_ax = ax_lat_top
+
+                    if target_ax:
+                        bar_obj = None
+                        for bar_data in (plotted_bars_bottom if target_ax == ax_lat_bottom else plotted_bars_top):
+                            if abs(bar_data[1] - mean_ms) < 1e-6 and \
+                               abs(bar_data[4] - (x_ops[j] + idx * bar_width_lat - bar_width_lat/2)) < 1e-6:
+                                bar_obj = bar_data[0]
+                                break
+
+                        target_ax.errorbar(bar_x_center, mean_ms, yerr=std_ms,
+                                          fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+                        if has_indexes:
+                            y_position = mean_ms + std_ms 
+                            offset = target_ax.get_ylim()[1] * 0.05 
+
+                            target_ax.text(
+                                bar_x_center + bar_width_lat/4,
+                                y_position + offset,
+                                f'{mean_ms:.2f}',
+                                ha='center',
+                                va='bottom',
+                                fontsize=ANNOTATION_FONTSIZE_SEP,
+                                rotation=90
+                            )
+
+        ax_lat_top.spines['bottom'].set_visible(False)
+        ax_lat_bottom.spines['top'].set_visible(False)
+        ax_lat_top.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+
+        d = .015
+        if 'd' in locals() and d > 0:
+            kwargs = dict(transform=ax_lat_top.transAxes, color='k', clip_on=False, lw=1.0)
+            ax_lat_top.plot((-d, +d), (-d, +d), **kwargs)
+            ax_lat_top.plot((1 - d, 1 + d), (-d, +d), **kwargs)
+            kwargs.update(transform=ax_lat_bottom.transAxes)
+            ax_lat_bottom.plot((-d, +d), (1 - d, 1 + d), **kwargs)
+            ax_lat_bottom.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)
+
+        ax_lat_bottom.set_xlabel("")
+        fig.text(ax_lat_top.get_position().x0 - 0.11,
+                 (ax_lat_bottom.get_position().y0 + ax_lat_top.get_position().y1) / 2,
+                 'Avg Latency (ms)', fontsize=LABEL_FONTSIZE_SEP, va='center', rotation='vertical')
+
+        ax_lat_top.set_title(f'(b) Query Latency\n(Lower is better↓)', color="navy",
+                          fontsize=TITLE_FONTSIZE_SEP, pad=3)
+        ax_lat_bottom.set_xticks(x_ops)
+        ax_lat_bottom.set_xticklabels([op.lower() for op in op_names], fontsize=TICK_FONTSIZE_SEP, rotation=25)
+        ax_lat_bottom.tick_params(axis='x', length=0, pad=1)
+
+        ax_lat_top.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=0, length=3)
+        ax_lat_bottom.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=0, length=3)
+
+        ax_lat_top.grid(True, alpha=0.3, axis='y')
+        ax_lat_bottom.grid(True, alpha=0.3, axis='y')
+
+    else:
+        ax_latency.text(0.5, 0.5, 'No metadata\noperations',
+                ha='center', va='center', transform=ax_latency.transAxes,
+                fontsize=TICK_FONTSIZE_SEP)
+        ax_latency.set_xlabel("")
+        ax_latency.set_ylabel('Avg Latency (ms)', fontsize=LABEL_FONTSIZE_SEP, labelpad=5)
+        ax_latency.set_title(f'{db_name.capitalize()} Query Latency',
+                      fontsize=TITLE_FONTSIZE_SEP, pad=3)
+
+    output_filename = f'gdpr_metadata_indexes_performance_{db_name}'
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.close()
+
+    print(f"  ✓ Metadata indexes plot for {db_name}: {output_filename}")
 
 def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
     """
@@ -872,8 +1334,8 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
              verticalalignment='center', horizontalalignment='center', weight='bold')
     
     output_filename = 'gdpr_metadata_indexes_performance'
-    plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, bbox_inches='tight')
-    plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), dpi=300, bbox_inches='tight', pad_inches=0)
     plt.close()
     
     print(f"  ✓ Metadata indexes plot: {output_filename}")
@@ -1046,7 +1508,6 @@ def create_gdpr_queries_performance_plot(data, output_dir):
     plt.close()
     
     print(f"  ✓ Combined paper-ready plot: {output_filename}")
-
 
 def create_analytical_plots(data, output_dir):
     """Create descriptive plots for analysis."""
@@ -1241,6 +1702,10 @@ def main():
     if data['metadata_indexes'].any():
         print("\nGenerating metadata indexes comparison plot...")
         create_gdpr_queries_metadata_index_performance_plot(data, args.output_dir)
+        create_gdpr_queries_metadata_index_performance_plot_separate(data, args.output_dir, 'redis')
+        create_gdpr_queries_metadata_index_performance_plot_separate(data, args.output_dir, 'rocksdb')
+        create_gdpr_queries_metadata_index_throughput_only_plot(data, args.output_dir, 'redis')
+        create_gdpr_queries_metadata_index_throughput_only_plot(data, args.output_dir, 'rocksdb')
     
     print(f"\n{'='*80}")
     print(f"✓ All plots saved to: {args.output_dir}")

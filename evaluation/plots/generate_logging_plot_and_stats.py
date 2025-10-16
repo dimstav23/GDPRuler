@@ -32,7 +32,7 @@ TITLE_FONTSIZE = FONTSIZE
 LABEL_FONTSIZE = FONTSIZE
 TICK_FONTSIZE = FONTSIZE - 1
 LEGEND_FONTSIZE = FONTSIZE
-ANNOTATION_FONTSIZE = FONTSIZE / 2
+ANNOTATION_FONTSIZE = FONTSIZE / 2 + 1
 # hatches = ["", "o", "*", ".", "//", "-", "\\", ".", "o-", "*-"]
 hatches = ['', '///', '\\\\\\', 'xxx', '...', '+++', '', '///', '\\\\\\', 'xxx', '...', '+++']
 
@@ -110,6 +110,116 @@ def prepare_plot_data_logging(df_subset, workload_name, logged_percent):
 
     return mean_val, std_val
 
+def create_separate_logging_plots(data, variant, n_clients, encryption, output_dir):
+    """Create separate bar plots for Redis and RocksDB with increased font sizes."""
+    if data.empty:
+        print(f"No data found for {variant}, n_clients={n_clients}, encryption={encryption}")
+        return
+
+    # Increase all font sizes by 1
+    FONTSIZE_SEP = FONTSIZE + 1
+    TITLE_FONTSIZE_SEP = TITLE_FONTSIZE + 1
+    LABEL_FONTSIZE_SEP = LABEL_FONTSIZE + 1
+    TICK_FONTSIZE_SEP = TICK_FONTSIZE + 1
+    LEGEND_FONTSIZE_SEP = LEGEND_FONTSIZE + 1
+
+    # Get unique workload names and logged percentages
+    workload_names = sorted(data['workload_name'].unique())
+    logged_percentages = sorted(data['logged_percent'].unique())
+
+    # Width of bars
+    bar_width = 0.15
+    x_pos = np.arange(len(workload_names))
+    colors = sns.color_palette("pastel", len(logged_percentages))
+    
+    # Create Redis plot
+    fig_redis, ax_redis = plt.subplots(1, 1, figsize=(figwidth_half, 1.4))
+    redis_data = data[data['db'] == 'redis']
+    
+    for i, percent in enumerate(logged_percentages):
+        throughputs = []
+        errors = []
+
+        for workload in workload_names:
+            mean_val, std_val = prepare_plot_data_logging(redis_data, workload, percent)
+            throughputs.append(mean_val)
+            errors.append(std_val)
+
+        bar_positions = x_pos + i * bar_width
+        bars = ax_redis.bar(bar_positions, throughputs, bar_width, 
+                      label=f'{percent}%', color=colors[i], hatch=hatches[i % len(hatches)], 
+                      alpha=0.8, edgecolor='black')
+
+        # Add error bars
+        ax_redis.errorbar(bar_positions, throughputs, yerr=errors,
+                    fmt='none', ecolor='black', capsize=1, lw=0.5)
+    
+    ax_redis.set_xlabel('Workload', fontsize=LABEL_FONTSIZE_SEP, labelpad=0)
+    ax_redis.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=1)
+    ax_redis.set_title(f'Redis (Higher is better↑)', fontsize=TITLE_FONTSIZE_SEP, color="navy", pad=3)
+    ax_redis.set_xticks(x_pos + bar_width * (len(logged_percentages) - 1) / 2)
+    ax_redis.set_xticklabels([w[-1].upper() for w in workload_names], fontsize=TICK_FONTSIZE_SEP)
+    ax_redis.tick_params(axis='x', length=0, pad=2)
+    ax_redis.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=2)
+    ax_redis.grid(True, alpha=0.3, axis='y')
+
+    handles, labels = ax_redis.get_legend_handles_labels()
+    fig_redis.legend(handles, labels, title='Percentage of logged KV pairs', fontsize=LEGEND_FONTSIZE_SEP, 
+               title_fontsize=LEGEND_FONTSIZE_SEP, loc='upper center', bbox_to_anchor=(0.5, 1.23), 
+               ncol=len(logged_percentages))
+    plt.tight_layout()
+
+    # Save Redis plot
+    output_filename_redis = f'logging_impact_redis_{variant}_{n_clients}_clients_encryption_{encryption}'
+    plt.savefig(os.path.join(output_dir, f'{output_filename_redis}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename_redis}.pdf'), pad_inches=0, bbox_inches='tight')
+    plt.close()
+    print(f"Plot saved: {output_filename_redis}")
+
+    # Create RocksDB plot
+    fig_rocksdb, ax_rocksdb = plt.subplots(1, 1, figsize=(figwidth_half, 1.4))
+    rocksdb_data = data[data['db'] == 'rocksdb']
+    
+    for i, percent in enumerate(logged_percentages):
+        throughputs = []
+        errors = []
+
+        for workload in workload_names:
+            mean_val, std_val = prepare_plot_data_logging(rocksdb_data, workload, percent)
+            throughputs.append(mean_val)
+            errors.append(std_val)
+
+        bar_positions = x_pos + i * bar_width
+        bars = ax_rocksdb.bar(bar_positions, throughputs, bar_width, 
+                      label=f'{percent}%', color=colors[i], hatch=hatches[i % len(hatches)], 
+                      alpha=0.8, edgecolor='black')
+
+        # Add error bars
+        ax_rocksdb.errorbar(bar_positions, throughputs, yerr=errors,
+                    fmt='none', ecolor='black', capsize=1, lw=0.5)
+
+    ax_rocksdb.set_xlabel('Workload', fontsize=LABEL_FONTSIZE_SEP, labelpad=0)
+    ax_rocksdb.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE_SEP, labelpad=1)
+    ax_rocksdb.set_title(f'RocksDB (Higher is better↑)', fontsize=TITLE_FONTSIZE_SEP, color="navy", pad=3)
+    ax_rocksdb.set_xticks(x_pos + bar_width * (len(logged_percentages) - 1) / 2)
+    ax_rocksdb.set_xticklabels([w[-1].upper() for w in workload_names], fontsize=TICK_FONTSIZE_SEP)
+    ax_rocksdb.tick_params(axis='x', length=0, pad=2)
+    ax_rocksdb.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=2)
+    ax_rocksdb.grid(True, alpha=0.3, axis='y')
+
+    handles, labels = ax_rocksdb.get_legend_handles_labels()
+    fig_rocksdb.legend(handles, labels, title='Percentage of logged KV pairs', fontsize=LEGEND_FONTSIZE_SEP, 
+               title_fontsize=LEGEND_FONTSIZE_SEP, loc='upper center', bbox_to_anchor=(0.5, 1.23), 
+               ncol=len(logged_percentages))
+    plt.tight_layout()
+
+    # Save RocksDB plot
+    output_filename_rocksdb = f'logging_impact_rocksdb_{variant}_{n_clients}_clients_encryption_{encryption}'
+    plt.savefig(os.path.join(output_dir, f'{output_filename_rocksdb}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename_rocksdb}.pdf'), pad_inches=0, bbox_inches='tight')
+    plt.close()
+    print(f"Plot saved: {output_filename_rocksdb}")
+
 def create_logging_plot(data, variant, n_clients, encryption, output_dir):
     """Create side-by-side bar plots for Redis and RocksDB."""
     if data.empty:
@@ -117,7 +227,7 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
         return
 
     # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(figwidth_half, 1.1))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(figwidth_half, 1.4))
 
     # Get unique workload names and logged percentages
     workload_names = sorted(data['workload_name'].unique())
@@ -148,8 +258,8 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
         ax1.errorbar(bar_positions, throughputs, yerr=errors,
                     fmt='none', ecolor='black', capsize=1, lw=0.5)
         
-    ax1.set_xlabel('Workload', fontsize=LABEL_FONTSIZE, labelpad=2)
-    ax1.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE, labelpad=2)
+    ax1.set_xlabel('Workload', fontsize=LABEL_FONTSIZE, labelpad=0)
+    ax1.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE, labelpad=1)
     ax1.set_title(f'(a) Redis (Higher is better↑)', fontsize=TITLE_FONTSIZE, color="navy", pad=3)
     ax1.set_xticks(x_pos + bar_width * (len(logged_percentages) - 1) / 2)
     ax1.set_xticklabels([w[-1].upper() for w in workload_names], fontsize=TICK_FONTSIZE)
@@ -177,8 +287,8 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
         ax2.errorbar(bar_positions, throughputs, yerr=errors,
                     fmt='none', ecolor='black', capsize=1, lw=0.5)
 
-    ax2.set_xlabel('Workload', fontsize=LABEL_FONTSIZE, labelpad=2)
-    ax2.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE, labelpad=2)
+    ax2.set_xlabel('Workload', fontsize=LABEL_FONTSIZE, labelpad=0)
+    ax2.set_ylabel('Throughput (kops/s)', fontsize=LABEL_FONTSIZE, labelpad=1)
     ax2.set_title(f'(b) RocksDB (Higher is better↑)', fontsize=TITLE_FONTSIZE, color="navy", pad=3)
     ax2.set_xticks(x_pos + bar_width * (len(logged_percentages) - 1) / 2)
     ax2.set_xticklabels([w[-1].upper() for w in workload_names], fontsize=TICK_FONTSIZE)
@@ -189,14 +299,14 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
     handles, labels = ax1.get_legend_handles_labels()
 
     fig.legend(handles, labels, title='Percentage of logged KV pairs', fontsize=LEGEND_FONTSIZE, 
-               title_fontsize=LEGEND_FONTSIZE, loc='upper center', bbox_to_anchor=(0.55, 1.24), 
+               title_fontsize=LEGEND_FONTSIZE, loc='upper center', bbox_to_anchor=(0.55, 1.2), 
                ncol=len(logged_percentages))
     plt.tight_layout()
 
     # Save plot
     output_filename = f'logging_impact_{variant}_{n_clients}_clients_encryption_{encryption}'
-    plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, bbox_inches='tight')
-    plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.png'), dpi=300, pad_inches=0, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, f'{output_filename}.pdf'), pad_inches=0, bbox_inches='tight')
     plt.close()
 
     print(f"Plot saved: {output_filename}")
@@ -480,9 +590,10 @@ def main():
 
     print(f"Loaded {len(data)} data points")
 
-    # Create plot
+    # Create plots
     create_logging_plot(data, args.variant, args.n_clients, args.encryption, args.output_dir)
-
+    create_separate_logging_plots(data, args.variant, args.n_clients, args.encryption, args.output_dir)
+    
     # Print statistics
     print_storage_stats(data)
 
