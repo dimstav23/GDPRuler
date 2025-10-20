@@ -552,7 +552,7 @@ def create_gdpr_queries_metadata_index_throughput_only_plot(data, output_dir, db
     ANNOTATION_FONTSIZE_SEP = ANNOTATION_FONTSIZE + 1
 
     # Create single plot figure
-    fig, ax_throughput = plt.subplots(1, 1, figsize=(figwidth_half, 1.4))
+    fig, ax_throughput = plt.subplots(1, 1, figsize=(figwidth_half, 1.2))
 
     # --- Throughput subplot ---
     entities = sorted(data_filtered['entity'].unique())
@@ -669,7 +669,7 @@ def create_gdpr_queries_metadata_index_throughput_only_plot(data, output_dir, db
 
     plt.tight_layout()
     
-    ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.45, 1.55),
+    ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.45, 1.65),
                       ncol=2, fontsize=LEGEND_FONTSIZE_SEP, frameon=True,
                       borderaxespad=0.5, columnspacing=0.45, labelspacing=0.35, borderpad=0.25, handletextpad=0.35, handlelength=1.2)
 
@@ -702,7 +702,7 @@ def create_gdpr_queries_metadata_index_performance_plot_separate(data, output_di
     ANNOTATION_FONTSIZE_SEP = ANNOTATION_FONTSIZE + 1
 
     # Create figure with custom width ratios: 4:1
-    fig = plt.figure(figsize=(figwidth_half, 1.4))
+    fig = plt.figure(figsize=(figwidth_half, 1.2))
     gs = fig.add_gridspec(1, 2, width_ratios=[4, 1], wspace=0.4)
 
     # Create axes
@@ -822,7 +822,7 @@ def create_gdpr_queries_metadata_index_performance_plot_separate(data, output_di
     ax_throughput.tick_params(axis='y', labelsize=TICK_FONTSIZE_SEP, pad=1, length=4)
     ax_throughput.grid(True, alpha=0.3, axis='y')
 
-    ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.74, 1.52),
+    ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.74, 1.62),
                       ncol=2, fontsize=LEGEND_FONTSIZE_SEP, frameon=True, 
                       borderaxespad=0.5, columnspacing=0.45, labelspacing=0.35, borderpad=0.25, handletextpad=0.35, handlelength=1.2)
 
@@ -1145,7 +1145,7 @@ def create_gdpr_queries_metadata_index_performance_plot(data, output_dir):
         ax_throughput.grid(True, alpha=0.3, axis='y')
 
         if db_name == 'redis':
-            ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.8, 1.83),
+            ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.8, 1.85),
                               ncol=2, fontsize=LEGEND_FONTSIZE, frameon=True)
         
         # --- Latency subplot (CVM vs CVM w/ indexes, metadata operations only) ---
@@ -1446,7 +1446,7 @@ def create_gdpr_queries_performance_plot(data, output_dir):
 
         # Only show legend on top plot
         if db_name == 'redis':
-            ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.8, 1.7), 
+            ax_throughput.legend(loc='upper center', bbox_to_anchor=(0.8, 1.72), 
               ncol=len(variants)/2, fontsize=LEGEND_FONTSIZE, frameon=True)
         
         if all_max_values:

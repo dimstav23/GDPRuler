@@ -31,7 +31,7 @@ prepare_storage_host "$NVME_DEVICE" "$MOUNT_POINT" "$FILESYSTEM_TYPE"
 trap 'cleanup_storage_host "$MOUNT_POINT"' EXIT INT TERM
 
 # GDPR controller
-results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_bare_metal-gdpr_queries-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_bare_metal-gdpr_queries_metadata_indexes-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 
 # prepare the client configs and set the client config file appropriately
 max_clients=$(echo $clients | tr ' ' '\n' | sort -nr | head -1)
@@ -47,10 +47,10 @@ controller="gdpr"
 
 
 # recompile the controller with the appropriate compression level
-echo "Building controller with encryption set to $encryption and compression level set to $compression_level"
+echo "Building controller with encryption set to $encryption, compression level set to $compression_level and GDPR indexes enabled"
 pushd $script_dir/../../controller
 rm -rf build
-cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ASAN_ENABLED=OFF -D ENCRYPTION_ENABLED=$encryption -D LOGGER_COMPRESSION_LEVEL=$compression_level -D ENABLE_GDPR_INDEX=OFF;
+cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ASAN_ENABLED=OFF -D ENCRYPTION_ENABLED=$encryption -D LOGGER_COMPRESSION_LEVEL=$compression_level -D ENABLE_GDPR_INDEX=ON;
 cmake --build build -j$(nproc)
 popd
 for n_clients in $clients_to_use; do
@@ -73,7 +73,7 @@ for n_clients in $clients_to_use; do
           db_address=$ctl_redis_address
         fi
       fi
-      echo -e "\e[34mStarting a native GDPR controller scenario with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging (compression level = $compression_level), and server connection set to $server_connection\e[0m"
+      echo -e "\e[34mStarting a native GDPR controller scenario with $n_clients clients, $db store, $controller controller, $workload, logging set to $logging (compression level = $compression_level), server connection set to $server_connection and GDPR indexes enabled\e[0m"
       run_experiment native_ctl $n_clients $workload $db $db_address $db_port \
         $results_csv_file $controller $controller_address $controller_port $client_cfg $compression_level $use_drain
       echo ""

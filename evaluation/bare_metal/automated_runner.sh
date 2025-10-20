@@ -27,8 +27,8 @@ for i in $(seq 1 "$repeats"); do
   # ./gdpr.sh --encryption OFF --logging OFF --server_connection TCP
   ./gdpr.sh --encryption ON  --logging OFF --server_connection UNIX
   # ./gdpr.sh --encryption ON  --logging OFF --server_connection TCP
-  ## with logging enabled
-  ./gdpr.sh --encryption OFF --logging ON --server_connection UNIX
+  # with logging enabled
+  # ./gdpr.sh --encryption OFF --logging ON --server_connection UNIX
   ./gdpr.sh --encryption ON --logging ON --server_connection UNIX
 
   # -------------------------------
@@ -36,5 +36,6 @@ for i in $(seq 1 "$repeats"); do
   # -------------------------------
   ./gdpr_workloads.sh --encryption OFF --logging OFF --server_connection UNIX
   ./gdpr_workloads.sh --encryption ON --logging OFF --server_connection UNIX
+  ./gdpr_workloads_metadata_indexes.sh --encryption ON --logging OFF --server_connection UNIX
   echo
 done

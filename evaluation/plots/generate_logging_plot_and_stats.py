@@ -133,7 +133,7 @@ def create_separate_logging_plots(data, variant, n_clients, encryption, output_d
     colors = sns.color_palette("pastel", len(logged_percentages))
     
     # Create Redis plot
-    fig_redis, ax_redis = plt.subplots(1, 1, figsize=(figwidth_half, 1.4))
+    fig_redis, ax_redis = plt.subplots(1, 1, figsize=(figwidth_half, 1.1))
     redis_data = data[data['db'] == 'redis']
     
     for i, percent in enumerate(logged_percentages):
@@ -165,7 +165,7 @@ def create_separate_logging_plots(data, variant, n_clients, encryption, output_d
 
     handles, labels = ax_redis.get_legend_handles_labels()
     fig_redis.legend(handles, labels, title='Percentage of logged KV pairs', fontsize=LEGEND_FONTSIZE_SEP, 
-               title_fontsize=LEGEND_FONTSIZE_SEP, loc='upper center', bbox_to_anchor=(0.5, 1.23), 
+               title_fontsize=LEGEND_FONTSIZE_SEP, loc='upper center', bbox_to_anchor=(0.5, 1.23), frameon=True,
                ncol=len(logged_percentages))
     plt.tight_layout()
 
@@ -227,7 +227,7 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
         return
 
     # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(figwidth_half, 1.4))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(figwidth_half, 1.2))
 
     # Get unique workload names and logged percentages
     workload_names = sorted(data['workload_name'].unique())
@@ -299,7 +299,7 @@ def create_logging_plot(data, variant, n_clients, encryption, output_dir):
     handles, labels = ax1.get_legend_handles_labels()
 
     fig.legend(handles, labels, title='Percentage of logged KV pairs', fontsize=LEGEND_FONTSIZE, 
-               title_fontsize=LEGEND_FONTSIZE, loc='upper center', bbox_to_anchor=(0.55, 1.2), 
+               title_fontsize=LEGEND_FONTSIZE, loc='upper center', bbox_to_anchor=(0.55, 1.24), 
                ncol=len(logged_percentages))
     plt.tight_layout()
 

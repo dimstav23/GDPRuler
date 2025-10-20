@@ -33,7 +33,7 @@ fi
 trap 'shutdown_cvm' EXIT INT TERM
 
 # GDPR controller
-results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_CVM-gdpr_queries-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
+results_csv_file=${script_dir}/results${results_dir_suffix}/gdpr_CVM-gdpr_queries_metadata_indexes-encryption_$encryption-logging_$logging-connection_${server_connection}.csv
 
 # Function to run all experiments in a single CVM
 run_experiments_in_cvm() {
@@ -58,8 +58,8 @@ run_experiments_in_cvm() {
   
   # Run all experiments
   # recompile the controller with the appropriate compression level and encryption parameter
-  cmd="cd /root/GDPRuler/controller && rm -rf build \
-    && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption -D LOGGER_COMPRESSION_LEVEL=$compression_level -D ENABLE_GDPR_INDEX=OFF \
+  cmd="cd /root/GDPRuler/controller \
+    && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption -D LOGGER_COMPRESSION_LEVEL=$compression_level -D ENABLE_GDPR_INDEX=ON \
     && cmake --build build -j$(nproc)"
   execute_in_cvm "$cmd"
 
@@ -74,7 +74,7 @@ run_experiments_in_cvm() {
           db_address=$ctl_redis_address
         fi
 
-        echo -e "\e[34mStarting a gdpr CVM scenario run with $n_clients clients, $db store, gdpr controller, $workload, logging set to $logging (compression level = $compression_level), and server connection set to $server_connection\e[0m"
+        echo -e "\e[34mStarting a gdpr CVM scenario run with $n_clients clients, $db store, gdpr controller, $workload, logging set to $logging (compression level = $compression_level), server connection set to $server_connection and GDPR indexes enabled\e[0m"
 
         # Run experiment using existing CVM
         run_experiment CVM_gdpr $n_clients $workload $db $db_address $db_port \
