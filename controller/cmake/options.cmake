@@ -10,6 +10,8 @@ option(ENCRYPTION_ENABLED "Enable encryption" ON)
 option(RELAXED_OWNERSHIP "Enabled relaxed ownership for put/delete (used for YCSB benchmarking)" OFF)
 option(ASAN_ENABLED "Enable Address Sanitizer" OFF)
 option(TSAN_ENABLED "Enable Thread Sanitizer" OFF)
+option(ENABLE_GDPR_INDEX "Enable GDPR metadata indexes" OFF)
+option(BUILD_TESTING "Build tests" OFF)
 
 set(LOGGER_COMPRESSION_LEVEL "3" CACHE STRING "Compression level (0-9)")
 # Validate range (0-9)
@@ -28,11 +30,13 @@ message(STATUS "  Global metadata cache: ${METADATA_CACHE}")
 if(METADATA_CACHE)
     message(STATUS "  Global metadata cache stats enabled: ${CACHE_STATS}")
 endif()
+message(STATUS "  GDPR metadata indexes: ${ENABLE_GDPR_INDEX}")
 message(STATUS "  Encryption: ${ENCRYPTION_ENABLED}")
 message(STATUS "  Relaxed ownership: ${RELAXED_OWNERSHIP}")
 message(STATUS "  Logger compression level: ${LOGGER_COMPRESSION_LEVEL}")
 message(STATUS "  ASan: ${ASAN_ENABLED}")
 message(STATUS "  TSan: ${TSAN_ENABLED}")
+message(STATUS "  Tests build: ${BUILD_TESTING}")
 
 # ---------------------------------------------------------------------------------
 # Apply Configuration
@@ -51,6 +55,10 @@ if(METADATA_CACHE)
     if(CACHE_STATS)
         add_definitions(-DCACHE_STATS)
     endif()
+endif()
+
+if(ENABLE_GDPR_INDEX)
+    add_definitions(-DGDPR_INDEX)
 endif()
 
 if(RELAXED_OWNERSHIP)

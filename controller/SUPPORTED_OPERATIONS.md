@@ -87,7 +87,7 @@
 |--------|----------------------------------------|----------------------------|
 | **Scope** | Work on one specific item | Work on many items at once |
 | **Search** | Direct key lookup | Pattern matching with prefix |
-| **Filtering** | No filtering step | Two-phase: filter criteria → permission check |
+| **Filtering** | No filtering step | Two-phase: filter criteria -> permission check |
 | **Performance** | Fast individual operations | Efficient batch processing |
 
 ### Permission Levels

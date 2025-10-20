@@ -31,6 +31,12 @@ static constexpr size_t GDPR_METADATA_CACHE_SIZE = (1 << 20); // 1048576 cached 
 static auto& cache = controller::GdprMetadataCache::get_instance(GDPR_METADATA_CACHE_SIZE);
 #endif
 
+#ifdef GDPR_INDEX
+#include "gdpr_index/index_manager.hpp"
+// Global index manager instance
+static std::unique_ptr<controller::IndexManager> g_index_manager;
+#endif
+
 // Declare a thread-local default_policy object
 thread_local default_policy def_policy;
 
@@ -201,6 +207,12 @@ inline auto handle_put(const std::unique_ptr<kv_client>& client,
   auto ret_val = client->gdpr_put(query_args.key(), new_value);
   
   if (ret_val) {
+    #ifdef GDPR_INDEX
+    // Update index (zero-copy: passes string_view)
+    if (!existing_metadata) {
+        g_index_manager->on_put(query_args.key(), new_value);
+    }
+    #endif
     #ifdef METADATA_CACHE
     // Only update cache if it wasn't a cache hit
     if (!cache_hit) {
@@ -211,6 +223,7 @@ inline auto handle_put(const std::unique_ptr<kv_client>& client,
       cache.cache_put(query_args.key(), std::move(metadata));
     }
     #endif
+
     return PUT_SUCCESS;
   }
 
@@ -251,6 +264,10 @@ inline auto handle_put_metadata_only(const std::unique_ptr<kv_client>& client,
   auto ret_val = client->gdpr_put(query_args.key(), new_value);
   
   if (ret_val) {
+    #ifdef GDPR_INDEX
+    // Metadata changed, MUST update indexes
+    g_index_manager->on_put(query_args.key(), new_value);
+    #endif
     #ifdef METADATA_CACHE
     // Update cache with new metadata
     std::string metadata = controller::preserve_only_gdpr_metadata(std::move(new_value));
@@ -260,6 +277,7 @@ inline auto handle_put_metadata_only(const std::unique_ptr<kv_client>& client,
     #endif
     cache.cache_put(query_args.key(), std::move(metadata));
     #endif
+
     return PUT_META_SUCCESS;
   }
 
@@ -290,6 +308,10 @@ inline auto handle_delete(const std::unique_ptr<kv_client>& client,
       // Remove from cache
       cache.cache_remove(query_args.key());
       #endif
+      #ifdef GDPR_INDEX
+      // Remove from index (zero-copy: passes string_view)
+      g_index_manager->on_delete(query_args.key());
+      #endif
       return DELETE_SUCCESS;
     }
   }
@@ -297,10 +319,108 @@ inline auto handle_delete(const std::unique_ptr<kv_client>& client,
   return DELETE_FAILED;
 }
 
+#ifdef GDPR_INDEX
+/* Returns true if at least one indexed condition is present in the query */
+inline bool should_use_index_for_query(const query& query_args) {
+  return query_args.cond_user().any() ||          // owner indexed
+         query_args.user_key().has_value() ||   // owner indexed
+         query_args.cond_purpose().any() ||       // purpose indexed
+         query_args.cond_expiration() > 0 ||      // expiration indexed
+         query_args.cond_origin().any();          // origin indexed
+  // Note: objection and share not indexed by default, will be filtered during validation
+}
+#endif
+
 inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
                 const query &query_args,
                 const default_policy &def_policy) -> std::string
 {
+  #ifdef GDPR_INDEX
+  // Use indexes if at least ONE indexed condition is present
+  if (should_use_index_for_query(query_args)) {
+      // Build query criteria from indexed conditions
+      std::optional<size_t> owner_bit;
+      if (query_args.cond_user().any()) {
+          for (size_t i = 0; i < controller::num_users; ++i) {
+              if (query_args.cond_user().test(i)) {
+                  owner_bit = i;
+                  break;
+              }
+          }
+      }
+      
+      std::optional<std::bitset<controller::num_purposes>> purpose_bits;
+      if (query_args.cond_purpose().any()) {
+          purpose_bits = query_args.cond_purpose();
+      }
+      
+      std::optional<uint64_t> expiration_threshold;
+      if (query_args.cond_expiration() > 0) {
+          expiration_threshold = query_args.cond_expiration();
+      }
+      
+      // Query indexes to get candidate keys (satisfying indexed conditions)
+      auto candidate_keys = g_index_manager->find_keys(owner_bit, purpose_bits, expiration_threshold);
+      
+      // Filter by key prefix
+      std::vector<std::string> matching_keys;
+      matching_keys.reserve(candidate_keys.size());
+      
+      for (const auto& key_ptr : candidate_keys) {
+          if (absl::StartsWith(*key_ptr, query_args.key())) {
+              matching_keys.emplace_back(*key_ptr);
+          }
+      }
+      
+      if (matching_keys.empty()) {
+          return GETM_EMPTY;
+      }
+      
+      // Fetch only candidate keys from KV store
+      std::vector<std::string> values;
+      values.reserve(matching_keys.size());
+      
+      for (const auto& key : matching_keys) {
+          auto val = client->gdpr_get(key);
+          if (val) {
+              values.push_back(std::move(val.value()));
+          }
+      }
+      
+      // Validate and filter results
+      const bool extract_data = (query_args.value() == "data");
+      const bool extract_metadata = (query_args.value() == "metadata");
+      
+      if (!extract_data && !extract_metadata) {
+          return GETM_EMPTY;
+      }
+      
+      std::string combined_values;
+      bool has_results = false;
+      
+      for (auto& value : values) {
+          gdpr_filter filter(value);
+          
+          // CRITICAL: This checks ALL conditions (including non-indexed ones like objection/share)
+          if (!filter.matches_filter_conditions(query_args)) {
+              continue;
+          }
+          
+          bool is_valid = filter.validate(query_args, def_policy);
+          gdpr_monitor(filter, query_args, def_policy).monitor_query(is_valid);
+          
+          if (is_valid) {
+              if (has_results) combined_values += "|";
+              combined_values += extract_data ?
+                  controller::remove_gdpr_metadata(std::move(value)) :
+                  controller::preserve_only_gdpr_metadata(std::move(value));
+              has_results = true;
+          }
+      }
+      
+      return has_results ? combined_values : GETM_EMPTY;
+  }
+  #endif
   // key is our key_prefix here and value is either "data" or "metadata"
   auto values = client->gdpr_getm(query_args.key());
   if (values.empty()) return GETM_EMPTY;
@@ -348,9 +468,59 @@ inline auto handle_get_metadata(const std::unique_ptr<kv_client> &client,
 inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
                                const query& query_args,
                                const default_policy& def_policy) -> std::string
-{
-  // Get all key-value pairs matching the prefix
-  auto key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
+{ 
+  std::vector<std::pair<std::string, std::string>> key_value_pairs;
+  
+  #ifdef GDPR_INDEX
+  // Use indexes if at least ONE indexed condition is present
+  if (should_use_index_for_query(query_args)) {
+      // Build query from indexed conditions
+      std::optional<size_t> owner_bit;
+      if (query_args.cond_user().any()) {
+          for (size_t i = 0; i < controller::num_users; ++i) {
+              if (query_args.cond_user().test(i)) {
+                  owner_bit = i;
+                  break;
+              }
+          }
+      }
+      if (query_args.user_key().has_value()) {
+          for (size_t i = 0; i < controller::num_users; ++i) {
+              if (query_args.user_key().value().test(i)) {
+                  owner_bit = i;
+                  break;
+              }
+          }
+      }
+
+      std::optional<std::bitset<controller::num_purposes>> purpose_bits;
+      if (query_args.cond_purpose().any()) {
+          purpose_bits = query_args.cond_purpose();
+      }
+      
+      std::optional<uint64_t> expiration_threshold;
+      if (query_args.cond_expiration() > 0) {
+          expiration_threshold = query_args.cond_expiration();
+      }
+      
+      auto candidate_keys = g_index_manager->find_keys(owner_bit, purpose_bits, expiration_threshold);
+
+      // Filter by prefix and fetch
+      for (const auto& key_ptr : candidate_keys) {
+          if (absl::StartsWith(*key_ptr, query_args.key())) {
+              auto val = client->gdpr_get(std::string(*key_ptr));
+              if (val) {
+                  key_value_pairs.emplace_back(*key_ptr, std::move(val.value()));
+              }
+          }
+      }
+  } else
+  #endif
+
+  {
+    // Fallback: Get all key-value pairs matching the prefix
+    key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
+  }
   
   if (key_value_pairs.empty()) {
     #ifdef DEBUG
@@ -411,6 +581,9 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
     for (size_t i = 0; i < put_results.size(); ++i) {
       if (put_results[i]) {
         updated_count++;
+        #ifdef GDPR_INDEX
+        g_index_manager->on_put(valid_updates[i].first, valid_updates[i].second);
+        #endif
         #ifdef METADATA_CACHE
         // NOW update cache - we know the PUT succeeded
         std::string metadata = controller::preserve_only_gdpr_metadata(std::move(valid_updates[i].second));
@@ -420,6 +593,7 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
         #endif
         cache.cache_put(valid_updates[i].first, std::move(metadata));
         #endif
+        
         #ifdef DEBUG
         std::cout << "Putm succeeded for key: " << valid_updates[i].first << std::endl;
         #endif
@@ -429,13 +603,8 @@ inline auto handle_put_metadata(const std::unique_ptr<kv_client>& client,
       }
     }
   }
-  
-  // Return result summary
-  if (updated_count > 0) {
-    return PUTM_SUCCESS;
-  }
-  
-  return PUTM_EMPTY;
+    
+  return updated_count > 0 ? PUTM_SUCCESS : PUTM_EMPTY;
 }
 
 
@@ -443,9 +612,48 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
                                const query& query_args,
                                const default_policy& def_policy) -> std::string
 {
-  // Get all key-value pairs matching the prefix
-  auto key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
+  std::vector<std::pair<std::string, std::string>> key_value_pairs;
   
+  #ifdef GDPR_INDEX
+  // Use indexes if at least ONE indexed condition is present
+  if (should_use_index_for_query(query_args)) {
+      std::optional<size_t> owner_bit;
+      if (query_args.cond_user().any()) {
+          for (size_t i = 0; i < controller::num_users; ++i) {
+              if (query_args.cond_user().test(i)) {
+                  owner_bit = i;
+                  break;
+              }
+          }
+      }
+      
+      std::optional<std::bitset<controller::num_purposes>> purpose_bits;
+      if (query_args.cond_purpose().any()) {
+          purpose_bits = query_args.cond_purpose();
+      }
+      
+      std::optional<uint64_t> expiration_threshold;
+      if (query_args.cond_expiration() > 0) {
+          expiration_threshold = query_args.cond_expiration();
+      }
+      
+      auto candidate_keys = g_index_manager->find_keys(owner_bit, purpose_bits, expiration_threshold);
+
+      for (const auto& key_ptr : candidate_keys) {
+          if (absl::StartsWith(*key_ptr, query_args.key())) {
+              auto val = client->gdpr_get(*key_ptr);
+              if (val) {
+                  key_value_pairs.emplace_back(*key_ptr, std::move(val.value()));
+              }
+          }
+      }
+  } else
+  #endif
+  {
+    // Get all key-value pairs matching the prefix
+    key_value_pairs = client->gdpr_get_prefix_kv_pairs(query_args.key());
+  }
+
   if (key_value_pairs.empty()) {
     #ifdef DEBUG
     std::cout << "handle_delete_metadata void: reason is empty!" << std::endl;
@@ -488,7 +696,7 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
   int deleted_count = 0;
   if (!valid_deletes.empty()) {
     auto delete_results = client->gdpr_deletem(valid_deletes);
-    
+
     // Count successful updates
     for (size_t i = 0; i < delete_results.size(); ++i) {
       if (delete_results[i]) {
@@ -500,22 +708,23 @@ inline auto handle_delete_metadata(const std::unique_ptr<kv_client>& client,
         #endif
         cache.cache_remove(valid_deletes[i]);
         #endif
+        #ifdef GDPR_INDEX
+        g_index_manager->on_delete(valid_deletes[i]);
+        #endif
         #ifdef DEBUG
         std::cout << "Deletem succeeded for key: " << valid_deletes[i] << std::endl;
         #endif
       } else {
         failed_count++;
+        #ifdef DEBUG
         std::cerr << "Deletem failed for key: " << valid_deletes[i] << std::endl;
+        #endif
       }
     }
   }
   
   // Return result summary
-  if (deleted_count > 0) {
-    return DELETEM_SUCCESS;
-  }
-  
-  return DELETEM_EMPTY;
+  return deleted_count > 0 ? DELETEM_SUCCESS : DELETEM_EMPTY;
 }
 
 /* Insert a KV pair or update an existing value -- GDPR metadata can be altered */
@@ -832,6 +1041,27 @@ auto main(int argc, char* argv[]) -> int
     std::cerr << "cipher engine error at the log encryption key init phase" << std::endl;
     std::quick_exit(1);
   }
+
+  #ifdef GDPR_INDEX
+  // Initialize GDPR index manager
+  controller::IndexConfig index_config;
+  index_config.enable_owner_index = true;
+  index_config.enable_purpose_index = true;
+  index_config.enable_expiration_index = false;
+  index_config.enable_objection_index = false;  // Enable if needed
+  index_config.enable_origin_index = false;
+  index_config.enable_share_index = false;      // Enable if needed
+  index_config.num_shards = 64;  // Tune based on expected concurrency
+  
+  g_index_manager = std::make_unique<controller::IndexManager>(index_config);
+  
+  std::cout << "GDPR Index Manager initialized:" << std::endl;
+  std::cout << "  - Shards: " << index_config.num_shards << std::endl;
+  std::cout << "  - Owner index: " << (index_config.enable_owner_index ? "ON" : "OFF") << std::endl;
+  std::cout << "  - Purpose index: " << (index_config.enable_purpose_index ? "ON" : "OFF") << std::endl;
+  std::cout << "  - Expiration index: " << (index_config.enable_expiration_index ? "ON" : "OFF") << std::endl;
+  std::cout << "  - Origin index: " << (index_config.enable_origin_index ? "ON" : "OFF") << std::endl;
+  #endif
 
   // Create a socket and accept for clients
   std::string controller_address = get_command_line_argument(args, "--controller_address");

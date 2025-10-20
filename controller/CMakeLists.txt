@@ -36,6 +36,32 @@ add_subdirectory("${GDPR_LOGGER_SOURCE_DIR}" "${GDPR_LOGGER_BUILD_DIR}")
 find_package(Boost CONFIG REQUIRED COMPONENTS system)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto SSL)
 find_package(ZLIB REQUIRED)
+# Link Abseil if indexes enabled
+if(ENABLE_GDPR_INDEX)
+    find_package(absl REQUIRED)
+    # Roaring bitmap library
+    include(FetchContent)
+    FetchContent_Declare(
+        roaring
+        GIT_REPOSITORY https://github.com/RoaringBitmap/CRoaring.git
+        GIT_TAG v4.4.2
+    )
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
+    set(ENABLE_ROARING_TESTS OFF CACHE BOOL "" FORCE)
+    set(ROARING_BUILD_STATIC ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(roaring)
+    FetchContent_GetProperties(roaring)
+    if(NOT roaring_POPULATED)
+        FetchContent_Populate(roaring)
+    endif()
+
+    # Ensure the roaring target has PIC enabled
+    set_target_properties(roaring PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    # The target is just 'roaring', not 'roaring::roaring'
+    # And we need to manually add include directories
+    set(ROARING_INCLUDE_DIR "${roaring_SOURCE_DIR}/include")
+    message(STATUS "Roaring include directory: ${ROARING_INCLUDE_DIR}")
+endif()
 
 # Find manual libraries
 find_path(HIREDIS_HEADER hiredis)
@@ -49,12 +75,28 @@ find_library(ROCKSDB_LIB rocksdb)
 # Main Library: gdpr_controller_lib
 # ---------------------------------------------------------------------------------
 
-add_library(gdpr_controller_lib SHARED
+# Collect source files
+set(GDPR_CONTROLLER_SOURCES
     source/default_policy.cpp
     source/query.cpp
     source/query_rewriter.cpp
     source/gdpr_filter.cpp
     source/gdpr_regulator.cpp
+)
+
+# Add index sources if enabled
+if(ENABLE_GDPR_INDEX)
+    list(APPEND GDPR_CONTROLLER_SOURCES
+        source/gdpr_index/hashmap_index.cpp
+        source/gdpr_index/btree_index.cpp
+        source/gdpr_index/bit_inverted_index_hashset.cpp
+        source/gdpr_index/bit_inverted_index_roaring.cpp
+        source/gdpr_index/index_manager.cpp
+    )
+endif()
+
+add_library(gdpr_controller_lib SHARED
+    ${GDPR_CONTROLLER_SOURCES}
 )
 
 target_include_directories(gdpr_controller_lib
@@ -77,6 +119,20 @@ target_link_libraries(gdpr_controller_lib
         ZLIB::ZLIB
         OpenSSL::SSL
 )
+
+if(ENABLE_GDPR_INDEX)
+    target_link_libraries(gdpr_controller_lib
+        PUBLIC
+            absl::btree
+            absl::flat_hash_map
+            absl::flat_hash_set
+            roaring::roaring
+    )
+    target_include_directories(gdpr_controller_lib 
+        PUBLIC 
+            ${ROARING_INCLUDE_DIR}
+    )
+endif()
 
 # ---------------------------------------------------------------------------------
 # Helper Function for Executables
@@ -103,6 +159,16 @@ add_executable(rocksdb_server_exe source/rocksdb_server/server.cpp)
 set_property(TARGET rocksdb_server_exe PROPERTY OUTPUT_NAME rocksdb_server)
 target_compile_features(rocksdb_server_exe PRIVATE cxx_std_20)
 target_link_libraries(rocksdb_server_exe PRIVATE ${Boost_LIBRARIES} ${ROCKSDB_LIB})
+
+# ---------------------------------------------------------------------------------
+# Tests (Build with -DBUILD_TESTING=ON)
+# ---------------------------------------------------------------------------------
+
+include(CTest)
+if(BUILD_TESTING)
+    message(STATUS "Building tests")
+    add_subdirectory(test)
+endif()
 
 # ---------------------------------------------------------------------------------
 # Install and Dev Mode

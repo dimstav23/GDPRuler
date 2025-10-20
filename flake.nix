@@ -114,6 +114,7 @@
             doxygen
             codespell
             abseil-cpp
+	    croaring
             #for the snpguest -- rust nightly is required
             # Note: to use stable, just replace `default` with `stable`
             # fenix.packages.${system}.default.toolchain
