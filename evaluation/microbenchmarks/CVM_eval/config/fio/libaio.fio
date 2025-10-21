@@ -1,0 +1,102 @@
+[global]
+direct=1 # non-buffered IO
+# SPDK BM guidelines
+thread=1
+
+ioengine=libaio # linux native async-io engine
+
+norandommap=1 # generate random offset for IO (independent of previous offsets)
+randrepeat=0 # RNG for generating offset is seeded in random manner
+
+time_based=1
+runtime=30
+ramp_time=20
+
+group_reporting=1
+
+# BW experiments
+[bw read]
+stonewall
+blocksize=256k
+rw=read
+iodepth=128
+numjobs=4
+
+[bw write]
+stonewall
+blocksize=256k
+rw=write
+iodepth=128
+numjobs=4
+
+[bw randread]
+stonewall
+blocksize=256k
+rw=randread
+iodepth=128
+numjobs=4
+
+[bw randwrite]
+stonewall
+blocksize=256k
+rw=randwrite
+iodepth=128
+numjobs=4
+
+# IOPS experiments
+[iops read]
+stonewall
+blocksize=4k
+rw=read
+iodepth=32
+numjobs=4
+
+[iops write]
+stonewall
+blocksize=4k
+rw=write
+iodepth=32
+numjobs=4
+
+[iops randread]
+stonewall
+blocksize=4k
+rw=randread
+iodepth=32
+numjobs=4
+
+[iops randwrite]
+stonewall
+blocksize=4k
+rw=randwrite
+iodepth=32
+numjobs=4
+
+# Latency experiments
+[lat read]
+stonewall
+blocksize=4k
+rw=read
+iodepth=1
+numjobs=1
+
+[lat write]
+stonewall
+blocksize=4k
+rw=write
+iodepth=1
+numjobs=1
+
+[lat randread]
+stonewall
+blocksize=4k
+rw=randread
+iodepth=1
+numjobs=1
+
+[lat randwrite]
+stonewall
+blocksize=4k
+rw=randwrite
+iodepth=1
+numjobs=1

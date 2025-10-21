@@ -1,0 +1,204 @@
+diff --git a/config/fio/libaio.fio b/config/fio/libaio.fio
+index 7a6794c..876c8f8 100644
+--- a/config/fio/libaio.fio
++++ b/config/fio/libaio.fio
+@@ -14,35 +14,6 @@ ramp_time=20
+ 
+ group_reporting=1
+ 
+-# BW experiments
+-[bw read]
+-stonewall
+-blocksize=256k
+-rw=read
+-iodepth=128
+-numjobs=4
+-
+-[bw write]
+-stonewall
+-blocksize=256k
+-rw=write
+-iodepth=128
+-numjobs=4
+-
+-[bw randread]
+-stonewall
+-blocksize=256k
+-rw=randread
+-iodepth=128
+-numjobs=4
+-
+-[bw randwrite]
+-stonewall
+-blocksize=256k
+-rw=randwrite
+-iodepth=128
+-numjobs=4
+-
+ # IOPS experiments
+ [iops read]
+ stonewall
+@@ -71,32 +42,3 @@ blocksize=4k
+ rw=randwrite
+ iodepth=32
+ numjobs=4
+-
+-# Latency experiments
+-[lat read]
+-stonewall
+-blocksize=4k
+-rw=read
+-iodepth=1
+-numjobs=1
+-
+-[lat write]
+-stonewall
+-blocksize=4k
+-rw=write
+-iodepth=1
+-numjobs=1
+-
+-[lat randread]
+-stonewall
+-blocksize=4k
+-rw=randread
+-iodepth=1
+-numjobs=1
+-
+-[lat randwrite]
+-stonewall
+-blocksize=4k
+-rw=randwrite
+-iodepth=1
+-numjobs=1
+diff --git a/justfile b/justfile
+index 6a01da6..6d44c05 100644
+--- a/justfile
++++ b/justfile
+@@ -83,6 +83,25 @@ ssh command="":
+         -o NoHostAuthenticationForLocalhost=yes \
+         -p {{ SSH_PORT }} root@localhost -- "{{ command }}"
+ 
++wait_for_ssh:
++    chmod 600 ./nix/ssh_key
++    @echo "Attempting SSH connection with retries..."; \
++    for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do \
++        echo "Attempt $$attempt: Trying SSH connection..."; \
++        if ssh -i nix/ssh_key \
++            -o StrictHostKeyChecking=no \
++            -o NoHostAuthenticationForLocalhost=yes \
++            -o ConnectTimeout=5 \
++            -p {{ SSH_PORT }} root@localhost exit; then \
++            echo "SSH connection successful!"; \
++            exit 0; \
++        fi; \
++        echo "SSH connection failed, retrying in 0.5 seconds..."; \
++        sleep 0.5; \
++    done; \
++    echo "Failed to establish SSH connection after 30 attempts"; \
++    exit 1
++
+ # e.g.,
+ # vm to host: just scp root@localhost:/root/a .
+ # host to vm: just scp a root@localhost:/root
+@@ -96,6 +115,7 @@ scp src="" dst="":
+         {{ src }} {{ dst }}
+ 
+ stop-qemu:
++    sleep 60
+     just ssh "poweroff"
+ 
+ # dangerous: kill all qemu processes!
+@@ -321,15 +341,16 @@ show_bridge_status:
+ 
+ # ------------------------------
+ # trace
+-trace name duration="20" interval="1":
++trace name duration="30" interval="1":
+     #!/usr/bin/env bash
+     DATE=$(date '+%Y-%m-%d-%H-%M-%S')
+-    bash {{PROJECT_ROOT}}/trace/all.sh {{name}} {{duration}} {{interval}} $DATE &
+-    just ssh "bash /share/trace/all.sh {{name}} {{duration}} {{interval}} $DATE"
++    just wait_for_ssh
++    just ssh "bash /share/trace/all.sh {{name}} {{duration}} {{interval}} $DATE" &
++    bash {{PROJECT_ROOT}}/trace/all.sh {{name}} {{duration}} {{interval}} $DATE
+     wait $(jobs -p)
+-    sleep 1
+-    just flamegraph {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/host/perf.data {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/host/perf.svg
+-    just flamegraph-guest {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/guest/perf.data {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/guest/perf.svg
++    # sleep 1
++    # just flamegraph {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/host/perf.data {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/host/perf.svg
++    # just flamegraph-guest {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/guest/perf.data {{PROJECT_ROOT}}/trace-result/{{name}}/$DATE/guest/perf.svg
+ 
+ mpstat name:
+     #!/usr/bin/env bash
+diff --git a/tasks/network.py b/tasks/network.py
+index 4a7b39c..eec35d9 100644
+--- a/tasks/network.py
++++ b/tasks/network.py
+@@ -204,6 +204,8 @@ def run_memtier(
+             "-c",
+             "100",
+             "--pipeline=40",
++            "--test-time=40",
++            "-d 1024",
+             f"--protocol={proto}",
+         ]
+     print(cmd)
+diff --git a/tasks/qemu.py b/tasks/qemu.py
+index bc0eeab..1144dfd 100644
+--- a/tasks/qemu.py
++++ b/tasks/qemu.py
+@@ -272,6 +272,7 @@ class QemuVm:
+ 
+     def shutdown(self, timeout=10) -> None:
+         """Try graceful shutdown"""
++        time.sleep(60)
+         print("shutdown vm")
+         try:
+             self.ssh_cmd(["poweroff"])
+diff --git a/tasks/vm.py b/tasks/vm.py
+index 812c552..8c6647a 100644
+--- a/tasks/vm.py
++++ b/tasks/vm.py
+@@ -175,6 +175,7 @@ def get_snp_qemu_cmd(resource: VMResource, config: dict) -> List[str]:
+         prealloc = "off"
+ 
+     qemu_cmd = f"""
++    sudo
+     {vmconfig.qemu}
+     -enable-kvm
+     -cpu host,+kvm_pv_unhalt,+kvm_pv_eoi
+diff --git a/trace/stat.sh b/trace/stat.sh
+index f9ca5c7..c33dd39 100755
+--- a/trace/stat.sh
++++ b/trace/stat.sh
+@@ -5,8 +5,8 @@ set -x
+ VIRT=$(systemd-detect-virt)
+ if [ $? -eq 0 ]; then
+     V="guest"
+-    DISK=${DISK:-vdb}
+-    NIC=${NIC:-eth1}
++    DISK=${DISK:-vda}
++    NIC=${NIC:-enp0s7}
+ else
+     V="host"
+     DISK=${DISK:-nvme1n1}
+@@ -20,7 +20,7 @@ DURATION=${DURATION:-10}
+ INTERVAL=${INTERVAL:-1}
+ 
+ sync
+-echo 3 > /proc/sys/vm/drop_caches
++sudo echo 3 > /proc/sys/vm/drop_caches
+ 
+ pkill sar
+ pkill iostat
+@@ -29,7 +29,7 @@ pkill mpstat
+ set -e
+ set -u
+ 
+-mkdir -p $OUTDIR
++sudo mkdir -p $OUTDIR
+ cd $OUTDIR
+ 
+ echo "Start collecting data $DURATION seconds"

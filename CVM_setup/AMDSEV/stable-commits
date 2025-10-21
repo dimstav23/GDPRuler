@@ -1,0 +1,27 @@
+#
+# Repos/Branches for SEV-SNP support
+#
+
+# hypervisor commit
+KERNEL_GIT_URL="https://github.com/dimstav23/amd-linux.git"
+KERNEL_HOST_BRANCH="snp-host-latest"
+KERNEL_HOST_COMMIT="85ef1ac039412c99a2de119f977a3cab6079533d"
+KERNEL_GUEST_BRANCH="snp-guest-latest"
+KERNEL_GUEST_COMMIT="0c3836482481200ead7b416ca80c68a29cfdaabd"
+
+# qemu commit
+QEMU_GIT_URL="https://github.com/dimstav23/amd-qemu.git"
+QEMU_BRANCH="snp-latest"
+QEMU_COMMIT="24503e2fb30209a4f0646f01d8877832843bb241"
+
+# guest bios
+#   An AP creation fix added after the 'edk2-stable202302' tag/release is
+#   known to break AP booting on older SNP hypervisor/host kernels based
+#   on the 5.19 kernel tree. If you are building packages to be used in
+#   conjunction with this older 5.19 level of SNP hypervisor support,
+#   please use the 'sev-snp-legacy' branch of this AMDSEV repo instead,
+#   which will build the latest known-working QEMU/OVMF trees for older
+#   SNP hypervisor/host kernels.
+OVMF_GIT_URL="https://github.com/dimstav23/amd-ovmf.git"
+OVMF_BRANCH="dimstav23/ovmf_fix_snapshot_31_01_2025"
+OVMF_COMMIT="affadd66af8eb823518096949d86261fd66fcee3"

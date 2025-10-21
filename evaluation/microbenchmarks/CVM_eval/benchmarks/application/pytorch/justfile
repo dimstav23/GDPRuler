@@ -1,0 +1,13 @@
+# vim: set ft=make et :
+
+PYTHON := "python-pytorch"
+
+run threads="8":
+    {{PYTHON}} ./pytorchexample.py {{threads}}
+
+prepare:
+    #!/usr/bin/env bash
+    if [ ! -f alexnet-pretrained.pt ]; then
+        {{PYTHON}} ./download-pretrained-model.py
+    fi
+
