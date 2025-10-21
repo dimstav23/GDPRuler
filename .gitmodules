@@ -4,18 +4,3 @@
 [submodule "KVs/rocksdb"]
 	path = KVs/rocksdb
 	url = https://github.com/facebook/rocksdb.git
-[submodule "ycsb_trace_generator/GDPRbench"]
-	path = ycsb_trace_generator/GDPRbench
-	url = https://github.com/dimstav23/GDPRbench.git
-[submodule "CVM_setup/AMDSEV"]
-	path = CVM_setup/AMDSEV
-	url = https://github.com/dimstav23/AMDSEV.git
-[submodule "evaluation/microbenchmarks/ipc-bench"]
-	path = evaluation/microbenchmarks/ipc-bench
-	url = https://github.com/dimstav23/ipc-bench.git
-[submodule "evaluation/microbenchmarks/CVM_eval"]
-	path = evaluation/microbenchmarks/CVM_eval
-	url = https://github.com/dimstav23/CVM_eval.git
-[submodule "gdpr-logger"]
-	path = gdpr-logger
-	url = https://github.com/dimstav23/gdpr-logger.git
