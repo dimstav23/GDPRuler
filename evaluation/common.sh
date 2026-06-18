@@ -29,8 +29,8 @@ declare -A PATHS=(
 )
 
 # Storage configuration
-NVME_DEVICE="/dev/nvme1n1"
-MOUNT_POINT="/scratch/dimitrios/gdpruler_fs"
+NVME_DEVICE="${GDPRULER_NVME_DEVICE:-/dev/nvme1n1}"
+MOUNT_POINT="${GDPRULER_MOUNT_POINT:-/scratch/dimitrios/gdpruler_fs}"
 DEVICE_IN_CVM="/dev/vda"
 FILESYSTEM_TYPE="ext4"
 DEFAULT_COMPRESSION_LEVEL="0"

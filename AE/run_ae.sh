@@ -17,7 +17,7 @@ Usage: $(basename "$0") [--scratch-base <absolute_path>] [--no-nix] [-h|--help]
 Options:
   --scratch-base <path>  Base scratch directory (default: /scratch/dimitrios)
                          Results are read from:
-                         <scratch-base>/<repo-name>/evaluation/{VM,bare_metal}/results
+                         <scratch-base>/GDPRuler/evaluation/{VM,bare_metal}/results
   --no-nix               Skip automatic 'nix develop' re-exec
   -h, --help             Show this help
 EOF
@@ -104,8 +104,8 @@ init_submodules() {
 check_repo_name() {
   local base
   base="$(basename "$REPO_ROOT")"
-  if [[ "$base" != "GDPRuler_AE_bare" ]]; then
-    log "Warning: repository directory is '$base' (expected 'GDPRuler_AE_bare'). Continuing..."
+  if [[ "$base" != "GDPRuler" ]]; then
+    log "Warning: repository directory is '$base' (expected 'GDPRuler'). Continuing..."
   fi
 }
 

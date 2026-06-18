@@ -24,15 +24,19 @@ To enter the development environment with all the required dependencies, use:
 ```
 $ nix develop
 ``` 
-For the logging experiments you might want to allocate an entire block device and create an `ext4` filesystem on top where you must also configure 
-you log file path to be. 
-An example execution to do that is the following:
+
+For the logging experiments you might want to allocate an entire block device and create an `ext4` filesystem on top. 
+By default, the scripts expect a mount point at `/scratch/dimitrios/gdpruler_fs`, but you can override this by setting the `GDPRULER_MOUNT_POINT` and `GDPRULER_NVME_DEVICE` environment variables. 
+An example execution to set up storage is:
 ```
-$ sudo mkfs.ext4 /dev/nvme1n1
-$ mkdir -p /scratch/dimitrios/gdpruler_fs
-$ sudo mount /dev/nvme1n1 /scratch/dimitrios/gdpruler_fs -t ext4
-$ sudo chown $USER:$(id -gn $USER) /scratch/dimitrios/gdpruler_fs 
+$ export GDPRULER_NVME_DEVICE=/dev/nvme1n1
+$ export GDPRULER_MOUNT_POINT=/scratch/$USER/gdpruler_fs
+$ sudo mkfs.ext4 $GDPRULER_NVME_DEVICE
+$ mkdir -p $GDPRULER_MOUNT_POINT
+$ sudo mount $GDPRULER_NVME_DEVICE $GDPRULER_MOUNT_POINT -t ext4
+$ sudo chown $USER:$(id -gn $USER) $GDPRULER_MOUNT_POINT
 ```
+If you do not set these environment variables, the scripts will default to `/dev/nvme1n1` and `/scratch/dimitrios/gdpruler_fs`
 
 ### 1. Make sure you have fetched all the submodules:
 ```
@@ -107,6 +111,23 @@ $ python3 scripts/client.py --workload [workload_trace_name] --clients [num_of_c
 ```
 
 For more command line options, please consult [`scripts/client.py`](scripts/client.py).
+
+## Configuration
+
+The scripts are designed to work with default storage paths pointing to `/scratch/dimitrios/`. You can customize these paths using environment variables:
+
+```bash
+# Mount point for evaluation storage (used by evaluation/common.sh)
+export GDPRULER_MOUNT_POINT=/path/to/your/mount/point
+
+# NVMe device for filesystem operations (used by evaluation/common.sh)
+export GDPRULER_NVME_DEVICE=/dev/your/device
+```
+
+If these environment variables are not set, the scripts will use the defaults:
+- `GDPRULER_MOUNT_POINT`: `/scratch/dimitrios/gdpruler_fs`
+- `GDPRULER_NVME_DEVICE`: `/dev/nvme1n1`
+
 
 ## VM Setup instructions
 For instructions on how to set up the client and server SEV VMs, 
