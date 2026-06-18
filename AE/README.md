@@ -54,6 +54,11 @@ The script reads plot input results from:
 - `<scratch-base>/GDPRuler/evaluation/VM/results`
 - `<scratch-base>/GDPRuler/evaluation/bare_metal/results`
 
+Example with repository cloned as `GDPRuler`:
+
+- VM input: `/scratch/dimitrios/GDPRuler/evaluation/VM/results`
+- bare-metal input: `/scratch/dimitrios/GDPRuler/evaluation/bare_metal/results`
+
 ## What `run_ae.sh` does
 
 1. Initializes/updates git submodules (`git submodule update --init --recursive`)
@@ -81,30 +86,38 @@ chmod +x run_ae.sh
 
 By default the script re-executes itself inside `nix develop` (unless `--no-nix` is provided).
 
-## Expected outputs and claim mapping
+## Major claims
 
-The artifact is intended to support the following major claims from the paper at a practical AE level:
+The artifact supports three claim groups from the paper:
 
-- **C1 (end-to-end performance):** GDPRuler performance under bare-metal and CVM can be reproduced with YCSB workloads.
-  - Main outputs: CSVs in `evaluation/bare_metal/results` and `evaluation/VM/results`.
-  - Main plots: files in `evaluation/plots/final_plots` produced by `generate_ycsb_performance_plot.py`.
+- **C1 — Performance under GDPR compliance** (Figures 5–7): GDPRuler KVS throughput under bare-metal and CVM setups across YCSB workloads, plus GDPR query workloads.
+  - Experiment **E1**: runs `evaluation/evaluation_runner.sh`, then `generate_ycsb_performance_plot.py` and `generate_gdpr_queries_plots.py`.
+  - Main outputs: CSVs in `evaluation/bare_metal/results` and `evaluation/VM/results`; plots in `evaluation/plots/paper_plots`.
+  - Approximate runtime: 2–3 days for a full configuration run.
 
-- **C2 (GDPR query acceleration):** metadata-index-aware GDPR query experiments can be reproduced and plotted.
-  - Main plots: files in `evaluation/plots/final_plots` produced by `generate_gdpr_queries_plots.py`.
+- **C2 — Storage efficiency** (Figures 8–9, Table 7): logging layer performance and storage overhead (microbenchmarks, monitor-workload runs, storage statistics).
+  - Experiment **E2**: builds `gdpr-logger` with benchmarks enabled, runs `gdpruler_log_performance_benchmark` and `gdpruler_compression_rate_benchmark`, then `generate_logging_plot_and_stats.py` (also prints table statistics to stdout).
+  - Main outputs: `gdpr-logger/build/gdpr_logger_benchmark_results.csv`; plots in `evaluation/plots/paper_plots`.
+  - Note: the monitor-workload result data required by `generate_logging_plot_and_stats.py` is produced by **E1**.
+  - Approximate runtime: ~10 hours.
 
-- **C3 (logging overhead and storage impact):** logging benchmarks and logging impact plots can be reproduced.
-  - Logger benchmark CSV: `gdpr-logger/build/gdpr_logger_benchmark_results.csv`.
-  - Logger plots: `gdpr-logger/plot_scripts/` output and `evaluation/plots/final_plots` output from `generate_logging_plot_and_stats.py`.
-
-The AEC should expect independent reruns to produce trends consistent with the paper rather than bit-identical numbers.
+- **C3 — Data I/O subsystem performance** (Figures 10–11): CVM storage I/O and network I/O microbenchmarks.
+  - Experiment **E3**: runs `evaluation/microbenchmarks/run_CVM_eval_benchmarks.sh`.
+  - Main outputs: plots placed in the `plot/` directory inside the `CVM_eval` submodule.
+  - Approximate runtime: ~5–6 hours.
 
 ## Output notes
 
-- Core evaluation results are produced by existing scripts in:
+- Core evaluation results (CSVs) are placed in:
   - `evaluation/bare_metal/results`
   - `evaluation/VM/results`
-- Final plots are written to:
-  - `evaluation/plots/final_plots` (absolute path under your repo root)
+- Final plots (C1, C2) are written to:
+  - `evaluation/plots/paper_plots`
+- Logger benchmark results and plots (C2) are written to:
+  - `gdpr-logger/build/gdpr_logger_benchmark_results.csv`
+  - `gdpr-logger/plot_scripts/` output
+- CVM-eval plots (C3) are written to:
+  - `plot/` directory inside `evaluation/microbenchmarks/CVM_eval/`
 - Plot command logs are written to:
   - `evaluation/plots/output_ycsb.txt`
   - `evaluation/plots/output_gdpr_queries.txt`
