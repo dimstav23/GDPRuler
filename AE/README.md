@@ -5,8 +5,6 @@ This AE folder is intentionally minimal and only contains:
 - `README.md`
 - `run_ae.sh`
 
-The script follows your tested semi-automated flow and assumes the repository is cloned as `GDPRuler`.
-
 ## Repository roadmap
 
 Use the top-level project documentation for directory-level orientation and baseline build instructions:
