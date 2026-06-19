@@ -47,6 +47,7 @@
           buildInputs = libraries;
           nativeBuildInputs = with pkgs; [
             expect
+            e2fsprogs
             numactl
             libguestfs
             guestfs-tools
