@@ -120,10 +120,6 @@ The artifact supports three claim groups from the paper:
   - `evaluation/plots/output_ycsb.txt`
   - `evaluation/plots/output_gdpr_queries.txt`
 
-## Known issue reminder
-
-During `evaluation_runner.sh`, CVM runs may fail if the CVM cannot fetch dependencies (e.g., `croaring`) from GitHub due to network access.
-
 ## Known limitations / expectation setting
 
 - Full CVM execution requires a correctly configured AMD-SEV-SNP environment and VM network access.
