@@ -62,11 +62,16 @@ fi
 
 # Pre-fetch CRoaring so the in-CVM CMake build needs no network
 cd /root
-if [ ! -d "CRoaring" ]; then
-  git clone --branch v4.4.2 --depth 1 https://github.com/RoaringBitmap/CRoaring.git
-fi
+[ -d CRoaring ] || git clone --branch v4.4.2 --depth 1 https://github.com/RoaringBitmap/CRoaring.git
+# Configure it ONCE with a persistent CPM cache so every CPM download lands there
+export CPM_SOURCE_CACHE=/root/.cache/CPM
+cd /root/CRoaring
+cmake -S . -B build-warmup -D ENABLE_ROARING_TESTS=OFF -D ROARING_BUILD_STATIC=ON
+# the configure is what triggers CPM; that's all we need. building is optional:
+cmake --build build-warmup -j$(nproc)
+rm -rf build-warmup    # safe - the cache is in /root/.cache/CPM, NOT in build-warmup
 
-cd GDPRuler
+cd /root/GDPRuler
 git checkout dev
 git submodule update --init --recursive
 

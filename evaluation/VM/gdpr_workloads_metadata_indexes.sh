@@ -59,7 +59,7 @@ run_experiments_in_cvm() {
   # Run all experiments
   # recompile the controller with the appropriate compression level and encryption parameter
   cmd="cd /root/GDPRuler/controller \
-    && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption -D LOGGER_COMPRESSION_LEVEL=$compression_level -D ENABLE_GDPR_INDEX=ON -D FETCHCONTENT_SOURCE_DIR_ROARING=/root/CRoaring \
+    && cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D CACHE_STATS=OFF -D ENCRYPTION_ENABLED=$encryption -D LOGGER_COMPRESSION_LEVEL=$compression_level -D ENABLE_GDPR_INDEX=ON -D FETCHCONTENT_SOURCE_DIR_ROARING=/root/CRoaring -D CPM_SOURCE_CACHE=/root/.cache/CPM \
     && cmake --build build -j$(nproc)"
   execute_in_cvm "$cmd"
 
