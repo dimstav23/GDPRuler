@@ -60,6 +60,12 @@ else
   git clone https://github.com/dimstav23/GDPRuler.git
 fi
 
+# Pre-fetch CRoaring so the in-CVM CMake build needs no network
+cd /root
+if [ ! -d "CRoaring" ]; then
+  git clone --branch v4.4.2 --depth 1 https://github.com/RoaringBitmap/CRoaring.git
+fi
+
 cd GDPRuler
 git checkout dev
 git submodule update --init --recursive
@@ -72,7 +78,7 @@ make BUILD_TLS=yes MALLOC=libc -j$(nproc)
 
 # Compile the controllers (release version)
 cd /root/GDPRuler/controller
-cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D ASAN_ENABLED=OFF -D CACHE_STATS=OFF -D LOGGER_COMPRESSION_LEVEL=3 -D ENABLE_GDPR_INDEX=ON;
+cmake -S . -B build -D CMAKE_BUILD_TYPE=Release -D DEBUG_FLAG=OFF -D METADATA_CACHE=ON -D ASAN_ENABLED=OFF -D CACHE_STATS=OFF -D LOGGER_COMPRESSION_LEVEL=3 -D ENABLE_GDPR_INDEX=ON -D FETCHCONTENT_SOURCE_DIR_ROARING=/root/CRoaring;
 cmake --build build -j$(nproc)
 
 # Optional -- workload generation
