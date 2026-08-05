@@ -1,0 +1,164 @@
+ACM CCS 2026-A Artifact Evaluation Paper #7 Reviews and Comments
+===========================================================================
+Paper #7 GDPRuler: A Trusted GDPR Monitor for Cloud Data Systems
+
+
+Review #7A
+===========================================================================
+* Updated: Jul 25, 2026, 10:01:14 PM AoE
+
+Artifacts Available: Overall Score
+----------------------------------
+4. Accept
+
+Artifacts Evaluated (Functional/Reusable): Overall Score
+--------------------------------------------------------
+4. Met expectations
+
+Results Reproduced: Overall Score
+---------------------------------
+3. Fell below expectations
+
+Evaluator Confidence
+--------------------
+2. Medium
+
+Paper summary
+-------------
+This paper presents GDPRuler, a system that enforces GDPR compliance for
+unmodified cloud key-value stores (Redis, RocksDB) under an untrusted
+cloud-operator threat model. A Python policy compiler translates data-subject
+and controller policies, and a C++ data controller mediates all key-value
+access enforcing purpose, retention, and consent metadata, encrypting values,
+and producing a compressed, batched, tamper-evident audit log while running
+inside an AMD SEV-SNP confidential VM.
+
+Artifact summary
+----------------
+A multi-component system: a C++ controller (CMake), the gdpr-logger audit
+subsystem, Redis/RocksDB submodules, a modified GDPRbench YCSB trace generator,
+CVM/AMD-SEV setup scripts, a Nix flake pinning the toolchain, baseline
+benchmarks, plotting scripts, and an AE harness that automates
+the pipeline.  Full evaluation targets an AMD SEV-SNP server (EPYC 7713P-class).
+
+Comments for authors
+--------------------
+We installed a rootless toolchain (nix-portable works here) and built the C2
+logging subsystem from source (system OpenSSL/ZLIB + GTest), then ran the
+log_performance and compression_rate benchmarks to completion on commodity
+(non-SEV) hardware. The C2 claims reproduced: write amplification 1.02-1.07
+(2-7%, peaking at the smallest batch and amortized by batching, matching Fig 9), 
+per-compression-level marginal benefit (L6 vs L3 ~ +1.75%, L9 ~ +0.4% over L6 at
+~4x CPU cost, matching Table 7's "negligible extra savings" finding), throughput
+in the right regime and ordering. I have the following comments:
+
+- Remove the hardcoded basePath=/scratch/dimitrios/... in the gdpr-logger
+  benchmarks (gdpruler_log_performance.cpp, gdpruler_compression_rate.cpp)
+  and honor an env var as the shell scripts do, it currently blocks the C2
+  benchmarks on any machine but the authors' (we had to patch it to run).
+- Ship reference result CSVs for Figs 5-11 / Table 7 so evaluators without an
+  SEV-SNP testbed can regenerate plots and diff numbers, this is the single
+  biggest reproducibility improvement.
+- Add a quick-smoke mode, we had to hand-edit `targetDataSizeGB` (10.0 -> 0.5)
+  to finish in reasonable time.
+- The compression benchmark's synthetic payload gives ~2:1 where the paper
+  reports ~5:1 on real GDPR logs, use representative payloads so the shipped
+  microbenchmark matches Table 7's absolute numbers, not just the per-level
+  trend.
+- Fix the stale root README (sev_demo/sev-tool don't exist; "VM sample
+  execution" is a TODO); point readers to AE/README.md and wire
+  `baseline_benchmarks/` into the AE flow or document its role.
+
+
+
+Review #7B
+===========================================================================
+* Updated: Jul 23, 2026, 2:30:25 AM AoE
+
+Artifacts Available: Overall Score
+----------------------------------
+4. Accept
+
+Artifacts Evaluated (Functional/Reusable): Overall Score
+--------------------------------------------------------
+4. Met expectations
+
+Results Reproduced: Overall Score
+---------------------------------
+4. Met expectations
+
+Evaluator Confidence
+--------------------
+1. Low
+
+Paper summary
+-------------
+The paper presents GDPRuler, a trusted middleware that runs inside a Confidential VM to enforce GDPR policies on unmodified key-value stores (Redis/RocksDB) with tamper-evident audit logging.
+
+Artifact summary
+----------------
+The artifact provides the source code, benchmark scripts, and workload generators for GDPRuler; I was able to build it and verify basic functionality on our hardware, though the CVM-dependent experiments were beyond what we could assess.
+
+Comments for authors
+--------------------
+I evaluated the GDPRuler artifact over several days on our lab server (Intel Xeon Platinum 8358, 128 cores, 1TB RAM). Since our machine has an Intel CPU, the AMD SEV-SNP-dependent experiments (C3 and the CVM variants of C1) could not be assessed.
+
+What I did:
+- Set up the Nix flake environment and built all three components (logging subsystem, GDPR controller, Redis) successfully.
+- Generated the YCSB workload traces (~7 min, as documented).
+- Ran the basic test from Appendix A.3.2: the client connected to the controller and completed a small workload without errors; we confirmed 1000 keys were inserted into Redis.
+- Ran the logging performance benchmark (11/18 configurations completed before we stopped it due to time constraints).
+- Ran the compression benchmark (8/16 configurations completed before a 30-minute timeout we imposed).
+
+Results:
+- Basic functionality works as documented (after a config path fix, see issues below).
+- Compression ratios match the paper's Table 10 closely: level 3 = 2.05:1 vs paper's 2.06:1; level 6 = 2.13:1 vs 2.13:1 (1KB entries).
+- Write amplification in the logging benchmark was ~1.02, consistent with the paper's <7% claim (Fig 9b).
+- Logging throughput was far lower than the paper's Fig 9a values (~2K vs ~700K entries/sec). We suspect this is due to storage differences (we had no dedicated NVMe), but we cannot confirm the cause.
+
+Issues found:
+- Appendix A.3.2 references ./evaluation/configs, which does not exist; actual configs are at ./configs/, and passing a directory requires client{N}_config.json files that are also absent. Workaround: pass a config file directly.
+- The logging benchmark ignores the documented GDPRULER_MOUNT_POINT env var and writes to a hardcoded path (/scratch/dimitrios/gdpruler_fs); all runs initially failed with Permission denied, yet the benchmark printed "completed successfully". Workaround: create the expected directory manually.
+- Log files did not appear at the --logpath location passed to GDPRuler.py, though the drain mechanism reported success. We did not identify where logs are written.
+
+Summary: Artifacts Available and Functional are supported by our evaluation. Results Reproduced should be considered partial: compression and write amplification match the paper, but we could not assess the CVM experiments (hardware) or the full performance claims (time and storage constraints).
+
+
+
+Review #7C
+===========================================================================
+* Updated: Jul 23, 2026, 4:37:17 AM AoE
+
+Artifacts Available: Overall Score
+----------------------------------
+5. Strong accept
+
+Artifacts Evaluated (Functional/Reusable): Overall Score
+--------------------------------------------------------
+4. Met expectations
+
+Results Reproduced: Overall Score
+---------------------------------
+3. Fell below expectations
+
+Evaluator Confidence
+--------------------
+1. Low
+
+Paper summary
+-------------
+The paper proposes a system to verify GDPR compliance of key-value stores in untrusted databases named GDPRuler. The system runs within a confidential computing environment, and produces GDPR-relevant log detailing compliance with privacy rules.
+
+Artifact summary
+----------------
+The artifact contains the GDPRuler codebase, necessary imported dependencies, a number of scripts to manage the individual steps of setup and execution of the proposed system, and an artifact review script which automatically follows the correct process to setup the host system, build the tools and samples, and replicate the evaluation results.
+
+Comments for authors
+--------------------
+The codebase is well organized and the automated artifact evaluation script works decently well up to the evaluation, with a few hiccups. There are small discrepancies in the folder structure described in the artifact appendix when compared to the repository code, but they can be fixed intuitively.
+
+The destructive states in the overall setup process, alongside the reliance on setting environmental variables at the start, make it difficult to pause execution or recover from errors. 
+There are small hardcoding issues within the codebase, mostly related to the logging benchmarks.
+Some of the nested scripts may rely on dependencies which aren't guaranteed on host systems (brctl is no longer installed by default on Ubuntu. I would recommend ensuring bridge-utils is installed, but default host OS versions are sufficient. Nix also needs to be setup to allow commands and flakes which wasn't the default option on my replicated machine. But this may be due to my low familiarity with it).
+
+The computing costs for running both the CVM and non-CVM workflows are very significant. I have not been able to verify the validity of the generated input data or the comparable real-time performance of the system. I have attempted and failed to personally obtain a machine with the appropriate hardware features and computing power over the past few days. The authors have made a good faith effort to provide access to a suitable testing machine but I haven't been able to coordinate with them. I will amend this review if able.
