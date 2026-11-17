@@ -1,4 +1,6 @@
-# GDPRuler
+<p align="center">
+  <img src="./logo_banner.jpg" alt="GDPRuler — A trusted GDPR monitor for cloud data systems" width="600">
+</p>
 
 ### Repository structure
 [sev_demo](./sev_demo): Folder containing documentation for setting up an ubuntu based AMD SEV VM and perform proof tests.
